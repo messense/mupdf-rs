@@ -26,6 +26,7 @@ fn main() {
         .arg("USE_SYSTEM_LIBS=no")
         .arg("HAVE_X11=no")
         .arg("HAVE_GLUT=no")
+        .arg("HAVE_CURL=no")
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
