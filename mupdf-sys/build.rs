@@ -22,6 +22,8 @@ fn main() {
     let output = Command::new("make")
         .arg(format!("OUT={}", out_dir))
         .arg("USE_SYSTEM_LIBS=no")
+        .arg("HAVE_X11=no")
+        .arg("HAVE_GLUT=no")
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
