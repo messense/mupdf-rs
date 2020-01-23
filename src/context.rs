@@ -4,7 +4,7 @@ use mupdf_sys::*;
 
 #[derive(Debug)]
 pub struct Context {
-    inner: *mut fz_context,
+    pub(crate) inner: *mut fz_context,
 }
 
 impl Context {
