@@ -1,5 +1,6 @@
 use std::env;
 use std::fs;
+use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
 fn fail_on_empty_directory(name: &str) {
@@ -15,6 +16,7 @@ fn fail_on_empty_directory(name: &str) {
 
 fn main() {
     fail_on_empty_directory("mupdf");
+    println!("cargo:rerun-if-changed=wrapper.h");
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let current_dir = env::current_dir().unwrap();
@@ -37,4 +39,17 @@ fn main() {
     println!("cargo:rustc-link-lib=static=mupdf-pkcs7");
     println!("cargo:rustc-link-lib=static=mupdf-third");
     println!("cargo:rustc-link-lib=static=mupdf-threads");
+
+    let bindings = bindgen::Builder::default()
+        .clang_arg("-I./mupdf/include")
+        .header("wrapper.h")
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .generate()
+        .expect("Unable to generate bindings");
+
+    // Write the bindings to the $OUT_DIR/bindings.rs file.
+    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    bindings
+        .write_to_file(out_path.join("bindings.rs"))
+        .expect("Couldn't write bindings!");
 }
