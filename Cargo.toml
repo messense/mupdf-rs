@@ -1,0 +1,14 @@
+[package]
+name = "mupdf"
+version = "0.1.0"
+authors = ["messense <messense@icloud.com>"]
+edition = "2018"
+
+[dependencies]
+mupdf-sys = { version = "0.1", path = "mupdf-sys" }
+
+[workspace]
+members = [
+    ".",
+    "mupdf-sys"
+]

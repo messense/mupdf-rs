@@ -1,0 +1,4 @@
+[submodule "mupdf-sys/mupdf"]
+	path = mupdf-sys/mupdf
+	url = https://github.com/ArtifexSoftware/mupdf.git
+	branch = 1.16.1
