@@ -1,4 +1,6 @@
+use std::borrow::Cow;
 use std::cmp::PartialEq;
+use std::ffi::CStr;
 
 use mupdf_sys::*;
 
@@ -77,6 +79,11 @@ impl ColorSpace {
     pub fn is_subtractive(&self) -> bool {
         unsafe { fz_colorspace_is_subtractive(context(), self.inner) > 0 }
     }
+
+    pub fn name(&self) -> Cow<str> {
+        let name_cstr = unsafe { CStr::from_ptr(fz_colorspace_name(context(), self.inner)) };
+        name_cstr.to_string_lossy()
+    }
 }
 
 impl Drop for ColorSpace {
@@ -102,13 +109,18 @@ mod test {
         let gray = ColorSpace::device_gray();
         assert!(gray.is_device_gray());
         assert!(gray.is_gray());
+        assert_eq!(gray.name(), "DeviceGray");
 
         let rgb = ColorSpace::device_rgb();
         assert!(rgb.is_rgb());
+        assert_eq!(rgb.name(), "DeviceRGB");
 
-        let _bgr = ColorSpace::device_bgr();
+        let bgr = ColorSpace::device_bgr();
+        assert_eq!(bgr.name(), "DeviceBGR");
+
         let cmyk = ColorSpace::device_cmyk();
         assert!(cmyk.is_device_cmyk());
         assert!(cmyk.is_cmyk());
+        assert_eq!(cmyk.name(), "DeviceCMYK");
     }
 }
