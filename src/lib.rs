@@ -1,3 +1,4 @@
+mod buffer;
 mod color_space;
 mod context;
 mod document;
@@ -7,6 +8,7 @@ mod point;
 mod quad;
 mod rect;
 
+pub use buffer::Buffer;
 pub use color_space::ColorSpace;
 pub(crate) use context::context;
 pub use context::Context;
