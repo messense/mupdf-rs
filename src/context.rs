@@ -52,6 +52,10 @@ impl Default for Context {
     }
 }
 
+pub(crate) fn context() -> *mut fz_context {
+    Context::get().inner
+}
+
 #[cfg(test)]
 mod test {
     use super::Context;

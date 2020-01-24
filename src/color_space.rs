@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::Context;
+use crate::context;
 
 #[derive(Debug)]
 pub struct ColorSpace {
@@ -9,22 +9,22 @@ pub struct ColorSpace {
 
 impl ColorSpace {
     pub fn device_gray() -> Self {
-        let inner = unsafe { fz_device_gray(Context::get().inner) };
+        let inner = unsafe { fz_device_gray(context()) };
         Self { inner }
     }
 
     pub fn device_rgb() -> Self {
-        let inner = unsafe { fz_device_rgb(Context::get().inner) };
+        let inner = unsafe { fz_device_rgb(context()) };
         Self { inner }
     }
 
     pub fn device_bgr() -> Self {
-        let inner = unsafe { fz_device_bgr(Context::get().inner) };
+        let inner = unsafe { fz_device_bgr(context()) };
         Self { inner }
     }
 
     pub fn device_cmyk() -> Self {
-        let inner = unsafe { fz_device_cmyk(Context::get().inner) };
+        let inner = unsafe { fz_device_cmyk(context()) };
         Self { inner }
     }
 }
@@ -32,7 +32,7 @@ impl ColorSpace {
 impl Drop for ColorSpace {
     fn drop(&mut self) {
         if !self.inner.is_null() {
-            unsafe { fz_drop_colorspace(Context::get().inner, self.inner) };
+            unsafe { fz_drop_colorspace(context(), self.inner) };
         }
     }
 }
