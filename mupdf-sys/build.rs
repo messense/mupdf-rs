@@ -17,6 +17,7 @@ fn fail_on_empty_directory(name: &str) {
 fn main() {
     fail_on_empty_directory("mupdf");
     println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-changed=wrapper.c");
 
     let out_dir = env::var("OUT_DIR").unwrap();
     let current_dir = env::current_dir().unwrap();
@@ -41,12 +42,20 @@ fn main() {
     println!("cargo:rustc-link-lib=static=mupdf-third");
     println!("cargo:rustc-link-lib=static=mupdf-threads");
 
+    let mut build = cc::Build::new();
+    build.file("wrapper.c");
+    build.include("./mupdf/include");
+    build.compile("libmupdf-wrapper.a");
+    println!("cargo:rustc-link-lib=static=mupdf-wrapper");
+
     let bindings = bindgen::Builder::default()
         .clang_arg("-I./mupdf/include")
         .header("wrapper.h")
+        .header("wrapper.c")
         .whitelist_function("fz_.*")
         .whitelist_function("pdf_.*")
         .whitelist_function("ucdn_.*")
+        .whitelist_function("mupdf_.*")
         .whitelist_type("fz_.*")
         .whitelist_type("pdf_.*")
         .whitelist_var("fz_.*")

@@ -1,3 +1,5 @@
+use crate::Quad;
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IRect {
     pub x0: i32,
@@ -104,5 +106,25 @@ impl From<IRect> for Rect {
             x1: it.x1 as f32,
             y1: it.y1 as f32,
         }
+    }
+}
+
+impl From<Quad> for Rect {
+    fn from(q: Quad) -> Rect {
+        let Quad {
+            ul_x,
+            ul_y,
+            ur_x,
+            ur_y,
+            ll_x,
+            ll_y,
+            lr_x,
+            lr_y,
+        } = q;
+        let x0 = ul_x.min(ur_x).min(ll_x).min(lr_x);
+        let y0 = ul_y.min(ur_y).min(ll_y).min(lr_y);
+        let x1 = ul_x.max(ur_x).max(ll_x).max(lr_x);
+        let y1 = ul_y.max(ur_y).max(ll_y).max(lr_y);
+        Rect { x0, y0, x1, y1 }
     }
 }
