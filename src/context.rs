@@ -1,11 +1,23 @@
-use std::ptr;
 use std::cell::RefCell;
+use std::ptr;
 
 use mupdf_sys::*;
 
-
 thread_local! {
-    static LOCAL_CONTEXT: RefCell<*mut fz_context> = RefCell::new(ptr::null_mut());
+    static LOCAL_CONTEXT: RefCell<RawContext> = RefCell::new(RawContext(ptr::null_mut()));
+}
+
+#[derive(Debug)]
+struct RawContext(*mut fz_context);
+
+impl Drop for RawContext {
+    fn drop(&mut self) {
+        if !self.0.is_null() {
+            unsafe {
+                fz_drop_context(self.0);
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -18,23 +30,21 @@ impl Context {
         LOCAL_CONTEXT.with(|ctx| {
             {
                 let local = ctx.borrow();
-                if !local.is_null() {
-                    return Self { inner: *local };
+                if !local.0.is_null() {
+                    return Self { inner: local.0 };
                 }
             }
-            let new_ctx = unsafe { 
+            let new_ctx = unsafe {
                 fz_new_context(ptr::null_mut(), ptr::null_mut(), FZ_STORE_DEFAULT as usize)
             };
             if new_ctx.is_null() {
                 panic!("failed to new fz_context");
             }
-            *ctx.borrow_mut() = new_ctx;
+            *ctx.borrow_mut() = RawContext(new_ctx);
             Self { inner: new_ctx }
         })
     }
 }
-
-// FIXME: Add back Drop impl
 
 impl Default for Context {
     fn default() -> Self {
