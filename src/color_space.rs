@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::cmp::PartialEq;
 use std::ffi::CStr;
 
@@ -80,10 +79,10 @@ impl ColorSpace {
         unsafe { fz_colorspace_is_subtractive(context(), self.inner) > 0 }
     }
 
-    pub fn name(&self) -> Cow<str> {
+    pub fn name(&self) -> String {
         let ptr = unsafe { fz_colorspace_name(context(), self.inner) };
         let name_cstr = unsafe { CStr::from_ptr(ptr) };
-        name_cstr.to_string_lossy()
+        name_cstr.to_string_lossy().into_owned()
     }
 }
 
