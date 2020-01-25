@@ -23,11 +23,13 @@ fn main() {
     let current_dir = env::current_dir().unwrap();
     let mupdf_dir = current_dir.join("mupdf");
     let output = Command::new("make")
+        .arg("libs")
         .arg(format!("OUT={}", out_dir))
         .arg("USE_SYSTEM_LIBS=no")
         .arg("HAVE_X11=no")
         .arg("HAVE_GLUT=no")
         .arg("HAVE_CURL=no")
+        .arg("XCFLAGS=-DNOTO_SMALL -DNO_CJK")
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -38,9 +40,9 @@ fn main() {
     }
     println!("cargo:rustc-link-search=native={}", out_dir);
     println!("cargo:rustc-link-lib=static=mupdf");
-    println!("cargo:rustc-link-lib=static=mupdf-pkcs7");
+    // println!("cargo:rustc-link-lib=static=mupdf-pkcs7");
     println!("cargo:rustc-link-lib=static=mupdf-third");
-    println!("cargo:rustc-link-lib=static=mupdf-threads");
+    // println!("cargo:rustc-link-lib=static=mupdf-threads");
 
     let mut build = cc::Build::new();
     build.file("wrapper.c");

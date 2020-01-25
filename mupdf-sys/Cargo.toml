@@ -3,6 +3,31 @@ name = "mupdf-sys"
 version = "0.0.1"
 authors = ["messense <messense@icloud.com>"]
 edition = "2018"
+exclude = [
+    "mupdf/resources/fonts/droid/*",
+    "mupdf/resources/fonts/han/*",
+    "mupdf/resources/fonts/noto/*",
+    "mupdf/resources/fonts/sil/*",
+    "mupdf/resources/fonts/urw/input/*",
+    "mupdf/docs/*",
+    "mupdf/generated/*",
+    "mupdf/platform/gl/*",
+    "mupdf/platform/java/*",
+    "mupdf/platform/wasm/*",
+    "mupdf/platform/x11/*",
+    "mupdf/thirdparty/curl/*",
+    "mupdf/thirdparty/freeglut/*",
+    "mupdf/thirdparty/lcms2/doc/*",
+    "mupdf/thirdparty/lcms2/testbed/*",
+    "mupdf/thirdparty/freetype/docs/*",
+    "mupdf/thirdparty/openjpeg/doc/*",
+    "mupdf/thirdparty/harfbuzz/docs/*",
+    "mupdf/thirdparty/harfbuzz/test/*",
+    "mupdf/thirdparty/mujs/docs/*",
+    "mupdf/thirdparty/zlib/doc/*",
+    "mupdf/thirdparty/zlib/test/*",
+    "mupdf/thirdparty/zlib/contrib/*"
+]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
 license = "GPL-3.0"
