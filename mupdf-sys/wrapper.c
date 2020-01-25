@@ -287,7 +287,7 @@ fz_text *mupdf_new_text(fz_context *ctx)
 }
 
 /* StrokeState */
-fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, int start_cap, int dash_cap, int end_cap, int line_join, float line_width, float miter_limit, float dash_phase, const float dash[], size_t dash_len)
+fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, uint32_t start_cap, uint32_t dash_cap, uint32_t end_cap, uint32_t line_join, float line_width, float miter_limit, float dash_phase, const float dash[], int dash_len)
 {
     fz_stroke_state *stroke = NULL;
     fz_try(ctx)

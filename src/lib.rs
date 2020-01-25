@@ -14,6 +14,7 @@ mod pixmap;
 mod point;
 mod quad;
 mod rect;
+mod stroke_state;
 mod text;
 
 pub use buffer::Buffer;
@@ -33,4 +34,5 @@ pub use pixmap::Pixmap;
 pub use point::Point;
 pub use quad::Quad;
 pub use rect::{IRect, Rect};
+pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::Text;
