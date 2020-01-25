@@ -312,7 +312,8 @@ fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, uint32_t start_cap, uin
 
 fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm) {
     fz_rect rect;
-    fz_try(ctx) {
+    fz_try(ctx)
+    {
         rect = fz_bound_text(ctx, text, stroke, ctm);
     }
     fz_catch(ctx)
@@ -320,4 +321,31 @@ fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke
         mupdf_save_error(ctx);
     }
     return rect;
+}
+
+/* Path */
+fz_path *mupdf_new_path(fz_context *ctx) {
+    fz_path *path = NULL;
+    fz_try(ctx)
+    {
+        path = fz_new_path(ctx);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx);
+    }
+    return path;
+}
+
+fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path) {
+    fz_path *path = NULL;
+    fz_try(ctx)
+    {
+        path = fz_clone_path(ctx, old_path);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx);
+    }
+    return path;
 }
