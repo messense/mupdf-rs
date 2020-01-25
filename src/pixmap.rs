@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Rect};
+use crate::{context, ColorSpace, Error, Rect};
 
 #[derive(Debug)]
 pub struct Pixmap {
@@ -8,13 +8,20 @@ pub struct Pixmap {
 }
 
 impl Pixmap {
-    pub fn new(cs: &ColorSpace, x: i32, y: i32, w: i32, h: i32, alpha: bool) -> Self {
+    pub fn new(
+        cs: &ColorSpace,
+        x: i32,
+        y: i32,
+        w: i32,
+        h: i32,
+        alpha: bool,
+    ) -> Result<Self, Error> {
         let ctx = context();
-        let inner = unsafe { mupdf_new_pixmap(ctx, cs.inner, x, y, w, h, alpha) };
-        Self { inner }
+        let inner = unsafe { ffi_try!(mupdf_new_pixmap(ctx, cs.inner, x, y, w, h, alpha)) };
+        Ok(Self { inner })
     }
 
-    pub fn new_with_rect(cs: &ColorSpace, rect: Rect, alpha: bool) -> Self {
+    pub fn new_with_rect(cs: &ColorSpace, rect: Rect, alpha: bool) -> Result<Self, Error> {
         let x = rect.x0 as i32;
         let y = rect.y0 as i32;
         let w = (rect.x1 - rect.x0) as i32;
@@ -22,7 +29,7 @@ impl Pixmap {
         Self::new(cs, x, y, w, h, alpha)
     }
 
-    pub fn new_with_w_h(cs: &ColorSpace, w: i32, h: i32, alpha: bool) -> Self {
+    pub fn new_with_w_h(cs: &ColorSpace, w: i32, h: i32, alpha: bool) -> Result<Self, Error> {
         Self::new(cs, 0, 0, w, h, alpha)
     }
 
@@ -80,7 +87,7 @@ mod test {
     #[test]
     fn test_pixmap_color_space() {
         let cs = ColorSpace::device_rgb();
-        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false);
+        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         let pixmap_cs = pixmap.color_space();
         assert_eq!(cs, pixmap_cs);
     }
