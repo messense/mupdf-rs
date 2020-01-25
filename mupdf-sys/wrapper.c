@@ -19,8 +19,10 @@ typedef struct mupdf_error {
     char* message;
 } mupdf_error_t;
 
-#ifndef _WIN32
 static void drop_tls_error(void *arg) {
+    if (arg == NULL) {
+        return;
+    }
 	mupdf_error_t* err = (mupdf_error_t*)arg;
     if (err->message != NULL) {
         free(err->message);
@@ -28,7 +30,6 @@ static void drop_tls_error(void *arg) {
     }
     free(err);
 }
-#endif
 
 static void init_tls_error_key() {
     if (!error_key) {
@@ -57,15 +58,6 @@ void mupdf_save_error(fz_context* ctx) {
 #endif
 }
 
-void mupdf_clear_error() {
-    init_tls_error_key();
-    #ifdef _WIN32
-    TlsSetValue(error_key, NULL);
-#else
-    pthread_setspecific(error_key, NULL);
-#endif
-}
-
 mupdf_error_t* mupdf_error() {
     if (!error_key) {
         return NULL;
@@ -77,6 +69,20 @@ mupdf_error_t* mupdf_error() {
     pthread_getspecific(error_key);
 #endif
     return err;
+}
+
+void mupdf_clear_error() {
+    if (!error_key) {
+        return;
+    }
+    mupdf_error_t* existing_err = mupdf_error();
+    drop_tls_error(existing_err);
+
+#ifdef _WIN32
+    TlsSetValue(error_key, NULL);
+#else
+    pthread_setspecific(error_key, NULL);
+#endif
 }
 
 fz_pixmap* mupdf_new_pixmap(fz_context* ctx, fz_colorspace* cs, int x, int y, int w, int h, bool alpha) {
