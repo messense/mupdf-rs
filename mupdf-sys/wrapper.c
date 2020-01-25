@@ -89,6 +89,7 @@ void mupdf_clear_error() {
 #endif
 }
 
+/* Pixmap */
 fz_pixmap* mupdf_new_pixmap(fz_context* ctx, fz_colorspace* cs, int x, int y, int w, int h, bool alpha) {
     fz_pixmap *pixmap = NULL;
     fz_try(ctx) {
@@ -123,6 +124,24 @@ void mupdf_clear_pixmap_with_value(fz_context* ctx, fz_pixmap* pixmap, int value
 void mupdf_save_pixmap_as_png(fz_context* ctx, fz_pixmap* pixmap, const char* filename) {
     fz_try(ctx) {
         fz_save_pixmap_as_png(ctx, pixmap, filename);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+}
+
+void mupdf_invert_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
+    fz_try(ctx) {
+        fz_invert_pixmap(ctx, pixmap);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+}
+
+void mupdf_gamma_pixmap(fz_context* ctx, fz_pixmap* pixmap, float gamma) {
+    fz_try(ctx) {
+        fz_gamma_pixmap(ctx, pixmap, gamma);
     }
     fz_catch(ctx) {
         mupdf_save_error(ctx);

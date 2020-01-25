@@ -93,6 +93,18 @@ impl Pixmap {
             mupdf_save_pixmap_as_png(context(), self.inner, c_filename.as_ptr());
         }
     }
+
+    pub fn invert(&mut self) {
+        unsafe {
+            mupdf_invert_pixmap(context(), self.inner);
+        }
+    }
+
+    pub fn gamma(&mut self, gamma: f32) {
+        unsafe {
+            mupdf_gamma_pixmap(context(), self.inner, gamma);
+        }
+    }
 }
 
 impl Drop for Pixmap {
@@ -129,5 +141,19 @@ mod test {
         let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         let resolution = pixmap.resolution();
         assert_eq!(resolution, (96, 96));
+    }
+
+    #[test]
+    fn test_pixmap_invert() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.invert();
+    }
+
+    #[test]
+    fn test_pixmap_gamma() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.gamma(1.0);
     }
 }
