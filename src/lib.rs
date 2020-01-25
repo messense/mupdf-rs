@@ -5,6 +5,7 @@ mod context;
 mod document;
 #[macro_use]
 mod error;
+mod font;
 mod matrix;
 mod pdf_document;
 mod pixmap;
@@ -20,6 +21,7 @@ pub use context::Context;
 pub use document::Document;
 pub(crate) use error::ffi_error;
 pub use error::Error;
+pub use font::Font;
 pub use matrix::Matrix;
 pub use pdf_document::PdfDocument;
 pub use pixmap::Pixmap;

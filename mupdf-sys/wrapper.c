@@ -147,3 +147,44 @@ void mupdf_gamma_pixmap(fz_context* ctx, fz_pixmap* pixmap, float gamma) {
         mupdf_save_error(ctx);
     }
 }
+
+/* Font */
+fz_font* mupdf_new_font(fz_context* ctx, const char* name, int index) {
+    fz_font* font = NULL;
+    fz_try(ctx) {
+        const unsigned char *data;
+        int size;
+        
+        data = fz_lookup_base14_font(ctx, name, &size);
+		if (data)
+			font = fz_new_font_from_memory(ctx, name, data, size, index, 0);
+		else
+			font = fz_new_font_from_file(ctx, name, name, index, 0);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return font;
+}
+
+int mupdf_encode_character(fz_context* ctx, fz_font* font, int unicode) {
+    int glyph = 0;
+    fz_try(ctx) {
+        glyph = fz_encode_character(ctx, font, unicode);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return glyph;
+}
+
+float mupdf_advance_glyph(fz_context* ctx, fz_font* font, int glyph, bool wmode) {
+    float advance = 0;
+    fz_try(ctx) {
+        advance = fz_advance_glyph(ctx, font, glyph, wmode);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return advance;
+}
