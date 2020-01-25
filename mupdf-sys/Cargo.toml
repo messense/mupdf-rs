@@ -1,9 +1,13 @@
 [package]
 name = "mupdf-sys"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["messense <messense@icloud.com>"]
 edition = "2018"
+description = "Rust FFI binding to MuPDF"
+keywords = ["pdf", "mupdf"]
+license = "GPL-3.0"
 links="mupdf-wrapper"
+repository = "https://github.com/messense/mupdf-rs"
 
 [build-dependencies]
 bindgen = "0.52"

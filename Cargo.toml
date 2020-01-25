@@ -1,11 +1,16 @@
 [package]
 name = "mupdf"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["messense <messense@icloud.com>"]
 edition = "2018"
+description = "Safe Rust wrapper to MuPDF"
+keywords = ["pdf", "mupdf"]
+license = "GPL-3.0"
+readme = "README.md"
+repository = "https://github.com/messense/mupdf-rs"
 
 [dependencies]
-mupdf-sys = { version = "0.1", path = "mupdf-sys" }
+mupdf-sys = { version = "0.0.1", path = "mupdf-sys" }
 
 [workspace]
 members = [
