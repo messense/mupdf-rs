@@ -44,20 +44,6 @@ static void init_tls_error_key() {
     }
 }
 
-void mupdf_save_error(fz_context* ctx) {
-    init_tls_error_key();
-    int type = fz_caught(ctx);
-    const char* message = fz_caught_message(ctx);
-    mupdf_error_t* err = malloc(sizeof(mupdf_error_t));
-    err->type = type;
-    err->message = strdup(message);
-#ifdef _WIN32
-    TlsSetValue(error_key, err);
-#else
-    pthread_setspecific(error_key, err);
-#endif
-}
-
 mupdf_error_t* mupdf_error() {
     if (!error_key) {
         return NULL;
@@ -69,6 +55,24 @@ mupdf_error_t* mupdf_error() {
     pthread_getspecific(error_key);
 #endif
     return err;
+}
+
+void mupdf_save_error(fz_context* ctx) {
+    init_tls_error_key();
+
+    mupdf_error_t* existing_err = mupdf_error();
+    drop_tls_error(existing_err);
+
+    int type = fz_caught(ctx);
+    const char* message = fz_caught_message(ctx);
+    mupdf_error_t* err = malloc(sizeof(mupdf_error_t));
+    err->type = type;
+    err->message = strdup(message);
+#ifdef _WIN32
+    TlsSetValue(error_key, err);
+#else
+    pthread_setspecific(error_key, err);
+#endif
 }
 
 void mupdf_clear_error() {
@@ -104,5 +108,14 @@ void mupdf_clear_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
     }
 	fz_catch(ctx) {
 		mupdf_save_error(ctx);
+    }
+}
+
+void mupdf_clear_pixmap_with_value(fz_context* ctx, fz_pixmap* pixmap, int value) {
+    fz_try(ctx) {
+        fz_clear_pixmap_with_value(ctx, pixmap, value);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
     }
 }

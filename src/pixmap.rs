@@ -70,6 +70,12 @@ impl Pixmap {
             mupdf_clear_pixmap(context(), self.inner);
         }
     }
+
+    pub fn clear_with_value(&mut self, value: i32) {
+        unsafe {
+            mupdf_clear_pixmap_with_value(context(), self.inner, value);
+        }
+    }
 }
 
 impl Drop for Pixmap {
@@ -90,5 +96,13 @@ mod test {
         let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         let pixmap_cs = pixmap.color_space();
         assert_eq!(cs, pixmap_cs);
+    }
+
+    #[test]
+    fn test_pixmap_clear() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear();
+        pixmap.clear_with_value(1);
     }
 }
