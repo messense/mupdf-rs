@@ -119,3 +119,12 @@ void mupdf_clear_pixmap_with_value(fz_context* ctx, fz_pixmap* pixmap, int value
         mupdf_save_error(ctx);
     }
 }
+
+void mupdf_save_pixmap_as_png(fz_context* ctx, fz_pixmap* pixmap, const char* filename) {
+    fz_try(ctx) {
+        fz_save_pixmap_as_png(ctx, pixmap, filename);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+}

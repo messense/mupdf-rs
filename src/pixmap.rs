@@ -1,3 +1,5 @@
+use std::ffi::CString;
+
 use mupdf_sys::*;
 
 use crate::{context, ColorSpace, Error, Rect};
@@ -74,6 +76,13 @@ impl Pixmap {
     pub fn clear_with_value(&mut self, value: i32) {
         unsafe {
             mupdf_clear_pixmap_with_value(context(), self.inner, value);
+        }
+    }
+
+    pub fn save_as_png(&self, filename: &str) {
+        let c_filename = CString::new(filename).unwrap();
+        unsafe {
+            mupdf_save_pixmap_as_png(context(), self.inner, c_filename.as_ptr());
         }
     }
 }
