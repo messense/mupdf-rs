@@ -67,6 +67,14 @@ impl Pixmap {
         unsafe { ColorSpace::from_raw((*self.inner).colorspace) }
     }
 
+    pub fn resolution(&self) -> (i32, i32) {
+        unsafe {
+            let x_res = (*self.inner).xres;
+            let y_res = (*self.inner).yres;
+            (x_res, y_res)
+        }
+    }
+
     pub fn clear(&mut self) {
         unsafe {
             mupdf_clear_pixmap(context(), self.inner);
@@ -113,5 +121,13 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear();
         pixmap.clear_with_value(1);
+    }
+
+    #[test]
+    fn test_pixmap_resolution() {
+        let cs = ColorSpace::device_rgb();
+        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        let resolution = pixmap.resolution();
+        assert_eq!(resolution, (96, 96));
     }
 }
