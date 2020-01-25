@@ -6,6 +6,7 @@ mod document;
 #[macro_use]
 mod error;
 mod font;
+mod image;
 mod matrix;
 mod pdf_document;
 mod pixmap;
@@ -22,6 +23,7 @@ pub use document::Document;
 pub(crate) use error::ffi_error;
 pub use error::Error;
 pub use font::Font;
+pub use image::Image;
 pub use matrix::Matrix;
 pub use pdf_document::PdfDocument;
 pub use pixmap::Pixmap;

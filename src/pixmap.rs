@@ -6,10 +6,14 @@ use crate::{context, ColorSpace, Error, Rect};
 
 #[derive(Debug)]
 pub struct Pixmap {
-    inner: *mut fz_pixmap,
+    pub(crate) inner: *mut fz_pixmap,
 }
 
 impl Pixmap {
+    pub(crate) unsafe fn from_raw(pixmap: *mut fz_pixmap) -> Self {
+        Self { inner: pixmap }
+    }
+
     pub fn new(
         cs: &ColorSpace,
         x: i32,
@@ -43,20 +47,20 @@ impl Pixmap {
         unsafe { (*self.inner).y }
     }
 
-    pub fn width(&self) -> i32 {
-        unsafe { (*self.inner).w }
+    pub fn width(&self) -> u32 {
+        unsafe { (*self.inner).w as u32 }
     }
 
-    pub fn height(&self) -> i32 {
-        unsafe { (*self.inner).h }
+    pub fn height(&self) -> u32 {
+        unsafe { (*self.inner).h as u32 }
     }
 
     pub fn stride(&self) -> isize {
         unsafe { (*self.inner).stride }
     }
 
-    pub fn number_of_components(&self) -> usize {
-        unsafe { usize::from((*self.inner).n) }
+    pub fn number_of_components(&self) -> u8 {
+        unsafe { (*self.inner).n }
     }
 
     pub fn alpha(&self) -> bool {

@@ -188,3 +188,37 @@ float mupdf_advance_glyph(fz_context* ctx, fz_font* font, int glyph, bool wmode)
     }
     return advance;
 }
+
+/* Image */
+fz_image* mupdf_new_image_from_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
+    fz_image* image = NULL;
+    fz_try(ctx) {
+        image = fz_new_image_from_pixmap(ctx, pixmap, NULL);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return image;
+}
+
+fz_image* mupdf_new_image_from_file(fz_context* ctx, const char* filename) {
+    fz_image* image = NULL;
+    fz_try(ctx) {
+        image = fz_new_image_from_file(ctx, filename);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return image;
+}
+
+fz_pixmap* mupdf_get_pixmap_from_image(fz_context* ctx, fz_image* image) {
+    fz_pixmap* pixmap = NULL;
+    fz_try(ctx) {
+        pixmap = fz_get_pixmap_from_image(ctx, image, NULL, NULL, NULL, NULL);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return pixmap;
+}
