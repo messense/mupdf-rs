@@ -14,28 +14,35 @@ static DWORD error_key;
 static pthread_key_t error_key;
 #endif
 
-typedef struct mupdf_error {
+typedef struct mupdf_error
+{
     int type;
-    char* message;
+    char *message;
 } mupdf_error_t;
 
-static void drop_tls_error(void *arg) {
-    if (arg == NULL) {
+static void drop_tls_error(void *arg)
+{
+    if (arg == NULL)
+    {
         return;
     }
-	mupdf_error_t* err = (mupdf_error_t*)arg;
-    if (err->message != NULL) {
+    mupdf_error_t *err = (mupdf_error_t *)arg;
+    if (err->message != NULL)
+    {
         free(err->message);
         err->message = NULL;
     }
     free(err);
 }
 
-static void init_tls_error_key() {
-    if (!error_key) {
+static void init_tls_error_key()
+{
+    if (!error_key)
+    {
 #ifdef _WIN32
         error_key = TlsAlloc();
-        if (error_key == TLS_OUT_OF_INDEXES) {
+        if (error_key == TLS_OUT_OF_INDEXES)
+        {
             return NULL;
         }
 #else
@@ -44,28 +51,31 @@ static void init_tls_error_key() {
     }
 }
 
-mupdf_error_t* mupdf_error() {
-    if (!error_key) {
+mupdf_error_t *mupdf_error()
+{
+    if (!error_key)
+    {
         return NULL;
     }
-    mupdf_error_t* err = (mupdf_error_t*)
+    mupdf_error_t *err = (mupdf_error_t *)
 #ifdef _WIN32
-    TlsGetValue(error_key);
+        TlsGetValue(error_key);
 #else
-    pthread_getspecific(error_key);
+        pthread_getspecific(error_key);
 #endif
     return err;
 }
 
-void mupdf_save_error(fz_context* ctx) {
+void mupdf_save_error(fz_context *ctx)
+{
     init_tls_error_key();
 
-    mupdf_error_t* existing_err = mupdf_error();
+    mupdf_error_t *existing_err = mupdf_error();
     drop_tls_error(existing_err);
 
     int type = fz_caught(ctx);
-    const char* message = fz_caught_message(ctx);
-    mupdf_error_t* err = malloc(sizeof(mupdf_error_t));
+    const char *message = fz_caught_message(ctx);
+    mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
     err->type = type;
     err->message = strdup(message);
 #ifdef _WIN32
@@ -75,11 +85,13 @@ void mupdf_save_error(fz_context* ctx) {
 #endif
 }
 
-void mupdf_clear_error() {
-    if (!error_key) {
+void mupdf_clear_error()
+{
+    if (!error_key)
+    {
         return;
     }
-    mupdf_error_t* existing_err = mupdf_error();
+    mupdf_error_t *existing_err = mupdf_error();
     drop_tls_error(existing_err);
 
 #ifdef _WIN32
@@ -90,147 +102,210 @@ void mupdf_clear_error() {
 }
 
 /* Pixmap */
-fz_pixmap* mupdf_new_pixmap(fz_context* ctx, fz_colorspace* cs, int x, int y, int w, int h, bool alpha) {
+fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, int w, int h, bool alpha)
+{
     fz_pixmap *pixmap = NULL;
-    fz_try(ctx) {
+    fz_try(ctx)
+    {
         pixmap = fz_new_pixmap(ctx, cs, w, h, NULL, alpha);
-		pixmap->x = x;
-		pixmap->y = y;
+        pixmap->x = x;
+        pixmap->y = y;
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return pixmap;
 }
 
-void mupdf_clear_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
-    fz_try(ctx) {
-		fz_clear_pixmap(ctx, pixmap);
+void mupdf_clear_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+{
+    fz_try(ctx)
+    {
+        fz_clear_pixmap(ctx, pixmap);
     }
-	fz_catch(ctx) {
-		mupdf_save_error(ctx);
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx);
     }
 }
 
-void mupdf_clear_pixmap_with_value(fz_context* ctx, fz_pixmap* pixmap, int value) {
-    fz_try(ctx) {
+void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value)
+{
+    fz_try(ctx)
+    {
         fz_clear_pixmap_with_value(ctx, pixmap, value);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
 }
 
-void mupdf_save_pixmap_as_png(fz_context* ctx, fz_pixmap* pixmap, const char* filename) {
-    fz_try(ctx) {
+void mupdf_save_pixmap_as_png(fz_context *ctx, fz_pixmap *pixmap, const char *filename)
+{
+    fz_try(ctx)
+    {
         fz_save_pixmap_as_png(ctx, pixmap, filename);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
 }
 
-void mupdf_invert_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
-    fz_try(ctx) {
+void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+{
+    fz_try(ctx)
+    {
         fz_invert_pixmap(ctx, pixmap);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
 }
 
-void mupdf_gamma_pixmap(fz_context* ctx, fz_pixmap* pixmap, float gamma) {
-    fz_try(ctx) {
+void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma)
+{
+    fz_try(ctx)
+    {
         fz_gamma_pixmap(ctx, pixmap, gamma);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
 }
 
 /* Font */
-fz_font* mupdf_new_font(fz_context* ctx, const char* name, int index) {
-    fz_font* font = NULL;
-    fz_try(ctx) {
+fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index)
+{
+    fz_font *font = NULL;
+    fz_try(ctx)
+    {
         const unsigned char *data;
         int size;
-        
+
         data = fz_lookup_base14_font(ctx, name, &size);
-		if (data)
-			font = fz_new_font_from_memory(ctx, name, data, size, index, 0);
-		else
-			font = fz_new_font_from_file(ctx, name, name, index, 0);
+        if (data)
+            font = fz_new_font_from_memory(ctx, name, data, size, index, 0);
+        else
+            font = fz_new_font_from_file(ctx, name, name, index, 0);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return font;
 }
 
-int mupdf_encode_character(fz_context* ctx, fz_font* font, int unicode) {
+int mupdf_encode_character(fz_context *ctx, fz_font *font, int unicode)
+{
     int glyph = 0;
-    fz_try(ctx) {
+    fz_try(ctx)
+    {
         glyph = fz_encode_character(ctx, font, unicode);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return glyph;
 }
 
-float mupdf_advance_glyph(fz_context* ctx, fz_font* font, int glyph, bool wmode) {
+float mupdf_advance_glyph(fz_context *ctx, fz_font *font, int glyph, bool wmode)
+{
     float advance = 0;
-    fz_try(ctx) {
+    fz_try(ctx)
+    {
         advance = fz_advance_glyph(ctx, font, glyph, wmode);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return advance;
 }
 
 /* Image */
-fz_image* mupdf_new_image_from_pixmap(fz_context* ctx, fz_pixmap* pixmap) {
-    fz_image* image = NULL;
-    fz_try(ctx) {
+fz_image *mupdf_new_image_from_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+{
+    fz_image *image = NULL;
+    fz_try(ctx)
+    {
         image = fz_new_image_from_pixmap(ctx, pixmap, NULL);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return image;
 }
 
-fz_image* mupdf_new_image_from_file(fz_context* ctx, const char* filename) {
-    fz_image* image = NULL;
-    fz_try(ctx) {
+fz_image *mupdf_new_image_from_file(fz_context *ctx, const char *filename)
+{
+    fz_image *image = NULL;
+    fz_try(ctx)
+    {
         image = fz_new_image_from_file(ctx, filename);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return image;
 }
 
-fz_pixmap* mupdf_get_pixmap_from_image(fz_context* ctx, fz_image* image) {
-    fz_pixmap* pixmap = NULL;
-    fz_try(ctx) {
+fz_pixmap *mupdf_get_pixmap_from_image(fz_context *ctx, fz_image *image)
+{
+    fz_pixmap *pixmap = NULL;
+    fz_try(ctx)
+    {
         pixmap = fz_get_pixmap_from_image(ctx, image, NULL, NULL, NULL, NULL);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return pixmap;
 }
 
 /* Text */
-fz_text* mupdf_new_text(fz_context* ctx) {
-    fz_text* text = NULL;
-    fz_try(ctx) {
+fz_text *mupdf_new_text(fz_context *ctx)
+{
+    fz_text *text = NULL;
+    fz_try(ctx)
+    {
         text = fz_new_text(ctx);
     }
-    fz_catch(ctx) {
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx);
     }
     return text;
+}
+
+/* StrokeState */
+fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, int start_cap, int dash_cap, int end_cap, int line_join, float line_width, float miter_limit, float dash_phase, const float dash[], size_t dash_len)
+{
+    fz_stroke_state *stroke = NULL;
+    fz_try(ctx)
+    {
+        stroke = fz_new_stroke_state_with_dash_len(ctx, dash_len);
+        stroke->start_cap = start_cap;
+        stroke->dash_cap = dash_cap;
+        stroke->end_cap = end_cap;
+        stroke->linejoin = line_join;
+        stroke->linewidth = line_width;
+        stroke->miterlimit = miter_limit;
+        stroke->dash_phase = dash_phase;
+        stroke->dash_len = dash_len;
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx);
+    }
+    memcpy(stroke->dash_list, dash, dash_len);
+    return stroke;
 }
