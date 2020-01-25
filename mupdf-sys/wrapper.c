@@ -222,3 +222,15 @@ fz_pixmap* mupdf_get_pixmap_from_image(fz_context* ctx, fz_image* image) {
     }
     return pixmap;
 }
+
+/* Text */
+fz_text* mupdf_new_text(fz_context* ctx) {
+    fz_text* text = NULL;
+    fz_try(ctx) {
+        text = fz_new_text(ctx);
+    }
+    fz_catch(ctx) {
+        mupdf_save_error(ctx);
+    }
+    return text;
+}

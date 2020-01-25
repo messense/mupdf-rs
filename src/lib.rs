@@ -14,6 +14,7 @@ mod pixmap;
 mod point;
 mod quad;
 mod rect;
+mod text;
 
 pub use buffer::Buffer;
 pub use color_params::{ColorParams, RenderingIntent};
@@ -32,3 +33,4 @@ pub use pixmap::Pixmap;
 pub use point::Point;
 pub use quad::Quad;
 pub use rect::{IRect, Rect};
+pub use text::Text;
