@@ -1,4 +1,5 @@
 mod buffer;
+mod color_params;
 mod color_space;
 mod context;
 mod document;
@@ -12,6 +13,7 @@ mod quad;
 mod rect;
 
 pub use buffer::Buffer;
+pub use color_params::{ColorParams, RenderingIntent};
 pub use color_space::ColorSpace;
 pub(crate) use context::context;
 pub use context::Context;
