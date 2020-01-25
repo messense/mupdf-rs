@@ -309,3 +309,15 @@ fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, uint32_t start_cap, uin
     memcpy(stroke->dash_list, dash, dash_len);
     return stroke;
 }
+
+fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm) {
+    fz_rect rect;
+    fz_try(ctx) {
+        rect = fz_bound_text(ctx, text, stroke, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx);
+    }
+    return rect;
+}

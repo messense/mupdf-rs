@@ -1,6 +1,8 @@
 use std::f32::consts::PI;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+use mupdf_sys::*;
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
     pub a: f32,
     pub b: f32,
@@ -119,6 +121,11 @@ impl Matrix {
             self.d = -sin * save_b + cos * self.d;
         }
         self
+    }
+
+    pub fn to_fz_matrix(&self) -> fz_matrix {
+        let Matrix { a, b, c, d, e, f } = *self;
+        fz_matrix { a, b, c, d, e, f }
     }
 }
 

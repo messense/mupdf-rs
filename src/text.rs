@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, Error};
+use crate::{context, Error, Rect, Matrix, StrokeState};
 
 #[derive(Debug)]
 pub struct Text {
@@ -11,6 +11,11 @@ impl Text {
     pub fn new() -> Result<Self, Error> {
         let inner = unsafe { ffi_try!(mupdf_new_text(context())) };
         Ok(Self { inner })
+    }
+
+    pub fn bounds(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Rect, Error> {
+        let rect = unsafe { ffi_try!(mupdf_bound_text(context(), self.inner, stroke.inner, ctm.to_fz_matrix())) };
+        Ok(rect.into())
     }
 }
 

@@ -1,3 +1,5 @@
+use mupdf_sys::*;
+
 use crate::Quad;
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
@@ -125,6 +127,13 @@ impl From<Quad> for Rect {
         let y0 = ul_y.min(ur_y).min(ll_y).min(lr_y);
         let x1 = ul_x.max(ur_x).max(ll_x).max(lr_x);
         let y1 = ul_y.max(ur_y).max(ll_y).max(lr_y);
+        Rect { x0, y0, x1, y1 }
+    }
+}
+
+impl From<fz_rect> for Rect {
+    fn from(r: fz_rect) -> Rect {
+        let fz_rect { x0, y0, x1, y1 } = r;
         Rect { x0, y0, x1, y1 }
     }
 }
