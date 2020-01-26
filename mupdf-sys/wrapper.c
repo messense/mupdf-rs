@@ -290,3 +290,101 @@ fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path, mupdf_error_t **er
     }
     return path;
 }
+
+fz_point mupdf_currentpoint(fz_context *ctx, fz_path *path, mupdf_error_t **errptr)
+{
+    fz_point point;
+    fz_try(ctx)
+    {
+        point = fz_currentpoint(ctx, path);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return point;
+}
+
+void mupdf_moveto(fz_context *ctx, fz_path *path, float x, float y, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_moveto(ctx, path, x, y);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_lineto(fz_context *ctx, fz_path *path, float x, float y, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_lineto(ctx, path, x, y);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_closepath(fz_context *ctx, fz_path *path, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_closepath(ctx, path);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_rectto(fz_context *ctx, fz_path *path, int x1, int y1, int x2, int y2, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_rectto(ctx, path, x1, y1, x2, y2);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_curveto(fz_context *ctx, fz_path *path, float cx1, float cy1, float cx2, float cy2, float ex, float ey, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_curveto(ctx, path, cx1, cy1, cx2, cy2, ex, ey);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_curvetov(fz_context *ctx, fz_path *path, float cx, float cy, float ex, float ey, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_curvetov(ctx, path, cx, cy, ex, ey);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_curvetoy(fz_context *ctx, fz_path *path, float cx, float cy, float ex, float ey, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_curvetoy(ctx, path, cx, cy, ex, ey);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
