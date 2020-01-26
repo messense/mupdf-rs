@@ -1,11 +1,11 @@
+#[rustfmt::skip] #[macro_use] mod error;
 mod buffer;
 mod color_params;
 mod color_space;
 mod context;
 mod device;
+mod display_list;
 mod document;
-#[macro_use]
-mod error;
 mod font;
 mod image;
 mod link;
@@ -27,6 +27,7 @@ pub use color_space::ColorSpace;
 pub(crate) use context::context;
 pub use context::Context;
 pub use device::{BlendMode, Device};
+pub use display_list::DisplayList;
 pub use document::Document;
 pub(crate) use error::ffi_error;
 pub use error::Error;

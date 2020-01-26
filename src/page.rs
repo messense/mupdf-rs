@@ -24,7 +24,7 @@ impl Page {
             let inner = ffi_try!(mupdf_page_to_pixmap(
                 context(),
                 self.inner,
-                ctm.to_fz_matrix(),
+                ctm.into(),
                 cs.inner,
                 alpha,
                 show_extras

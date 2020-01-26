@@ -462,3 +462,32 @@ fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
     }
     return cookie;
 }
+
+/* DisplayList */
+fz_display_list *mupdf_new_display_list(fz_context *ctx, fz_rect mediabox, mupdf_error_t **errptr)
+{
+    fz_display_list *list = NULL;
+    fz_try(ctx)
+    {
+        list = fz_new_display_list(ctx, mediabox);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return list;
+}
+
+fz_pixmap *mupdf_display_list_to_pixmap(fz_context *ctx, fz_display_list *list, fz_matrix ctm, fz_colorspace *cs, bool alpha, mupdf_error_t **errptr)
+{
+    fz_pixmap *pixmap = NULL;
+    fz_try(ctx)
+    {
+        pixmap = fz_new_pixmap_from_display_list(ctx, list, ctm, cs, alpha);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pixmap;
+}

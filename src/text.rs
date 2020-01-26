@@ -19,7 +19,7 @@ impl Text {
                 context(),
                 self.inner,
                 stroke.inner,
-                ctm.to_fz_matrix()
+                ctm.into()
             ))
         };
         Ok(rect.into())

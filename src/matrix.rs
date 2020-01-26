@@ -122,11 +122,6 @@ impl Matrix {
         }
         self
     }
-
-    pub fn to_fz_matrix(&self) -> fz_matrix {
-        let Matrix { a, b, c, d, e, f } = *self;
-        fz_matrix { a, b, c, d, e, f }
-    }
 }
 
 impl Default for Matrix {
@@ -139,5 +134,19 @@ impl Default for Matrix {
             e: 0.0,
             f: 0.0,
         }
+    }
+}
+
+impl Into<fz_matrix> for &Matrix {
+    fn into(self) -> fz_matrix {
+        let Matrix { a, b, c, d, e, f } = *self;
+        fz_matrix { a, b, c, d, e, f }
+    }
+}
+
+impl Into<fz_matrix> for Matrix {
+    fn into(self) -> fz_matrix {
+        let Matrix { a, b, c, d, e, f } = self;
+        fz_matrix { a, b, c, d, e, f }
     }
 }

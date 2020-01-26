@@ -91,11 +91,7 @@ impl Path {
 
     pub fn transform(&mut self, mat: &Matrix) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_transform_path(
-                context(),
-                self.inner,
-                mat.to_fz_matrix()
-            ));
+            ffi_try!(mupdf_transform_path(context(), self.inner, mat.into()));
         }
         Ok(())
     }
@@ -106,7 +102,7 @@ impl Path {
                 context(),
                 self.inner,
                 stroke.inner,
-                ctm.to_fz_matrix()
+                ctm.into()
             ))
         };
         Ok(rect.into())

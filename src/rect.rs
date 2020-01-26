@@ -137,3 +137,10 @@ impl From<fz_rect> for Rect {
         Rect { x0, y0, x1, y1 }
     }
 }
+
+impl Into<fz_rect> for Rect {
+    fn into(self) -> fz_rect {
+        let Rect { x0, y0, x1, y1 } = self;
+        fz_rect { x0, y0, x1, y1 }
+    }
+}
