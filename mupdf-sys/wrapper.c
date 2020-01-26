@@ -388,3 +388,29 @@ void mupdf_curvetoy(fz_context *ctx, fz_path *path, float cx, float cy, float ex
         mupdf_save_error(ctx, errptr);
     }
 }
+
+void mupdf_transform_path(fz_context *ctx, fz_path *path, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_transform_path(ctx, path, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+fz_rect mupdf_bound_path(fz_context *ctx, fz_path *path, fz_stroke_state *stroke, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_rect rect;
+    fz_try(ctx)
+    {
+        rect = fz_bound_path(ctx, path, stroke, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return rect;
+}

@@ -90,11 +90,26 @@ impl Path {
     }
 
     pub fn transform(&mut self, mat: &Matrix) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_transform_path(
+                context(),
+                self.inner,
+                mat.to_fz_matrix()
+            ));
+        }
+        Ok(())
     }
 
     pub fn bounds(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Rect, Error> {
-        todo!()
+        let rect = unsafe {
+            ffi_try!(mupdf_bound_path(
+                context(),
+                self.inner,
+                stroke.inner,
+                ctm.to_fz_matrix()
+            ))
+        };
+        Ok(rect.into())
     }
 }
 
