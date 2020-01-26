@@ -1,3 +1,4 @@
+#include <stdint.h>
 #include <stdbool.h>
 #include <string.h>
 #include <assert.h>
@@ -124,10 +125,25 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_erro
         int size;
 
         data = fz_lookup_base14_font(ctx, name, &size);
-        if (data)
+        if (data) {
             font = fz_new_font_from_memory(ctx, name, data, size, index, 0);
-        else
+        } else {
             font = fz_new_font_from_file(ctx, name, name, index, 0);
+        }
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return font;
+}
+
+fz_font *mupdf_new_font_from_memory(fz_context *ctx, const char *name, int index, const unsigned char *data, int data_len, mupdf_error_t **errptr)
+{
+    fz_font *font = NULL;
+    fz_try(ctx)
+    {
+        font = fz_new_font_from_memory(ctx, name, data, data_len, index, 0);
     }
     fz_catch(ctx)
     {

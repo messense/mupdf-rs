@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::os::raw::c_int;
 
 use mupdf_sys::*;
 
@@ -17,6 +18,25 @@ impl Font {
     pub fn new_with_index(name: &str, index: i32) -> Result<Self, Error> {
         let c_name = CString::new(name).unwrap();
         let inner = unsafe { ffi_try!(mupdf_new_font(context(), c_name.as_ptr(), index)) };
+        Ok(Self { inner })
+    }
+
+    pub fn from_bytes(name: &str, font_data: &[u8]) -> Result<Self, Error> {
+        Self::from_bytes_with_index(name, 0, font_data)
+    }
+
+    pub fn from_bytes_with_index(name: &str, index: i32, font_data: &[u8]) -> Result<Self, Error> {
+        let c_name = CString::new(name).unwrap();
+        let data_len = font_data.len() as c_int;
+        let inner = unsafe {
+            ffi_try!(mupdf_new_font_from_memory(
+                context(),
+                c_name.as_ptr(),
+                index,
+                font_data.as_ptr(),
+                data_len
+            ))
+        };
         Ok(Self { inner })
     }
 
