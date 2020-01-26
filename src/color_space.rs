@@ -86,14 +86,6 @@ impl ColorSpace {
     }
 }
 
-impl Drop for ColorSpace {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe { fz_drop_colorspace(context(), self.inner) };
-        }
-    }
-}
-
 impl PartialEq for ColorSpace {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
