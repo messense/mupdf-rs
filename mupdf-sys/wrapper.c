@@ -447,3 +447,18 @@ fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, f
     }
     return pixmap;
 }
+
+/* Cookie */
+fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
+{
+    fz_cookie *cookie = NULL;
+    fz_try(ctx)
+    {
+        cookie = fz_malloc_struct(ctx, fz_cookie);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return cookie;
+}
