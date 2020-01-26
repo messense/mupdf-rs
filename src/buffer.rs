@@ -1,12 +1,13 @@
+use std::io;
 use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::context;
+use crate::{context, Error};
 
 #[derive(Debug)]
 pub struct Buffer {
-    inner: *mut fz_buffer,
+    pub(crate) inner: *mut fz_buffer,
 }
 
 impl Buffer {
@@ -21,6 +22,30 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         unsafe { fz_buffer_storage(context(), self.inner, ptr::null_mut()) }
+    }
+
+    fn write_bytes(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        let len = buf.len();
+        unsafe {
+            ffi_try!(mupdf_buffer_write_bytes(
+                context(),
+                self.inner,
+                buf.as_ptr(),
+                len
+            ))
+        };
+        Ok(len)
+    }
+}
+
+impl io::Write for Buffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_bytes(buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
@@ -37,10 +62,18 @@ impl Drop for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use std::io::Write;
 
     #[test]
     fn test_buffer_len() {
         let buf = Buffer::new();
         assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn test_buffer_write() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
     }
 }

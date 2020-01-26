@@ -41,6 +41,7 @@ impl Context {
                 panic!("failed to new fz_context");
             }
             *ctx.borrow_mut() = RawContext(new_ctx);
+            unsafe { fz_register_document_handlers(new_ctx) };
             Self { inner: new_ctx }
         })
     }

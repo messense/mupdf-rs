@@ -662,3 +662,126 @@ bool mupdf_pdf_is_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     }
     return b ? true : false;
 }
+
+/* Buffer */
+void mupdf_buffer_write_bytes(fz_context *ctx, fz_buffer *buf, const unsigned char *bytes, size_t len, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_append_data(ctx, buf, bytes, len);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+/* Document */
+fz_document *mupdf_open_document(fz_context *ctx, const char *filename, mupdf_error_t **errptr)
+{
+    fz_document *doc = NULL;
+    fz_try(ctx)
+    {
+        doc = fz_open_document(ctx, filename);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return doc;
+}
+
+fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, const char *magic, mupdf_error_t **errptr)
+{
+    if (!magic) {
+        return NULL;
+    }
+    fz_document *doc = NULL;
+    fz_stream *stream = NULL;
+    fz_try(ctx)
+    {
+        stream = fz_open_buffer(ctx, bytes);
+        doc = fz_open_document_with_stream(ctx, magic, stream);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_stream(ctx, stream);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return doc;
+}
+
+bool mupdf_recognize_document(fz_context *ctx, const char *magic, mupdf_error_t **errptr)
+{
+    if (!magic) {
+        return false;
+    }
+    bool recognized = false;
+    fz_try(ctx)
+    {
+        recognized = fz_recognize_document(ctx, magic) != NULL;
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return recognized;
+}
+
+bool mupdf_needs_password(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
+{
+    bool needs = false;
+    fz_try(ctx)
+    {
+        needs = fz_needs_password(ctx, doc);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return needs;
+}
+
+bool mupdf_authenticate_password(fz_context *ctx, fz_document *doc, const char *password, mupdf_error_t **errptr)
+{
+    bool ok = false;
+    fz_try(ctx)
+    {
+        ok = fz_authenticate_password(ctx, doc, password);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ok;
+}
+
+int mupdf_document_page_count(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
+{
+    int count = 0;
+    fz_try(ctx)
+    {
+        count = fz_count_pages(ctx, doc);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return count;
+}
+
+char* mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, char info[], int info_len, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_lookup_metadata(ctx, doc, key, info, info_len);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return info;
+}

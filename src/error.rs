@@ -1,4 +1,5 @@
 use std::fmt;
+use std::io;
 
 use mupdf_sys::*;
 
@@ -54,18 +55,26 @@ macro_rules! ffi_try {
 
 #[derive(Debug)]
 pub enum Error {
+    Io(io::Error),
     MuPdf(MuPdfError),
 }
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
+            Error::Io(ref err) => err.fmt(f),
             Error::MuPdf(ref err) => err.fmt(f),
         }
     }
 }
 
 impl std::error::Error for Error {}
+
+impl From<io::Error> for Error {
+    fn from(err: io::Error) -> Self {
+        Self::Io(err)
+    }
+}
 
 impl From<MuPdfError> for Error {
     fn from(err: MuPdfError) -> Self {

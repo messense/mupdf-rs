@@ -63,6 +63,7 @@ fn main() {
         .whitelist_function("fz_.*")
         .whitelist_function("pdf_.*")
         .whitelist_function("ucdn_.*")
+        .whitelist_function("Memento_.*")
         .whitelist_function("mupdf_.*")
         .whitelist_type("fz_.*")
         .whitelist_type("pdf_.*")
