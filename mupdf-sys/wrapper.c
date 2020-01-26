@@ -414,3 +414,36 @@ fz_rect mupdf_bound_path(fz_context *ctx, fz_path *path, fz_stroke_state *stroke
     }
     return rect;
 }
+
+/* Page */
+fz_rect mupdf_bound_page(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_rect rect;
+    fz_try(ctx)
+    {
+        rect = fz_bound_page(ctx, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return rect;
+}
+
+fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_colorspace *cs, float alpha, bool show_extras, mupdf_error_t **errptr)
+{
+    fz_pixmap *pixmap = NULL;
+    fz_try(ctx)
+    {
+        if (show_extras) {
+            pixmap = fz_new_pixmap_from_page(ctx, page, ctm, cs, alpha);
+        } else {
+            pixmap = fz_new_pixmap_from_page_contents(ctx, page, ctm, cs, alpha);
+        }
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pixmap;
+}
