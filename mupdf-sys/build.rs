@@ -19,25 +19,23 @@ fn main() {
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
 
-    let is_debug = env::var("PROFILE").unwrap_or("debug".to_owned()) == "debug";
+    let profile = match &*env::var("PROFILE").unwrap_or("debug".to_owned()) {
+        "bench" | "release" => "release",
+        _ => "debug",
+    };
     let out_dir = env::var("OUT_DIR").unwrap();
     let current_dir = env::current_dir().unwrap();
     let mupdf_dir = current_dir.join("mupdf");
-    let mut xc_flags = "-DNOTO_SMALL -DNO_CJK".to_string();
-    if is_debug {
-        xc_flags.push_str(" -O0 -g");
-    } else {
-        xc_flags.push_str(" -O3");
-    }
     let output = Command::new("make")
         .arg("libs")
+        .arg(format!("build={}", profile))
         .arg(format!("OUT={}", out_dir))
         .arg("USE_SYSTEM_LIBS=no")
         .arg("HAVE_X11=no")
         .arg("HAVE_GLUT=no")
         .arg("HAVE_CURL=no")
         .arg("verbose=yes")
-        .arg(format!("XCFLAGS={}", xc_flags))
+        .arg("XCFLAGS=-DNOTO_SMALL -DNO_CJK")
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
