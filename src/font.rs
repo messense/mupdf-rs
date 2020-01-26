@@ -41,6 +41,16 @@ impl Font {
     }
 }
 
+impl Drop for Font {
+    fn drop(&mut self) {
+        if !self.inner.is_null() {
+            unsafe {
+                fz_drop_font(context(), self.inner);
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::Font;
