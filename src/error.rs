@@ -27,6 +27,7 @@ pub unsafe fn ffi_error(err: *mut mupdf_error_t) -> MuPdfError {
     let c_msg = (*err).message;
     let c_str = CStr::from_ptr(c_msg);
     let message = format!("{}", c_str.to_string_lossy());
+    mupdf_drop_error(err);
     MuPdfError { code, message }
 }
 
