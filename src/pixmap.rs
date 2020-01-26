@@ -79,35 +79,44 @@ impl Pixmap {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self) -> Result<(), Error> {
         unsafe {
-            mupdf_clear_pixmap(context(), self.inner);
+            ffi_try!(mupdf_clear_pixmap(context(), self.inner));
         }
+        Ok(())
     }
 
-    pub fn clear_with_value(&mut self, value: i32) {
+    pub fn clear_with_value(&mut self, value: i32) -> Result<(), Error> {
         unsafe {
-            mupdf_clear_pixmap_with_value(context(), self.inner, value);
+            ffi_try!(mupdf_clear_pixmap_with_value(context(), self.inner, value));
         }
+        Ok(())
     }
 
-    pub fn save_as_png(&self, filename: &str) {
+    pub fn save_as_png(&self, filename: &str) -> Result<(), Error> {
         let c_filename = CString::new(filename).unwrap();
         unsafe {
-            mupdf_save_pixmap_as_png(context(), self.inner, c_filename.as_ptr());
+            ffi_try!(mupdf_save_pixmap_as_png(
+                context(),
+                self.inner,
+                c_filename.as_ptr()
+            ));
         }
+        Ok(())
     }
 
-    pub fn invert(&mut self) {
+    pub fn invert(&mut self) -> Result<(), Error> {
         unsafe {
-            mupdf_invert_pixmap(context(), self.inner);
+            ffi_try!(mupdf_invert_pixmap(context(), self.inner));
         }
+        Ok(())
     }
 
-    pub fn gamma(&mut self, gamma: f32) {
+    pub fn gamma(&mut self, gamma: f32) -> Result<(), Error> {
         unsafe {
-            mupdf_gamma_pixmap(context(), self.inner, gamma);
+            ffi_try!(mupdf_gamma_pixmap(context(), self.inner, gamma));
         }
+        Ok(())
     }
 }
 

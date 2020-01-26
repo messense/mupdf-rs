@@ -1,5 +1,6 @@
 #include <stdbool.h>
 #include <string.h>
+#include <assert.h>
 #ifdef _WIN32
 #include <windows.h>
 #else
@@ -8,101 +9,36 @@
 
 #include "wrapper.h"
 
-#ifdef _WIN32
-static DWORD error_key;
-#else
-static pthread_key_t error_key;
-#endif
-
 typedef struct mupdf_error
 {
     int type;
     char *message;
 } mupdf_error_t;
 
-static void drop_tls_error(void *arg)
+void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
 {
-    if (arg == NULL)
-    {
-        return;
-    }
-    mupdf_error_t *err = (mupdf_error_t *)arg;
-    if (err->message != NULL)
-    {
-        free(err->message);
-        err->message = NULL;
-    }
-    free(err);
-}
-
-static void init_tls_error_key()
-{
-    if (!error_key)
-    {
-#ifdef _WIN32
-        error_key = TlsAlloc();
-        if (error_key == TLS_OUT_OF_INDEXES)
-        {
-            return NULL;
-        }
-#else
-        pthread_key_create(&error_key, drop_tls_error);
-#endif
-    }
-}
-
-mupdf_error_t *mupdf_error()
-{
-    if (!error_key)
-    {
-        return NULL;
-    }
-    mupdf_error_t *err = (mupdf_error_t *)
-#ifdef _WIN32
-        TlsGetValue(error_key);
-#else
-        pthread_getspecific(error_key);
-#endif
-    return err;
-}
-
-void mupdf_save_error(fz_context *ctx)
-{
-    init_tls_error_key();
-
-    mupdf_error_t *existing_err = mupdf_error();
-    drop_tls_error(existing_err);
-
+    assert(errptr != NULL);
     int type = fz_caught(ctx);
     const char *message = fz_caught_message(ctx);
     mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
     err->type = type;
     err->message = strdup(message);
-#ifdef _WIN32
-    TlsSetValue(error_key, err);
-#else
-    pthread_setspecific(error_key, err);
-#endif
+    *errptr = err;
 }
 
-void mupdf_clear_error()
-{
-    if (!error_key)
-    {
+void mupdf_drop_error(mupdf_error_t *err) {
+    if (err == NULL) {
         return;
     }
-    mupdf_error_t *existing_err = mupdf_error();
-    drop_tls_error(existing_err);
-
-#ifdef _WIN32
-    TlsSetValue(error_key, NULL);
-#else
-    pthread_setspecific(error_key, NULL);
-#endif
+    if (err->message != NULL) {
+        free(err->message);
+    }
+    free(err);
+    err = NULL;
 }
 
 /* Pixmap */
-fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, int w, int h, bool alpha)
+fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, int w, int h, bool alpha, mupdf_error_t **errptr)
 {
     fz_pixmap *pixmap = NULL;
     fz_try(ctx)
@@ -113,12 +49,12 @@ fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, in
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return pixmap;
 }
 
-void mupdf_clear_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+void mupdf_clear_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -126,11 +62,11 @@ void mupdf_clear_pixmap(fz_context *ctx, fz_pixmap *pixmap)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
 }
 
-void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value)
+void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -138,11 +74,11 @@ void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
 }
 
-void mupdf_save_pixmap_as_png(fz_context *ctx, fz_pixmap *pixmap, const char *filename)
+void mupdf_save_pixmap_as_png(fz_context *ctx, fz_pixmap *pixmap, const char *filename, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -150,11 +86,11 @@ void mupdf_save_pixmap_as_png(fz_context *ctx, fz_pixmap *pixmap, const char *fi
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
 }
 
-void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -162,11 +98,11 @@ void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
 }
 
-void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma)
+void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -174,12 +110,12 @@ void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
 }
 
 /* Font */
-fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index)
+fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_error_t **errptr)
 {
     fz_font *font = NULL;
     fz_try(ctx)
@@ -195,12 +131,12 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return font;
 }
 
-int mupdf_encode_character(fz_context *ctx, fz_font *font, int unicode)
+int mupdf_encode_character(fz_context *ctx, fz_font *font, int unicode, mupdf_error_t **errptr)
 {
     int glyph = 0;
     fz_try(ctx)
@@ -209,12 +145,12 @@ int mupdf_encode_character(fz_context *ctx, fz_font *font, int unicode)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return glyph;
 }
 
-float mupdf_advance_glyph(fz_context *ctx, fz_font *font, int glyph, bool wmode)
+float mupdf_advance_glyph(fz_context *ctx, fz_font *font, int glyph, bool wmode, mupdf_error_t **errptr)
 {
     float advance = 0;
     fz_try(ctx)
@@ -223,13 +159,13 @@ float mupdf_advance_glyph(fz_context *ctx, fz_font *font, int glyph, bool wmode)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return advance;
 }
 
 /* Image */
-fz_image *mupdf_new_image_from_pixmap(fz_context *ctx, fz_pixmap *pixmap)
+fz_image *mupdf_new_image_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     fz_image *image = NULL;
     fz_try(ctx)
@@ -238,12 +174,12 @@ fz_image *mupdf_new_image_from_pixmap(fz_context *ctx, fz_pixmap *pixmap)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return image;
 }
 
-fz_image *mupdf_new_image_from_file(fz_context *ctx, const char *filename)
+fz_image *mupdf_new_image_from_file(fz_context *ctx, const char *filename, mupdf_error_t **errptr)
 {
     fz_image *image = NULL;
     fz_try(ctx)
@@ -252,12 +188,12 @@ fz_image *mupdf_new_image_from_file(fz_context *ctx, const char *filename)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return image;
 }
 
-fz_pixmap *mupdf_get_pixmap_from_image(fz_context *ctx, fz_image *image)
+fz_pixmap *mupdf_get_pixmap_from_image(fz_context *ctx, fz_image *image, mupdf_error_t **errptr)
 {
     fz_pixmap *pixmap = NULL;
     fz_try(ctx)
@@ -266,13 +202,13 @@ fz_pixmap *mupdf_get_pixmap_from_image(fz_context *ctx, fz_image *image)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return pixmap;
 }
 
 /* Text */
-fz_text *mupdf_new_text(fz_context *ctx)
+fz_text *mupdf_new_text(fz_context *ctx, mupdf_error_t **errptr)
 {
     fz_text *text = NULL;
     fz_try(ctx)
@@ -281,13 +217,15 @@ fz_text *mupdf_new_text(fz_context *ctx)
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return text;
 }
 
 /* StrokeState */
-fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, uint32_t start_cap, uint32_t dash_cap, uint32_t end_cap, uint32_t line_join, float line_width, float miter_limit, float dash_phase, const float dash[], int dash_len)
+fz_stroke_state *mupdf_new_stroke_state(
+    fz_context *ctx, uint32_t start_cap, uint32_t dash_cap, uint32_t end_cap, uint32_t line_join, float line_width,
+    float miter_limit, float dash_phase, const float dash[], int dash_len, mupdf_error_t **errptr)
 {
     fz_stroke_state *stroke = NULL;
     fz_try(ctx)
@@ -304,13 +242,14 @@ fz_stroke_state *mupdf_new_stroke_state(fz_context *ctx, uint32_t start_cap, uin
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     memcpy(stroke->dash_list, dash, dash_len);
     return stroke;
 }
 
-fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm) {
+fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm, mupdf_error_t **errptr)
+{
     fz_rect rect;
     fz_try(ctx)
     {
@@ -318,13 +257,14 @@ fz_rect mupdf_bound_text(fz_context *ctx, fz_text *text, fz_stroke_state *stroke
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return rect;
 }
 
 /* Path */
-fz_path *mupdf_new_path(fz_context *ctx) {
+fz_path *mupdf_new_path(fz_context *ctx, mupdf_error_t **errptr)
+{
     fz_path *path = NULL;
     fz_try(ctx)
     {
@@ -332,12 +272,13 @@ fz_path *mupdf_new_path(fz_context *ctx) {
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return path;
 }
 
-fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path) {
+fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path, mupdf_error_t **errptr)
+{
     fz_path *path = NULL;
     fz_try(ctx)
     {
@@ -345,7 +286,7 @@ fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path) {
     }
     fz_catch(ctx)
     {
-        mupdf_save_error(ctx);
+        mupdf_save_error(ctx, errptr);
     }
     return path;
 }

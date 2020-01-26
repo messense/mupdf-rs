@@ -27,12 +27,12 @@ impl Font {
     }
 
     pub fn encode_character(&self, unicode: i32) -> Result<i32, Error> {
-        let glyph = unsafe { mupdf_encode_character(context(), self.inner, unicode) };
+        let glyph = unsafe { ffi_try!(mupdf_encode_character(context(), self.inner, unicode)) };
         Ok(glyph)
     }
 
     pub fn advance_glyph_with_wmode(&self, glyph: i32, wmode: bool) -> Result<f32, Error> {
-        let advance = unsafe { mupdf_advance_glyph(context(), self.inner, glyph, wmode) };
+        let advance = unsafe { ffi_try!(mupdf_advance_glyph(context(), self.inner, glyph, wmode)) };
         Ok(advance)
     }
 

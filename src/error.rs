@@ -20,32 +20,32 @@ impl fmt::Display for MuPdfError {
 
 impl std::error::Error for MuPdfError {}
 
-pub unsafe fn ffi_error() -> Option<MuPdfError> {
+pub unsafe fn ffi_error(err: *mut mupdf_error_t) -> MuPdfError {
     use std::ffi::CStr;
 
-    let err = mupdf_error();
-    if err.is_null() {
-        return None;
-    }
     let code = (*err).type_;
     let c_msg = (*err).message;
     let c_str = CStr::from_ptr(c_msg);
     let message = format!("{}", c_str.to_string_lossy());
-    Some(MuPdfError { code, message })
+    MuPdfError { code, message }
 }
 
 macro_rules! ffi_try {
     ($func:ident($($arg:expr),+)) => ({
-        let res = $func($($arg),+);
-        if let Some(err) = $crate::ffi_error() {
-            return Err(err.into());
+        use std::ptr;
+        let mut err = ptr::null_mut();
+        let res = $func($($arg),+, &mut err);
+        if !err.is_null() {
+            return Err($crate::ffi_error(err).into());
         }
         res
     });
     ($func:ident()) => ({
-        let res = $func();
-        if let Some(err) = $crate::ffi_error() {
-            return Err(err.into());
+        use std::ptr;
+        let mut err = ptr::null_mut();
+        let res = $func(&mut err);
+        if !err.is_null() {
+            return Err($crate::ffi_error(err).into());
         }
         res
     })
