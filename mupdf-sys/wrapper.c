@@ -491,3 +491,158 @@ fz_pixmap *mupdf_display_list_to_pixmap(fz_context *ctx, fz_display_list *list, 
     }
     return pixmap;
 }
+
+/* PDFObject */
+bool mupdf_pdf_is_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_indirect(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_null(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_null(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_bool(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_bool(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_int(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_int(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_real(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_real(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_number(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_number(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_string(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_string(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_name(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_array(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_array(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_dict(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_dict(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
+
+bool mupdf_pdf_is_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int b = 0;
+    fz_try(ctx)
+    {
+        b = pdf_is_stream(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b ? true : false;
+}
