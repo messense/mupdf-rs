@@ -144,8 +144,8 @@ mod test {
     fn test_pixmap_clear() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
-        pixmap.clear();
-        pixmap.clear_with_value(1);
+        pixmap.clear().unwrap();
+        pixmap.clear_with_value(1).unwrap();
     }
 
     #[test]
@@ -160,13 +160,13 @@ mod test {
     fn test_pixmap_invert() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
-        pixmap.invert();
+        pixmap.invert().unwrap();
     }
 
     #[test]
     fn test_pixmap_gamma() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
-        pixmap.gamma(1.0);
+        pixmap.gamma(1.0).unwrap();
     }
 }
