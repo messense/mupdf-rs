@@ -127,3 +127,46 @@ impl Drop for Pixmap {
         }
     }
 }
+
+#[cfg(test)]
+mod test {
+    use super::{ColorSpace, Pixmap};
+
+    #[test]
+    fn test_pixmap_color_space() {
+        let cs = ColorSpace::device_rgb();
+        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        let pixmap_cs = pixmap.color_space();
+        assert_eq!(cs, pixmap_cs);
+    }
+
+    #[test]
+    fn test_pixmap_clear() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear();
+        pixmap.clear_with_value(1);
+    }
+
+    #[test]
+    fn test_pixmap_resolution() {
+        let cs = ColorSpace::device_rgb();
+        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        let resolution = pixmap.resolution();
+        assert_eq!(resolution, (96, 96));
+    }
+
+    #[test]
+    fn test_pixmap_invert() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.invert();
+    }
+
+    #[test]
+    fn test_pixmap_gamma() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.gamma(1.0);
+    }
+}
