@@ -1206,3 +1206,58 @@ fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list,
     }
     return device;
 }
+
+/* PdfPage */
+pdf_annot *mupdf_pdf_create_annot(fz_context *ctx, pdf_page *page, int subtype, mupdf_error_t **errptr)
+{
+    pdf_annot *annot = NULL;
+    fz_try(ctx)
+    {
+        annot = pdf_create_annot(ctx, page, subtype);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return annot;
+}
+
+void mupdf_pdf_delete_annot(fz_context *ctx, pdf_page *page, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_delete_annot(ctx, page, annot);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+bool mupdf_pdf_update_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errptr)
+{
+    bool updated = false;
+    fz_try(ctx)
+    {
+        updated = pdf_update_page(ctx, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return updated;
+}
+
+bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errptr)
+{
+    bool redacted = false;
+    fz_try(ctx)
+    {
+        redacted = pdf_redact_page(ctx, page->doc, page, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return redacted;
+}
