@@ -10,6 +10,7 @@ mod font;
 mod image;
 mod link;
 mod matrix;
+mod outline;
 mod page;
 mod path;
 mod pdf;
@@ -35,6 +36,7 @@ pub use font::Font;
 pub use image::Image;
 pub use link::Link;
 pub use matrix::Matrix;
+pub use outline::Outline;
 pub use page::Page;
 pub use path::Path;
 pub use pdf::{
