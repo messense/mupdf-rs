@@ -5,7 +5,7 @@ mod object;
 mod page;
 mod widget;
 
-pub use annotation::PdfAnnotation;
+pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
 pub use document::PdfDocument;
 pub use graft_map::PdfGraftMap;
 pub use object::PdfObject;

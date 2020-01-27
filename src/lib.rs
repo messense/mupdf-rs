@@ -43,9 +43,7 @@ pub use matrix::Matrix;
 pub use outline::Outline;
 pub use page::Page;
 pub use path::Path;
-pub use pdf::{
-    PdfAnnotation, PdfDocument, PdfGraftMap, PdfObject, PdfPage, PdfWidget, PdfWidgetInner,
-};
+pub use pdf::*;
 pub use pixmap::Pixmap;
 pub use point::Point;
 pub use quad::Quad;
