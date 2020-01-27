@@ -1,3 +1,5 @@
+use std::ffi::{CStr, CString};
+
 use mupdf_sys::*;
 
 use crate::{context, Buffer, Error};
@@ -68,27 +70,43 @@ impl PdfObject {
     }
 
     pub fn as_bool(&self) -> Result<bool, Error> {
-        todo!()
+        let ret = unsafe { ffi_try!(mupdf_pdf_to_bool(context(), self.inner)) };
+        Ok(ret)
     }
 
     pub fn as_int(&self) -> Result<i32, Error> {
-        todo!()
+        let ret = unsafe { ffi_try!(mupdf_pdf_to_int(context(), self.inner)) };
+        Ok(ret)
     }
 
     pub fn as_float(&self) -> Result<f32, Error> {
-        todo!()
+        let ret = unsafe { ffi_try!(mupdf_pdf_to_float(context(), self.inner)) };
+        Ok(ret)
     }
 
     pub fn as_indirect(&self) -> Result<i32, Error> {
-        todo!()
+        let ret = unsafe { ffi_try!(mupdf_pdf_to_indirect(context(), self.inner)) };
+        Ok(ret)
     }
 
     pub fn as_name(&self) -> Result<String, Error> {
-        todo!()
+        unsafe {
+            let name_ptr = ffi_try!(mupdf_pdf_to_name(context(), self.inner));
+            let c_name = CStr::from_ptr(name_ptr);
+            let name = c_name.to_string_lossy().into_owned();
+            mupdf_drop_str(name_ptr);
+            Ok(name)
+        }
     }
 
     pub fn as_string(&self) -> Result<String, Error> {
-        todo!()
+        unsafe {
+            let str_ptr = ffi_try!(mupdf_pdf_to_string(context(), self.inner));
+            let c_str = CStr::from_ptr(str_ptr);
+            let string = c_str.to_string_lossy().into_owned();
+            mupdf_drop_str(str_ptr);
+            Ok(string)
+        }
     }
 
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
@@ -99,8 +117,12 @@ impl PdfObject {
         todo!()
     }
 
-    pub fn resolve(&self) -> Result<Self, Error> {
-        todo!()
+    pub fn resolve(&self) -> Result<Option<Self>, Error> {
+        let inner = unsafe { ffi_try!(mupdf_pdf_resolve_indirect(context(), self.inner)) };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner }))
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
@@ -132,11 +154,20 @@ impl PdfObject {
     }
 
     pub fn get_array(&self, index: i32) -> Result<Option<Self>, Error> {
-        todo!()
+        let inner = unsafe { ffi_try!(mupdf_pdf_array_get(context(), self.inner, index)) };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner }))
     }
 
-    pub fn get_dictionary(&self, name: &str) -> Result<Option<Self>, Error> {
-        todo!()
+    pub fn get_dict(&self, key: &str) -> Result<Option<Self>, Error> {
+        let c_key = CString::new(key)?;
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, c_key.as_ptr())) };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner }))
     }
 }
 

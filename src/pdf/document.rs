@@ -143,20 +143,25 @@ mod test {
 
         let obj = pdf.new_bool(true);
         assert!(obj.is_bool().unwrap());
+        assert!(obj.as_bool().unwrap());
 
         let obj = pdf.new_int(1).unwrap();
         assert!(obj.is_int().unwrap());
         assert!(obj.is_number().unwrap());
+        assert_eq!(obj.as_int().unwrap(), 1);
 
         let obj = pdf.new_real(1.0).unwrap();
         assert!(obj.is_real().unwrap());
         assert!(obj.is_number().unwrap());
+        assert_eq!(obj.as_float().unwrap(), 1.0);
 
         let obj = pdf.new_string("PDF").unwrap();
         assert!(obj.is_string().unwrap());
+        assert_eq!(obj.as_string().unwrap(), "PDF");
 
         let obj = pdf.new_name("Type").unwrap();
         assert!(obj.is_name().unwrap());
+        assert_eq!(obj.as_name().unwrap(), "Type");
 
         let obj = pdf.new_array().unwrap();
         assert!(obj.is_array().unwrap());

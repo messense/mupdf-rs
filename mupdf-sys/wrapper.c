@@ -75,6 +75,13 @@ void mupdf_drop_error(mupdf_error_t *err) {
     err = NULL;
 }
 
+void mupdf_drop_str(char *s) {
+    if (s != NULL) {
+        free(s);
+        s = NULL;
+    }
+}
+
 /* Context */
 fz_context *mupdf_new_base_context()
 {
@@ -836,6 +843,135 @@ pdf_obj *mupdf_pdf_new_dict(fz_context *ctx, pdf_document *pdf, int capacity, mu
         mupdf_save_error(ctx, errptr);
     }
     return obj;
+}
+
+bool mupdf_pdf_to_bool(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    bool b = false;
+    fz_try(ctx)
+    {
+        b = pdf_to_bool(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return b;
+}
+
+int mupdf_pdf_to_int(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int i = 0;
+    fz_try(ctx)
+    {
+        i = pdf_to_int(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return i;
+}
+
+float mupdf_pdf_to_float(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    float f = 0.0;
+    fz_try(ctx)
+    {
+        f = pdf_to_real(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return f;
+}
+
+int mupdf_pdf_to_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int ind = 0;
+    fz_try(ctx)
+    {
+        ind = pdf_to_num(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+char *mupdf_pdf_to_string(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    const char *s = NULL;
+    fz_try(ctx)
+    {
+        s = pdf_to_text_string(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return strdup(s);
+}
+
+char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    const char *s = NULL;
+    fz_try(ctx)
+    {
+        s = pdf_to_name(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return strdup(s);
+}
+
+pdf_obj *mupdf_pdf_resolve_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_resolve_indirect(ctx, obj);
+        pdf_keep_obj(ctx, ind);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+pdf_obj *mupdf_pdf_array_get(fz_context *ctx, pdf_obj *obj, int index, mupdf_error_t **errptr)
+{
+    pdf_obj *val = NULL;
+    fz_try(ctx)
+    {
+        val = pdf_array_get(ctx, obj, index);
+        pdf_keep_obj(ctx, val);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return val;
+}
+
+pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, const char *key, mupdf_error_t **errptr)
+{
+    pdf_obj *val = NULL;
+    fz_try(ctx)
+    {
+        val = pdf_dict_gets(ctx, obj, key);
+        pdf_keep_obj(ctx, val);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return val;
 }
 
 /* Buffer */
