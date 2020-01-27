@@ -1027,6 +1027,20 @@ void mupdf_document_delete_object(fz_context *ctx, pdf_document *pdf, int num, m
     }
 }
 
+pdf_obj *mupdf_document_add_image(fz_context *ctx, pdf_document *pdf, fz_image *image, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_add_image(ctx, pdf, image);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
 /* DrawDevice */
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {

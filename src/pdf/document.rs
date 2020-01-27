@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use mupdf_sys::*;
 
-use crate::{context, Document, Error, PdfObject};
+use crate::{context, Document, Error, Image, PdfObject};
 
 #[derive(Debug)]
 pub struct PdfDocument {
@@ -105,6 +105,13 @@ impl PdfDocument {
             ffi_try!(mupdf_document_delete_object(context(), self.inner, num));
         }
         Ok(())
+    }
+
+    pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_document_add_image(context(), self.inner, obj.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
     }
 }
 

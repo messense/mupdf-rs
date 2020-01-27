@@ -6,7 +6,7 @@ use crate::{context, ColorSpace, Error, Pixmap};
 
 #[derive(Debug)]
 pub struct Image {
-    inner: *mut fz_image,
+    pub(crate) inner: *mut fz_image,
 }
 
 impl Image {
