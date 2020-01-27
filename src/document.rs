@@ -116,8 +116,6 @@ impl Drop for Document {
         if !self.inner.is_null() {
             unsafe {
                 fz_drop_document(context(), self.inner);
-                // This is a reasonable place to call Memento.
-                Memento_fin();
             }
         }
     }
