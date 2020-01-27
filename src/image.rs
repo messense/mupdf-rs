@@ -20,7 +20,7 @@ impl Image {
     }
 
     pub fn from_file(filename: &str) -> Result<Self, Error> {
-        let c_filename = CString::new(filename).unwrap();
+        let c_filename = CString::new(filename)?;
         let inner = unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) };
         Ok(Self { inner })
     }

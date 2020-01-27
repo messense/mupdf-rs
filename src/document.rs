@@ -21,13 +21,13 @@ pub struct Document {
 
 impl Document {
     pub fn open(filename: &str) -> Result<Self, Error> {
-        let c_name = CString::new(filename).unwrap();
+        let c_name = CString::new(filename)?;
         let inner = unsafe { ffi_try!(mupdf_open_document(context(), c_name.as_ptr())) };
         Ok(Self { inner })
     }
 
     pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
-        let c_magic = CString::new(magic).unwrap();
+        let c_magic = CString::new(magic)?;
         let len = bytes.len();
         let mut buf = Buffer::with_capacity(len);
         buf.write(bytes)?;
@@ -42,7 +42,7 @@ impl Document {
     }
 
     pub fn recognize(magic: &str) -> Result<bool, Error> {
-        let c_magic = CString::new(magic).unwrap();
+        let c_magic = CString::new(magic)?;
         let ret = unsafe { ffi_try!(mupdf_recognize_document(context(), c_magic.as_ptr())) };
         Ok(ret)
     }
@@ -53,7 +53,7 @@ impl Document {
     }
 
     pub fn authenticate_password(&mut self, password: &str) -> Result<bool, Error> {
-        let c_pass = CString::new(password).unwrap();
+        let c_pass = CString::new(password)?;
         let ret = unsafe {
             ffi_try!(mupdf_authenticate_password(
                 context(),
@@ -76,7 +76,7 @@ impl Document {
             MetaDataType::Author => "info:Author",
             MetaDataType::Title => "info::Title",
         };
-        let c_key = CString::new(key).unwrap();
+        let c_key = CString::new(key)?;
         const INFO_LEN: usize = 256;
         let mut info: [c_char; INFO_LEN] = [0; INFO_LEN];
         unsafe {

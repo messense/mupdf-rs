@@ -1,5 +1,6 @@
 use std::fmt;
 use std::io;
+use std::ffi::NulError;
 
 use mupdf_sys::*;
 
@@ -57,6 +58,7 @@ macro_rules! ffi_try {
 pub enum Error {
     Io(io::Error),
     MuPdf(MuPdfError),
+    Nul(NulError),
 }
 
 impl fmt::Display for Error {
@@ -64,6 +66,7 @@ impl fmt::Display for Error {
         match *self {
             Error::Io(ref err) => err.fmt(f),
             Error::MuPdf(ref err) => err.fmt(f),
+            Error::Nul(ref err) => err.fmt(f),
         }
     }
 }
@@ -79,5 +82,11 @@ impl From<io::Error> for Error {
 impl From<MuPdfError> for Error {
     fn from(err: MuPdfError) -> Self {
         Self::MuPdf(err)
+    }
+}
+
+impl From<NulError> for Error {
+    fn from(err: NulError) -> Self {
+        Self::Nul(err)
     }
 }

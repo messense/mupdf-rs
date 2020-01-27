@@ -94,7 +94,7 @@ impl Pixmap {
     }
 
     pub fn save_as_png(&self, filename: &str) -> Result<(), Error> {
-        let c_filename = CString::new(filename).unwrap();
+        let c_filename = CString::new(filename)?;
         unsafe {
             ffi_try!(mupdf_save_pixmap_as_png(
                 context(),
