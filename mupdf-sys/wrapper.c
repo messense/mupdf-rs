@@ -880,3 +880,33 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
         mupdf_save_error(ctx, errptr);
     }
 }
+
+/* DrawDevice */
+fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        device = fz_new_draw_device(ctx, fz_identity, pixmap);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
+
+/* DisplayListDevice */
+fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        device = fz_new_list_device(ctx, list);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
