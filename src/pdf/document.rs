@@ -1,6 +1,8 @@
+use std::ffi::CString;
+
 use mupdf_sys::*;
 
-use crate::context;
+use crate::{context, Document, Error};
 
 #[derive(Debug)]
 pub struct PdfDocument {
@@ -12,6 +14,12 @@ impl PdfDocument {
         let inner = unsafe { pdf_create_document(context()) };
         Self { inner }
     }
+
+    pub fn open(filename: &str) -> Result<Self, Error> {
+        let doc = Document::open(filename)?;
+        let inner = unsafe { pdf_document_from_fz_document(context(), doc.inner) };
+        Ok(Self { inner })
+    }
 }
 
 impl Drop for PdfDocument {
@@ -21,5 +29,15 @@ impl Drop for PdfDocument {
                 pdf_drop_document(context(), self.inner);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::PdfDocument;
+
+    #[test]
+    fn test_open_pdf_document() {
+        let _doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
     }
 }
