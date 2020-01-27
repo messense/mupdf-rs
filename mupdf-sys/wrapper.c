@@ -987,6 +987,46 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
     }
 }
 
+pdf_obj *mupdf_document_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_add_object(ctx, pdf, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+pdf_obj *mupdf_document_create_object(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_new_indirect(ctx, pdf, pdf_create_object(ctx, pdf), 0);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+void mupdf_document_delete_object(fz_context *ctx, pdf_document *pdf, int num, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_delete_object(ctx, pdf, num);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* DrawDevice */
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {

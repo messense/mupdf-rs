@@ -85,6 +85,27 @@ impl PdfDocument {
             Ok(PdfObject::from_raw(inner))
         }
     }
+
+    pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_document_add_object(context(), self.inner, obj.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn create_object(&mut self) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_document_create_object(context(), self.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn delete_object(&mut self, num: i32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_document_delete_object(context(), self.inner, num));
+        }
+        Ok(())
+    }
 }
 
 impl Drop for PdfDocument {
