@@ -8,6 +8,10 @@ pub struct PdfObject {
 }
 
 impl PdfObject {
+    pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj) -> Self {
+        Self { inner: ptr }
+    }
+
     pub fn is_indirect(&self) -> Result<bool, Error> {
         let ret = unsafe { ffi_try!(mupdf_pdf_is_indirect(context(), self.inner)) };
         Ok(ret)

@@ -732,6 +732,112 @@ bool mupdf_pdf_is_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     return b ? true : false;
 }
 
+pdf_obj *mupdf_pdf_new_null() {
+    return PDF_NULL;
+}
+
+pdf_obj *mupdf_pdf_new_bool(bool b) {
+    return b ? PDF_TRUE : PDF_FALSE;
+}
+
+pdf_obj *mupdf_pdf_new_int(fz_context *ctx, int i, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_int(ctx, i);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_real(fz_context *ctx, float f, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_real(ctx, f);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_string(fz_context *ctx, const char *s, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_text_string(ctx, s);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_name(fz_context *ctx, const char *name, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_name(ctx, name);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_indirect(fz_context *ctx, pdf_document *pdf, int num, int gen, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_indirect(ctx, pdf, num, gen);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_array(fz_context *ctx, pdf_document *pdf, int capacity, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_array(ctx, pdf, capacity);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+pdf_obj *mupdf_pdf_new_dict(fz_context *ctx, pdf_document *pdf, int capacity, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_new_dict(ctx, pdf, capacity);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
 /* Buffer */
 void mupdf_buffer_write_bytes(fz_context *ctx, fz_buffer *buf, const unsigned char *bytes, size_t len, mupdf_error_t **errptr)
 {
