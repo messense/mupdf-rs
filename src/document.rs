@@ -77,19 +77,37 @@ impl Document {
             MetaDataType::Title => "info::Title",
         };
         let c_key = CString::new(key).unwrap();
-        const info_len: usize = 256;
-        let mut info: [c_char; info_len] = [0; info_len];
+        const INFO_LEN: usize = 256;
+        let mut info: [c_char; INFO_LEN] = [0; INFO_LEN];
         unsafe {
             ffi_try!(mupdf_lookup_metadata(
                 context(),
                 self.inner,
                 c_key.as_ptr(),
                 info.as_mut_ptr(),
-                info_len as c_int
+                INFO_LEN as c_int
             ));
         }
         let c_info = unsafe { CStr::from_ptr(info.as_ptr()) };
         Ok(c_info.to_string_lossy().into_owned())
+    }
+
+    pub fn is_reflowable(&self) -> Result<bool, Error> {
+        let ret = unsafe { ffi_try!(mupdf_is_document_reflowable(context(), self.inner)) };
+        Ok(ret)
+    }
+
+    pub fn layout(&mut self, width: f32, height: f32, em: f32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_layout_document(
+                context(),
+                self.inner,
+                width,
+                height,
+                em
+            ));
+        }
+        Ok(())
     }
 }
 

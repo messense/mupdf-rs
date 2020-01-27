@@ -854,3 +854,29 @@ char* mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, 
     }
     return info;
 }
+
+bool mupdf_is_document_reflowable(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
+{
+    bool is_reflowable = false;
+    fz_try(ctx)
+    {
+        is_reflowable = fz_is_document_reflowable(ctx, doc);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return is_reflowable;
+}
+
+void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, float em, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_layout_document(ctx, doc, w, h, em);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
