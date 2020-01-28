@@ -152,6 +152,14 @@ impl PdfDocument {
             Ok(PdfObject::from_raw(inner))
         }
     }
+
+    pub fn has_unsaved_changes(&self) -> bool {
+        unsafe { pdf_has_unsaved_changes(context(), self.inner) != 0 }
+    }
+
+    pub fn can_be_saved_incrementally(&self) -> bool {
+        unsafe { pdf_can_be_saved_incrementally(context(), self.inner) != 0 }
+    }
 }
 
 impl Drop for PdfDocument {
@@ -170,7 +178,8 @@ mod test {
 
     #[test]
     fn test_open_pdf_document() {
-        let _doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        assert!(!doc.has_unsaved_changes());
     }
 
     #[test]
