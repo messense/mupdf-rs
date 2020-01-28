@@ -1,4 +1,5 @@
 use std::ffi::CString;
+use std::io::Write;
 
 use mupdf_sys::*;
 
@@ -311,6 +312,10 @@ impl PdfDocument {
 
     pub fn save(&self, filename: &str) -> Result<(), Error> {
         self.save_with_options(filename, PdfWriteOptions::default())
+    }
+
+    pub fn write_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
+        todo!()
     }
 }
 
