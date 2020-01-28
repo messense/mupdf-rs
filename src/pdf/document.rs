@@ -391,6 +391,9 @@ mod test {
 
         let trailer = doc.trailer().unwrap();
         assert!(trailer.is_null().unwrap());
+
+        let count = doc.count_objects().unwrap();
+        assert_eq!(count, 16);
     }
 
     #[test]
