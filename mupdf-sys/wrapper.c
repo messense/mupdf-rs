@@ -1219,6 +1219,18 @@ pdf_obj *mupdf_pdf_add_simple_font(fz_context *ctx, pdf_document *pdf, fz_font *
     return ind;
 }
 
+void mupdf_pdf_save_document(fz_context *ctx, pdf_document *pdf, const char* filename, pdf_write_options pwo, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_save_document(ctx, pdf, filename, &pwo);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* DrawDevice */
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {

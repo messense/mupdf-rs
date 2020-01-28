@@ -4,6 +4,141 @@ use mupdf_sys::*;
 
 use crate::{context, Document, Error, Font, Image, PdfObject};
 
+#[derive(Clone, Copy)]
+pub struct PdfWriteOptions {
+    inner: pdf_write_options,
+}
+
+impl Default for PdfWriteOptions {
+    fn default() -> Self {
+        unsafe {
+            Self {
+                inner: pdf_default_write_options,
+            }
+        }
+    }
+}
+
+impl PdfWriteOptions {
+    pub fn incremental(&self) -> bool {
+        self.inner.do_incremental != 0
+    }
+
+    pub fn set_incremental(&mut self, value: bool) -> &mut Self {
+        self.inner.do_incremental = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn pretty(&self) -> bool {
+        self.inner.do_pretty != 0
+    }
+
+    pub fn set_pretty(&mut self, value: bool) -> &mut Self {
+        self.inner.do_pretty = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn ascii(&self) -> bool {
+        self.inner.do_ascii != 0
+    }
+
+    pub fn set_ascii(&mut self, value: bool) -> &mut Self {
+        self.inner.do_ascii = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn compress(&self) -> bool {
+        self.inner.do_compress != 0
+    }
+
+    pub fn set_compress(&mut self, value: bool) -> &mut Self {
+        self.inner.do_compress = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn compress_images(&self) -> bool {
+        self.inner.do_compress_images != 0
+    }
+
+    pub fn set_compress_images(&mut self, value: bool) -> &mut Self {
+        self.inner.do_compress_images = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn compress_fonts(&self) -> bool {
+        self.inner.do_compress_fonts != 0
+    }
+
+    pub fn set_compress_fonts(&mut self, value: bool) -> &mut Self {
+        self.inner.do_compress_fonts = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn decompress(&self) -> bool {
+        self.inner.do_decompress != 0
+    }
+
+    pub fn set_decompress(&mut self, value: bool) -> &mut Self {
+        self.inner.do_decompress = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn garbage(&self) -> bool {
+        self.inner.do_garbage != 0
+    }
+
+    pub fn set_garbage(&mut self, value: bool) -> &mut Self {
+        self.inner.do_garbage = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn linear(self) -> bool {
+        self.inner.do_linear != 0
+    }
+
+    pub fn set_linear(&mut self, value: bool) -> &mut Self {
+        self.inner.do_linear = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn clean(&self) -> bool {
+        self.inner.do_clean != 0
+    }
+
+    pub fn set_clean(&mut self, value: bool) -> &mut Self {
+        self.inner.do_clean = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn sanitize(&self) -> bool {
+        self.inner.do_sanitize != 0
+    }
+
+    pub fn set_sanitize(&mut self, value: bool) -> &mut Self {
+        self.inner.do_sanitize = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn appearance(&self) -> bool {
+        self.inner.do_appearance != 0
+    }
+
+    pub fn set_appearance(&mut self, value: bool) -> &mut Self {
+        self.inner.do_appearance = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn encrypt(&self) -> bool {
+        self.inner.do_encrypt != 0
+    }
+
+    pub fn set_encrypt(&mut self, value: bool) -> &mut Self {
+        self.inner.do_encrypt = if value { 1 } else { 0 };
+        self
+    }
+    // TODO: permission, password
+}
+
 #[derive(Debug)]
 pub struct PdfDocument {
     inner: *mut pdf_document,
@@ -159,6 +294,23 @@ impl PdfDocument {
 
     pub fn can_be_saved_incrementally(&self) -> bool {
         unsafe { pdf_can_be_saved_incrementally(context(), self.inner) != 0 }
+    }
+
+    pub fn save_with_options(&self, filename: &str, options: PdfWriteOptions) -> Result<(), Error> {
+        let c_name = CString::new(filename)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_save_document(
+                context(),
+                self.inner,
+                c_name.as_ptr(),
+                options.inner
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn save(&self, filename: &str) -> Result<(), Error> {
+        self.save_with_options(filename, PdfWriteOptions::default())
     }
 }
 
