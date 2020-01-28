@@ -13,6 +13,13 @@ pub enum SimpleFontEncoding {
     Cyrillic,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum WriteMode {
+    Horizontal = 0,
+    Vertical = 1,
+}
+
 #[derive(Debug)]
 pub struct Font {
     pub(crate) inner: *mut fz_font,

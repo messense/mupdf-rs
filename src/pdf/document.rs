@@ -3,7 +3,7 @@ use std::io::Write;
 
 use mupdf_sys::*;
 
-use crate::{context, Document, Error, Font, Image, PdfObject, SimpleFontEncoding};
+use crate::{context, Document, Error, Font, Image, PdfObject, SimpleFontEncoding, WriteMode};
 
 #[derive(Clone, Copy)]
 pub struct PdfWriteOptions {
@@ -261,7 +261,7 @@ impl PdfDocument {
         &mut self,
         font: &Font,
         ordering: i32,
-        wmode: i32,
+        wmode: WriteMode,
         serif: bool,
     ) -> Result<PdfObject, Error> {
         unsafe {
@@ -270,7 +270,7 @@ impl PdfDocument {
                 self.inner,
                 font.inner,
                 ordering,
-                wmode,
+                wmode as i32,
                 serif
             ));
             Ok(PdfObject::from_raw(inner))
