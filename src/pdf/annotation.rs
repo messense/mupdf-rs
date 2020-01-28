@@ -1,8 +1,12 @@
 use mupdf_sys::*;
 
-use crate::context;
+use num_enum::TryFromPrimitive;
+use std::convert::TryFrom;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+use crate::{context, Error};
+
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(i32)]
 pub enum PdfAnnotationType {
     Text = 0,
     Link = 1,
@@ -33,7 +37,8 @@ pub enum PdfAnnotationType {
     Unknown = -1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(i32)]
 pub enum LineEndingStyle {
     None = 0,
     Square = 1,
@@ -55,6 +60,12 @@ pub struct PdfAnnotation {
 impl PdfAnnotation {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_annot) -> Self {
         Self { inner: ptr }
+    }
+
+    pub fn r#type(&self) -> Result<PdfAnnotationType, Error> {
+        let subtype = unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner)) };
+        let typ = PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown);
+        Ok(typ)
     }
 }
 

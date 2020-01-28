@@ -1261,3 +1261,18 @@ bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errp
     }
     return redacted;
 }
+
+/* PDFAnnotation */
+int mupdf_pdf_annot_type(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    int subtype = 0;
+    fz_try(ctx)
+    {
+        subtype = pdf_annot_type(ctx, annot);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return subtype;
+}
