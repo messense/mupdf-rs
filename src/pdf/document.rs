@@ -3,7 +3,9 @@ use std::io::Write;
 
 use mupdf_sys::*;
 
-use crate::{context, Document, Error, Font, Image, PdfObject, SimpleFontEncoding, WriteMode};
+use crate::{
+    context, Document, Error, Font, Image, PdfGraftMap, PdfObject, SimpleFontEncoding, WriteMode,
+};
 
 #[derive(Clone, Copy)]
 pub struct PdfWriteOptions {
@@ -222,6 +224,13 @@ impl PdfDocument {
         }
     }
 
+    pub fn new_graft_map(&self) -> Result<PdfGraftMap, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_graft_map(context(), self.inner));
+            Ok(PdfGraftMap::from_raw(inner))
+        }
+    }
+
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner));
@@ -314,6 +323,44 @@ impl PdfDocument {
         Ok(())
     }
 
+    pub fn enable_js(&mut self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_enable_js(context(), self.inner));
+        }
+        Ok(())
+    }
+
+    pub fn disable_js(&mut self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_disable_js(context(), self.inner));
+        }
+        Ok(())
+    }
+
+    pub fn is_js_supported(&mut self) -> Result<bool, Error> {
+        let supported = unsafe { ffi_try!(mupdf_pdf_js_supported(context(), self.inner)) };
+        Ok(supported)
+    }
+
+    pub fn calculate_form(&mut self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_calculate_form(context(), self.inner));
+        }
+        Ok(())
+    }
+
+    pub fn trailer(&self) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_trailer(context(), self.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn count_objects(&self) -> Result<u32, Error> {
+        let count = unsafe { ffi_try!(mupdf_pdf_count_objects(context(), self.inner)) };
+        Ok(count as u32)
+    }
+
     pub fn save(&self, filename: &str) -> Result<(), Error> {
         self.save_with_options(filename, PdfWriteOptions::default())
     }
@@ -341,6 +388,9 @@ mod test {
     fn test_open_pdf_document() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
         assert!(!doc.has_unsaved_changes());
+
+        let trailer = doc.trailer().unwrap();
+        assert!(trailer.is_null().unwrap());
     }
 
     #[test]

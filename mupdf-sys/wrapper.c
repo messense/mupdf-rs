@@ -1231,6 +1231,102 @@ void mupdf_pdf_save_document(fz_context *ctx, pdf_document *pdf, const char* fil
     }
 }
 
+void mupdf_pdf_enable_js(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_enable_js(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_disable_js(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_disable_js(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+bool mupdf_pdf_js_supported(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    bool supported = false;
+    fz_try(ctx)
+    {
+        supported = pdf_js_supported(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return supported;
+}
+
+void mupdf_pdf_calculate_form(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        if (pdf->recalculate)
+        {
+            pdf_calculate_form(ctx, pdf);
+        }
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_trailer(ctx, pdf);
+        pdf_keep_obj(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+int mupdf_pdf_count_objects(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    int count = 0;
+    fz_try(ctx)
+    {
+        count = pdf_xref_len(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return count;
+}
+
+pdf_graft_map *mupdf_pdf_new_graft_map(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    pdf_graft_map *map = NULL;
+    fz_try(ctx)
+    {
+        map = pdf_new_graft_map(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return map;
+}
+
 /* DrawDevice */
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
