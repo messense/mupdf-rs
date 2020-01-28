@@ -231,6 +231,13 @@ impl PdfDocument {
         }
     }
 
+    pub fn graft_object(&self, obj: &PdfObject) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner));

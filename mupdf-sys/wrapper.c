@@ -1327,6 +1327,20 @@ pdf_graft_map *mupdf_pdf_new_graft_map(fz_context *ctx, pdf_document *pdf, mupdf
     return map;
 }
 
+pdf_obj *mupdf_pdf_graft_object(fz_context *ctx, pdf_document *doc, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    pdf_obj *graft_obj = NULL;
+    fz_try(ctx)
+    {
+        graft_obj = pdf_graft_object(ctx, doc, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return graft_obj;
+}
+
 /* DrawDevice */
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
