@@ -974,7 +974,40 @@ pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, const char *key, mupd
     return val;
 }
 
+fz_buffer *mupdf_pdf_read_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_try(ctx)
+    {
+        buf = pdf_load_stream(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
 /* Buffer */
+size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
+{
+    size_t len;
+    size_t remaining_input = 0;
+    unsigned char *data;
+    len = fz_buffer_storage(ctx, buf, &data);
+    if (at >= len) {
+        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+        err->type = -1;
+        err->message = strdup("offset >= buffer length");
+        *errptr = err;
+        return 0;
+    }
+    remaining_input = len - at;
+    len = fz_minz(buf_len, remaining_input);
+    memcpy(output, &data[at], len);
+    return len;
+}
+
 void mupdf_buffer_write_bytes(fz_context *ctx, fz_buffer *buf, const unsigned char *bytes, size_t len, mupdf_error_t **errptr)
 {
     fz_try(ctx)

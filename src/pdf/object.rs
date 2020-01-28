@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::io::{BufReader, Read};
 
 use mupdf_sys::*;
 
@@ -126,7 +127,13 @@ impl PdfObject {
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
-        todo!()
+        let inner = unsafe { ffi_try!(mupdf_pdf_read_stream(context(), self.inner)) };
+        let buf = unsafe { Buffer::from_raw(inner) };
+        let buf_len = buf.len();
+        let mut reader = BufReader::new(buf);
+        let mut output = Vec::with_capacity(buf_len);
+        reader.read_to_end(&mut output)?;
+        Ok(output)
     }
 
     pub fn read_raw_stream(&self) -> Result<Vec<u8>, Error> {
