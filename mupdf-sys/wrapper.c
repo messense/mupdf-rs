@@ -1123,7 +1123,7 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
     }
 }
 
-pdf_obj *mupdf_document_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
+pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
     fz_try(ctx)
@@ -1137,7 +1137,7 @@ pdf_obj *mupdf_document_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *
     return ind;
 }
 
-pdf_obj *mupdf_document_create_object(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+pdf_obj *mupdf_pdf_create_object(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
     fz_try(ctx)
@@ -1151,7 +1151,7 @@ pdf_obj *mupdf_document_create_object(fz_context *ctx, pdf_document *pdf, mupdf_
     return ind;
 }
 
-void mupdf_document_delete_object(fz_context *ctx, pdf_document *pdf, int num, mupdf_error_t **errptr)
+void mupdf_pdf_delete_object(fz_context *ctx, pdf_document *pdf, int num, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -1163,12 +1163,54 @@ void mupdf_document_delete_object(fz_context *ctx, pdf_document *pdf, int num, m
     }
 }
 
-pdf_obj *mupdf_document_add_image(fz_context *ctx, pdf_document *pdf, fz_image *image, mupdf_error_t **errptr)
+pdf_obj *mupdf_pdf_add_image(fz_context *ctx, pdf_document *pdf, fz_image *image, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
     fz_try(ctx)
     {
         ind = pdf_add_image(ctx, pdf, image);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+pdf_obj *mupdf_pdf_add_font(fz_context *ctx, pdf_document *pdf, fz_font *font, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_add_cid_font(ctx, pdf, font);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+pdf_obj *mupdf_pdf_add_cjk_font(fz_context *ctx, pdf_document *pdf, fz_font *font, int ordering, int wmode, bool serif, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_add_cjk_font(ctx, pdf, font, ordering, wmode, serif);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ind;
+}
+
+pdf_obj *mupdf_pdf_add_simple_font(fz_context *ctx, pdf_document *pdf, fz_font *font, int encoding, mupdf_error_t **errptr)
+{
+    pdf_obj *ind = NULL;
+    fz_try(ctx)
+    {
+        ind = pdf_add_simple_font(ctx, pdf, font, encoding);
     }
     fz_catch(ctx)
     {

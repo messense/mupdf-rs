@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use mupdf_sys::*;
 
-use crate::{context, Document, Error, Image, PdfObject};
+use crate::{context, Document, Error, Font, Image, PdfObject};
 
 #[derive(Debug)]
 pub struct PdfDocument {
@@ -88,28 +88,67 @@ impl PdfDocument {
 
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_document_add_object(context(), self.inner, obj.inner));
+            let inner = ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner));
             Ok(PdfObject::from_raw(inner))
         }
     }
 
     pub fn create_object(&mut self) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_document_create_object(context(), self.inner));
+            let inner = ffi_try!(mupdf_pdf_create_object(context(), self.inner));
             Ok(PdfObject::from_raw(inner))
         }
     }
 
     pub fn delete_object(&mut self, num: i32) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_document_delete_object(context(), self.inner, num));
+            ffi_try!(mupdf_pdf_delete_object(context(), self.inner, num));
         }
         Ok(())
     }
 
     pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_document_add_image(context(), self.inner, obj.inner));
+            let inner = ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn add_font(&mut self, font: &Font) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_add_font(context(), self.inner, font.inner));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn add_cjk_font(
+        &mut self,
+        font: &Font,
+        ordering: i32,
+        wmode: i32,
+        serif: bool,
+    ) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_add_cjk_font(
+                context(),
+                self.inner,
+                font.inner,
+                ordering,
+                wmode,
+                serif
+            ));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn add_simple_font(&mut self, font: &Font, encoding: i32) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_add_simple_font(
+                context(),
+                self.inner,
+                font.inner,
+                encoding
+            ));
             Ok(PdfObject::from_raw(inner))
         }
     }

@@ -7,7 +7,7 @@ use crate::{context, Error};
 
 #[derive(Debug)]
 pub struct Font {
-    inner: *mut fz_font,
+    pub(crate) inner: *mut fz_font,
 }
 
 impl Font {
