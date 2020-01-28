@@ -5,6 +5,14 @@ use mupdf_sys::*;
 
 use crate::{context, Error};
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum SimpleFontEncoding {
+    Latin,
+    Greek,
+    Cyrillic,
+}
+
 #[derive(Debug)]
 pub struct Font {
     pub(crate) inner: *mut fz_font,

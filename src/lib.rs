@@ -36,7 +36,7 @@ pub use document::Document;
 pub use draw_device::DrawDevice;
 pub(crate) use error::ffi_error;
 pub use error::Error;
-pub use font::Font;
+pub use font::{Font, SimpleFontEncoding};
 pub use image::Image;
 pub use link::Link;
 pub use matrix::Matrix;

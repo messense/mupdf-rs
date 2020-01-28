@@ -3,7 +3,7 @@ use std::io::Write;
 
 use mupdf_sys::*;
 
-use crate::{context, Document, Error, Font, Image, PdfObject};
+use crate::{context, Document, Error, Font, Image, PdfObject, SimpleFontEncoding};
 
 #[derive(Clone, Copy)]
 pub struct PdfWriteOptions {
@@ -277,13 +277,17 @@ impl PdfDocument {
         }
     }
 
-    pub fn add_simple_font(&mut self, font: &Font, encoding: i32) -> Result<PdfObject, Error> {
+    pub fn add_simple_font(
+        &mut self,
+        font: &Font,
+        encoding: SimpleFontEncoding,
+    ) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_simple_font(
                 context(),
                 self.inner,
                 font.inner,
-                encoding
+                encoding as i32
             ));
             Ok(PdfObject::from_raw(inner))
         }
