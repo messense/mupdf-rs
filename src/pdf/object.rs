@@ -9,11 +9,20 @@ use crate::{context, Buffer, Error};
 #[derive(Debug)]
 pub struct PdfObject {
     pub(crate) inner: *mut pdf_obj,
+    owned: bool,
 }
 
 impl PdfObject {
-    pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj) -> Self {
-        Self { inner: ptr }
+    pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj, owned: bool) -> Self {
+        Self { inner: ptr, owned }
+    }
+
+    pub fn new_name(name: &str) -> Result<PdfObject, Error> {
+        let c_name = CString::new(name)?;
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr()));
+            Ok(PdfObject::from_raw(inner, true))
+        }
     }
 
     pub fn is_indirect(&self) -> Result<bool, Error> {
@@ -125,7 +134,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(Self { inner, owned: true }))
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
@@ -194,16 +203,30 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(Self { inner, owned: true }))
     }
 
     pub fn get_dict(&self, key: &str) -> Result<Option<Self>, Error> {
         let c_key = CString::new(key)?;
-        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, c_key.as_ptr())) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_gets(context(), self.inner, c_key.as_ptr())) };
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(Self { inner, owned: true }))
+    }
+
+    pub fn get_dict_inheritable(&self, key: &PdfObject) -> Result<Option<Self>, Error> {
+        let inner = unsafe {
+            ffi_try!(mupdf_pdf_dict_get_inheritable(
+                context(),
+                self.inner,
+                key.inner
+            ))
+        };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner, owned: true }))
     }
 
     pub fn len(&self) -> Result<usize, Error> {
@@ -229,7 +252,7 @@ impl Write for PdfObject {
 
 impl Drop for PdfObject {
     fn drop(&mut self) {
-        if !self.inner.is_null() {
+        if self.owned && !self.inner.is_null() {
             unsafe {
                 pdf_drop_obj(context(), self.inner);
             }

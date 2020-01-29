@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Page, PdfAnnotation};
+use crate::{context, Error, Page, PdfAnnotation, PdfObject};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -40,6 +40,20 @@ impl PdfPage {
     pub fn redact(&mut self) -> Result<bool, Error> {
         let ret = unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.inner)) };
         Ok(ret)
+    }
+
+    pub fn object(&self) -> PdfObject {
+        unsafe { PdfObject::from_raw((*self.inner).obj, false) }
+    }
+
+    pub fn rotation(&self) -> Result<i32, Error> {
+        if let Some(rotate) = self
+            .object()
+            .get_dict_inheritable(&PdfObject::new_name("Rotate")?)?
+        {
+            return rotate.as_int();
+        }
+        Ok(0)
     }
 }
 

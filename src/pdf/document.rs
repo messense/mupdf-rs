@@ -182,28 +182,28 @@ impl PdfDocument {
     pub fn new_null(&self) -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_null();
-            PdfObject::from_raw(inner)
+            PdfObject::from_raw(inner, true)
         }
     }
 
     pub fn new_bool(&self, b: bool) -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_bool(b);
-            PdfObject::from_raw(inner)
+            PdfObject::from_raw(inner, true)
         }
     }
 
     pub fn new_int(&self, i: i32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_int(context(), i));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn new_real(&self, f: f32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_real(context(), f));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -211,7 +211,7 @@ impl PdfDocument {
         let c_str = CString::new(s)?;
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr()));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -219,28 +219,28 @@ impl PdfDocument {
         let c_name = CString::new(name)?;
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr()));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn new_indirect(&self, num: i32, gen: i32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_indirect(context(), self.inner, num, gen));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn new_array(&self) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_array(context(), self.inner, 0));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn new_dict(&self) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_dict(context(), self.inner, 0));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -254,21 +254,21 @@ impl PdfDocument {
     pub fn graft_object(&self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn create_object(&mut self) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_create_object(context(), self.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -282,14 +282,14 @@ impl PdfDocument {
     pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
     pub fn add_font(&mut self, font: &Font) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_add_font(context(), self.inner, font.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -309,7 +309,7 @@ impl PdfDocument {
                 wmode as i32,
                 serif
             ));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -325,7 +325,7 @@ impl PdfDocument {
                 font.inner,
                 encoding as i32
             ));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -379,7 +379,7 @@ impl PdfDocument {
     pub fn trailer(&self) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_trailer(context(), self.inner));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -443,7 +443,7 @@ impl PdfDocument {
     pub fn find_page(&self, page_no: i32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_lookup_page_obj(context(), self.inner, page_no));
-            Ok(PdfObject::from_raw(inner))
+            Ok(PdfObject::from_raw(inner, true))
         }
     }
 
@@ -573,6 +573,8 @@ mod test {
         let mut pdf = PdfDocument::new();
         let page = pdf.new_page(595.0, 842.0).unwrap();
         assert!(pdf.has_unsaved_changes());
+
+        assert_eq!(page.rotation().unwrap(), 0);
         let bounds = page.bounds().unwrap();
         assert_eq!(bounds.x0, 0.0);
         assert_eq!(bounds.y0, 0.0);
