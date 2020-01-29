@@ -1,5 +1,5 @@
 use std::ffi::{CStr, CString};
-use std::io::{BufReader, Read};
+use std::io::{self, BufReader, Read, Write};
 
 use mupdf_sys::*;
 
@@ -114,10 +114,6 @@ impl PdfObject {
         todo!()
     }
 
-    pub fn to_string(&self, tight: bool, ascii: bool) -> Result<String, Error> {
-        todo!()
-    }
-
     pub fn resolve(&self) -> Result<Option<Self>, Error> {
         let inner = unsafe { ffi_try!(mupdf_pdf_resolve_indirect(context(), self.inner)) };
         if inner.is_null() {
@@ -202,6 +198,21 @@ impl PdfObject {
             return Ok(None);
         }
         Ok(Some(Self { inner }))
+    }
+}
+
+impl Write for PdfObject {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        let len = buf.len();
+        let mut fz_buf = Buffer::with_capacity(len);
+        fz_buf.write(buf)?;
+        self.write_stream_buffer(&fz_buf)
+            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+        Ok(len)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
     }
 }
 
