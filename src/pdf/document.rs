@@ -4,7 +4,8 @@ use std::io::Write;
 use mupdf_sys::*;
 
 use crate::{
-    context, Document, Error, Font, Image, PdfGraftMap, PdfObject, SimpleFontEncoding, WriteMode,
+    context, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
+    SimpleFontEncoding, WriteMode,
 };
 
 #[derive(Clone, Copy)]
@@ -276,7 +277,7 @@ impl PdfDocument {
     pub fn add_cjk_font(
         &mut self,
         font: &Font,
-        ordering: i32,
+        ordering: CjkFontOrdering,
         wmode: WriteMode,
         serif: bool,
     ) -> Result<PdfObject, Error> {
@@ -285,7 +286,7 @@ impl PdfDocument {
                 context(),
                 self.inner,
                 font.inner,
-                ordering,
+                ordering as i32,
                 wmode as i32,
                 serif
             ));

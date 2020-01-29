@@ -1,5 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::os::raw::c_int;
+use std::str::FromStr;
 
 use mupdf_sys::*;
 
@@ -18,6 +19,32 @@ pub enum SimpleFontEncoding {
 pub enum WriteMode {
     Horizontal = 0,
     Vertical = 1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum CjkFontOrdering {
+    AdobeCns,
+    AdobeGb,
+    AdobeJapan,
+    AdobeKorea,
+}
+
+impl FromStr for CjkFontOrdering {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let ordering = match s {
+            "zh-Hant" | "zh-TW" | "zh-HK" | "zh-Hans" => Self::AdobeCns,
+            "zh-CN" => Self::AdobeGb,
+            "ja" => Self::AdobeJapan,
+            "ko" => Self::AdobeKorea,
+            _ => {
+                return Err(Error::InvalidLanguage(s.to_string()));
+            }
+        };
+        Ok(ordering)
+    }
 }
 
 #[derive(Debug)]
