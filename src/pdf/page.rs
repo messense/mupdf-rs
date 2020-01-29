@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, Error, Page, PdfAnnotation};
+use crate::{context, Error, PdfAnnotation};
 
 #[derive(Debug)]
 pub struct PdfPage {
