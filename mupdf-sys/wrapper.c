@@ -1017,6 +1017,27 @@ fz_buffer *mupdf_pdf_read_raw_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_
     return buf;
 }
 
+void mupdf_pdf_write_object(fz_context *ctx, pdf_obj *self, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    pdf_document *pdf = pdf_get_bound_document(ctx, self);
+    if (!pdf)
+    {
+        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+        err->type = -1;
+        err->message = strdup("object not bound to document");
+        *errptr = err;
+        return;
+    }
+    fz_try(ctx)
+    {
+        pdf_update_object(ctx, pdf, pdf_to_num(ctx, self), obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {

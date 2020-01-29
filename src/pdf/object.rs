@@ -147,7 +147,10 @@ impl PdfObject {
     }
 
     pub fn write_object(&mut self, obj: &PdfObject) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_pdf_write_object(context(), self.inner, obj.inner));
+        }
+        Ok(())
     }
 
     pub fn write_stream_buffer(&mut self, buf: &Buffer) -> Result<(), Error> {
