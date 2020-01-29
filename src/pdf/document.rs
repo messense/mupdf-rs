@@ -5,7 +5,7 @@ use mupdf_sys::*;
 
 use crate::{
     context, Buffer, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
-    SimpleFontEncoding, WriteMode,
+    PdfPage, SimpleFontEncoding, WriteMode,
 };
 
 #[derive(Clone, Copy)]
@@ -420,6 +420,49 @@ impl PdfDocument {
     pub fn write_to<W: Write>(&self, w: &mut W) -> Result<u64, Error> {
         self.write_to_with_options(w, PdfWriteOptions::default())
     }
+
+    pub fn find_page(&self, page_no: i32) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_lookup_page_obj(context(), self.inner, page_no));
+            Ok(PdfObject::from_raw(inner))
+        }
+    }
+
+    pub fn new_page_at(&mut self, page_no: i32, width: f32, height: f32) -> Result<PdfPage, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_page(
+                context(),
+                self.inner,
+                page_no,
+                width,
+                height
+            ));
+            Ok(PdfPage::from_raw(inner))
+        }
+    }
+
+    pub fn new_page(&mut self, width: f32, height: f32) -> Result<PdfPage, Error> {
+        self.new_page_at(-1, width, height)
+    }
+
+    pub fn insert_page(&mut self, page_no: i32, page: &PdfObject) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_insert_page(
+                context(),
+                self.inner,
+                page_no,
+                page.inner
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn delete_page(&mut self, page_no: i32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no));
+        }
+        Ok(())
+    }
 }
 
 impl Drop for PdfDocument {
@@ -489,5 +532,12 @@ mod test {
 
         let obj = pdf.new_dict().unwrap();
         assert!(obj.is_dict().unwrap());
+    }
+
+    #[test]
+    fn test_pdf_document_new_page() {
+        let mut pdf = PdfDocument::new();
+        let _page = pdf.new_page(595.0, 842.0).unwrap();
+        assert!(pdf.has_unsaved_changes());
     }
 }

@@ -8,6 +8,10 @@ pub struct Page {
 }
 
 impl Page {
+    pub(crate) unsafe fn from_raw(raw: *mut fz_page) -> Self {
+        Self { inner: raw }
+    }
+
     pub fn bounds(&self) -> Result<Rect, Error> {
         let rect = unsafe { ffi_try!(mupdf_bound_page(context(), self.inner)) };
         Ok(rect.into())

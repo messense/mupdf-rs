@@ -1290,6 +1290,35 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
     }
 }
 
+fz_page *mupdf_load_page(fz_context *ctx, fz_document *doc, int page_no, mupdf_error_t **errptr)
+{
+    fz_page *page = NULL;
+    fz_try(ctx)
+    {
+        page = fz_load_page(ctx, doc, page_no);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return page;
+}
+
+pdf_page *mupdf_pdf_page_from_fz_page(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    pdf_page *pdf_page = NULL;
+    fz_try(ctx)
+    {
+        pdf_page = pdf_page_from_fz_page(ctx, page);
+        fz_keep_page(ctx, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pdf_page;
+}
+
 pdf_document *mupdf_pdf_document_from_fz_document(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
 {
     pdf_document *pdf = NULL;
@@ -1544,6 +1573,93 @@ pdf_obj *mupdf_pdf_graft_object(fz_context *ctx, pdf_document *doc, pdf_obj *obj
         mupdf_save_error(ctx, errptr);
     }
     return graft_obj;
+}
+
+pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, float width, float height, mupdf_error_t **errptr)
+{
+    fz_rect mediabox = fz_unit_rect;
+    mediabox.x1 = width;
+    mediabox.y1 = height;
+    pdf_obj *resources = NULL, *page_obj = NULL;
+    fz_buffer *contents = NULL;
+    pdf_page *page = NULL;
+    fz_try(ctx)
+    {
+        // create /Resources and /Contents objects
+        resources = pdf_add_object_drop(ctx, pdf, pdf_new_dict(ctx, pdf, 1));
+        page_obj = pdf_add_page(ctx, pdf, mediabox, 0, resources, contents);
+        pdf_insert_page(ctx, pdf, page_no, page_obj);
+        pdf->dirty = 1;
+        int n = page_no;
+        int page_count = pdf_count_pages(ctx, pdf);
+        while (n < 0) {
+            n += page_count;
+        }
+        fz_page *fz_page = fz_load_page(ctx, &pdf->super, n);
+        page = pdf_page_from_fz_page(ctx, fz_page);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_buffer(ctx, contents);
+        pdf_drop_obj(ctx, page_obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return page;
+}
+
+pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_no, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj =pdf_lookup_page_obj(ctx, pdf, page_no);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
+void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_obj *page, mupdf_error_t **errptr)
+{
+    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
+        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+        err->type = -1;
+        err->message = strdup("page_no is not a valid page");
+        *errptr = err;
+        return;
+    }
+    fz_try(ctx)
+    {
+        pdf_insert_page(ctx, pdf, page_no, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupdf_error_t **errptr)
+{
+    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
+        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+        err->type = -1;
+        err->message = strdup("page_no is not a valid page");
+        *errptr = err;
+        return;
+    }
+    fz_try(ctx)
+    {
+        pdf_delete_page(ctx, pdf, page_no);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
 }
 
 /* DrawDevice */

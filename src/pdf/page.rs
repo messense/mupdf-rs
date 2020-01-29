@@ -8,6 +8,10 @@ pub struct PdfPage {
 }
 
 impl PdfPage {
+    pub(crate) unsafe fn from_raw(ptr: *mut pdf_page) -> Self {
+        Self { inner: ptr }
+    }
+
     pub fn create_annotation(&mut self, subtype: i32) -> Result<PdfAnnotation, Error> {
         unsafe {
             let annot = ffi_try!(mupdf_pdf_create_annot(context(), self.inner, subtype));

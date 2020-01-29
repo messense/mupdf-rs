@@ -4,7 +4,7 @@ use std::os::raw::{c_char, c_int};
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Error};
+use crate::{context, Buffer, Error, Page};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetaDataType {
@@ -109,6 +109,13 @@ impl Document {
         }
         Ok(())
     }
+
+    pub fn load_page(&self, page_no: i32) -> Result<Page, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_load_page(context(), self.inner, page_no));
+            Ok(Page::from_raw(inner))
+        }
+    }
 }
 
 impl Drop for Document {
@@ -132,5 +139,17 @@ mod test {
 
         assert!(!Document::recognize("test.doc").unwrap());
         assert!(!Document::recognize("text/html").unwrap());
+    }
+
+    #[test]
+    fn test_document_load_page() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        assert_eq!(doc.page_count().unwrap(), 1);
+        let page0 = doc.load_page(0).unwrap();
+        let bounds = page0.bounds().unwrap();
+        assert_eq!(bounds.x0, 0.0);
+        assert_eq!(bounds.y0, 0.0);
+        assert_eq!(bounds.x1, 595.0);
+        assert_eq!(bounds.y1, 842.0);
     }
 }
