@@ -8,6 +8,20 @@ use crate::{
     PdfPage, SimpleFontEncoding, WriteMode,
 };
 
+// FIXME: use bitflags
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(u32)]
+pub enum Permission {
+    Print = 1 << 2,
+    Modify = 1 << 3,
+    Copy = 1 << 4,
+    Annotate = 1 << 5,
+    Form = 1 << 8,
+    Accessibility = 1 << 9,
+    Assemble = 1 << 10,
+    PrintHQ = 1 << 11,
+}
+
 #[derive(Clone, Copy)]
 pub struct PdfWriteOptions {
     inner: pdf_write_options,
