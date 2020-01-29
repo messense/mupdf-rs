@@ -1276,6 +1276,21 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
     }
 }
 
+pdf_document *mupdf_pdf_document_from_fz_document(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
+{
+    pdf_document *pdf = NULL;
+    fz_try(ctx)
+    {
+        pdf = pdf_document_from_fz_document(ctx, doc);
+        pdf_keep_document(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pdf;
+}
+
 pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
@@ -1382,6 +1397,29 @@ void mupdf_pdf_save_document(fz_context *ctx, pdf_document *pdf, const char *fil
     {
         mupdf_save_error(ctx, errptr);
     }
+}
+
+fz_buffer *mupdf_pdf_write_document(fz_context *ctx, pdf_document *pdf, pdf_write_options pwo, mupdf_error_t **errptr)
+{
+    fz_output *out = NULL;
+    fz_buffer *buf = NULL;
+    fz_var(out);
+    fz_try(ctx)
+    {
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+        pdf_write_document(ctx, pdf, out, &pwo);
+        fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
 }
 
 void mupdf_pdf_enable_js(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)

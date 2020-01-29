@@ -1,10 +1,10 @@
 use std::ffi::CString;
-use std::io::Write;
+use std::io::{self, Write};
 
 use mupdf_sys::*;
 
 use crate::{
-    context, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
+    context, Buffer, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
     SimpleFontEncoding, WriteMode,
 };
 
@@ -156,7 +156,7 @@ impl PdfDocument {
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let doc = Document::open(filename)?;
-        let inner = unsafe { pdf_document_from_fz_document(context(), doc.inner) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_document_from_fz_document(context(), doc.inner)) };
         Ok(Self { inner })
     }
 
@@ -373,8 +373,28 @@ impl PdfDocument {
         self.save_with_options(filename, PdfWriteOptions::default())
     }
 
-    pub fn write_to<W: Write>(&self, w: &mut W) -> Result<(), Error> {
-        todo!()
+    fn write_with_options(&self, options: PdfWriteOptions) -> Result<Buffer, Error> {
+        unsafe {
+            let buf = ffi_try!(mupdf_pdf_write_document(
+                context(),
+                self.inner,
+                options.inner
+            ));
+            Ok(Buffer::from_raw(buf))
+        }
+    }
+
+    pub fn write_to_with_options<W: Write>(
+        &self,
+        w: &mut W,
+        options: PdfWriteOptions,
+    ) -> Result<u64, Error> {
+        let mut buf = self.write_with_options(options)?;
+        Ok(io::copy(&mut buf, w)?)
+    }
+
+    pub fn write_to<W: Write>(&self, w: &mut W) -> Result<u64, Error> {
+        self.write_to_with_options(w, PdfWriteOptions::default())
     }
 }
 
@@ -398,10 +418,14 @@ mod test {
         assert!(!doc.has_unsaved_changes());
 
         let trailer = doc.trailer().unwrap();
-        assert!(trailer.is_null().unwrap());
+        assert!(!trailer.is_null().unwrap());
 
         let count = doc.count_objects().unwrap();
         assert_eq!(count, 16);
+
+        let mut output = Vec::new();
+        let n = doc.write_to(&mut output).unwrap();
+        assert!(n > 0);
     }
 
     #[test]
