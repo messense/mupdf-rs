@@ -551,7 +551,12 @@ mod test {
     #[test]
     fn test_pdf_document_new_page() {
         let mut pdf = PdfDocument::new();
-        let _page = pdf.new_page(595.0, 842.0).unwrap();
+        let page = pdf.new_page(595.0, 842.0).unwrap();
         assert!(pdf.has_unsaved_changes());
+        let bounds = page.bounds().unwrap();
+        assert_eq!(bounds.x0, 0.0);
+        assert_eq!(bounds.y0, 0.0);
+        assert_eq!(bounds.x1, 595.0);
+        assert_eq!(bounds.y1, 842.0);
     }
 }
