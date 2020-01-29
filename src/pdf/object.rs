@@ -205,6 +205,11 @@ impl PdfObject {
         }
         Ok(Some(Self { inner }))
     }
+
+    pub fn len(&self) -> Result<usize, Error> {
+        let size = unsafe { ffi_try!(mupdf_pdf_array_len(context(), self.inner)) };
+        Ok(size as usize)
+    }
 }
 
 impl Write for PdfObject {

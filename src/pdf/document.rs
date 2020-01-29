@@ -369,6 +369,30 @@ impl PdfDocument {
         Ok(count as u32)
     }
 
+    pub fn has_acro_form(&self) -> Result<bool, Error> {
+        let trailer = self.trailer()?;
+        if let Some(root) = trailer.get_dict("Root")? {
+            if let Some(form) = root.get_dict("AcroForm")? {
+                if let Some(fields) = form.get_dict("Fields")? {
+                    return Ok(fields.len()? > 0);
+                }
+            }
+        }
+        Ok(false)
+    }
+
+    pub fn has_xfa_form(&self) -> Result<bool, Error> {
+        let trailer = self.trailer()?;
+        if let Some(root) = trailer.get_dict("Root")? {
+            if let Some(form) = root.get_dict("AcroForm")? {
+                if let Some(xfa) = form.get_dict("XFA")? {
+                    return xfa.is_null();
+                }
+            }
+        }
+        Ok(false)
+    }
+
     pub fn save(&self, filename: &str) -> Result<(), Error> {
         self.save_with_options(filename, PdfWriteOptions::default())
     }
@@ -416,6 +440,8 @@ mod test {
     fn test_open_pdf_document() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
         assert!(!doc.has_unsaved_changes());
+        assert!(!doc.has_acro_form().unwrap());
+        assert!(!doc.has_xfa_form().unwrap());
 
         let trailer = doc.trailer().unwrap();
         assert!(!trailer.is_null().unwrap());

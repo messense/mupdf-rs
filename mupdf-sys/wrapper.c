@@ -1073,6 +1073,20 @@ void mupdf_pdf_write_stream_buffer(fz_context *ctx, pdf_obj *obj, fz_buffer *buf
     }
 }
 
+int mupdf_pdf_array_len(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int len = 0;
+    fz_try(ctx)
+    {
+        len = pdf_array_len(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return len;
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
