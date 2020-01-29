@@ -154,19 +154,37 @@ impl PdfObject {
     }
 
     pub fn write_stream_buffer(&mut self, buf: &Buffer) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_pdf_write_stream_buffer(
+                context(),
+                self.inner,
+                buf.inner,
+                0
+            ));
+        }
+        Ok(())
     }
 
     pub fn write_stream_string(&mut self, string: &str) -> Result<(), Error> {
-        todo!()
+        let buf = Buffer::from_str(string)?;
+        self.write_stream_buffer(&buf)
     }
 
     pub fn write_raw_stream_buffer(&mut self, buf: &Buffer) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_pdf_write_stream_buffer(
+                context(),
+                self.inner,
+                buf.inner,
+                1
+            ));
+        }
+        Ok(())
     }
 
     pub fn write_raw_stream_string(&mut self, string: &str) -> Result<(), Error> {
-        todo!()
+        let buf = Buffer::from_str(string)?;
+        self.write_raw_stream_buffer(&buf)
     }
 
     pub fn get_array(&self, index: i32) -> Result<Option<Self>, Error> {

@@ -1038,6 +1038,27 @@ void mupdf_pdf_write_object(fz_context *ctx, pdf_obj *self, pdf_obj *obj, mupdf_
     }
 }
 
+void mupdf_pdf_write_stream_buffer(fz_context *ctx, pdf_obj *obj, fz_buffer *buf, int compressed, mupdf_error_t **errptr)
+{
+    pdf_document *pdf = pdf_get_bound_document(ctx, obj);
+    if (!pdf)
+    {
+        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+        err->type = -1;
+        err->message = strdup("object not bound to document");
+        *errptr = err;
+        return;
+    }
+    fz_try(ctx)
+    {
+        pdf_update_stream(ctx, pdf, obj, buf, compressed);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
@@ -1073,6 +1094,34 @@ void mupdf_buffer_write_bytes(fz_context *ctx, fz_buffer *buf, const unsigned ch
     {
         mupdf_save_error(ctx, errptr);
     }
+}
+
+fz_buffer *mupdf_buffer_from_str(fz_context *ctx, const char *s, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_try(ctx)
+    {
+        buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char *)s, strlen(s));
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
+fz_buffer *mupdf_buffer_from_base64(fz_context *ctx, const char *s, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_try(ctx)
+    {
+        buf = fz_new_buffer_from_base64(ctx, s, strlen(s));
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
 }
 
 /* Document */

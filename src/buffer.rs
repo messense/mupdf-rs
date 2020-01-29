@@ -1,3 +1,4 @@
+use std::ffi::CString;
 use std::io;
 use std::ptr;
 
@@ -21,6 +22,18 @@ impl Buffer {
 
     pub fn new() -> Self {
         Self::with_capacity(0)
+    }
+
+    pub fn from_str(str: &str) -> Result<Self, Error> {
+        let c_str = CString::new(str)?;
+        let inner = unsafe { ffi_try!(mupdf_buffer_from_str(context(), c_str.as_ptr())) };
+        Ok(Self { inner, offset: 0 })
+    }
+
+    pub fn from_base64(str: &str) -> Result<Self, Error> {
+        let c_str = CString::new(str)?;
+        let inner = unsafe { ffi_try!(mupdf_buffer_from_base64(context(), c_str.as_ptr())) };
+        Ok(Self { inner, offset: 0 })
     }
 
     pub fn with_capacity(cap: usize) -> Self {
@@ -159,5 +172,21 @@ mod test {
 
         let bytes = buf.bytes().collect::<Result<Vec<u8>, _>>();
         assert_eq!(bytes.unwrap(), [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_from_str() {
+        let mut buf = Buffer::from_str("abc").unwrap();
+        let mut output = [0; 3];
+        buf.read(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_from_base64() {
+        let mut buf = Buffer::from_base64("YWJj").unwrap();
+        let mut output = [0; 3];
+        buf.read(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
     }
 }
