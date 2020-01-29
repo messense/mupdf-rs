@@ -137,7 +137,13 @@ impl PdfObject {
     }
 
     pub fn read_raw_stream(&self) -> Result<Vec<u8>, Error> {
-        todo!()
+        let inner = unsafe { ffi_try!(mupdf_pdf_read_raw_stream(context(), self.inner)) };
+        let buf = unsafe { Buffer::from_raw(inner) };
+        let buf_len = buf.len();
+        let mut reader = BufReader::new(buf);
+        let mut output = Vec::with_capacity(buf_len);
+        reader.read_to_end(&mut output)?;
+        Ok(output)
     }
 
     pub fn write_object(&mut self, obj: &PdfObject) -> Result<(), Error> {

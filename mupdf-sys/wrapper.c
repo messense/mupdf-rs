@@ -1003,6 +1003,20 @@ fz_buffer *mupdf_pdf_read_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **
     return buf;
 }
 
+fz_buffer *mupdf_pdf_read_raw_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_try(ctx)
+    {
+        buf = pdf_load_raw_stream(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
