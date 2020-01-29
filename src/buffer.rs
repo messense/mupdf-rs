@@ -110,4 +110,54 @@ mod test {
         buf.read(&mut output).unwrap();
         assert_eq!(output, [97, 98, 99]);
     }
+
+    #[test]
+    fn test_buffer_read_to_string() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = String::new();
+        buf.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "abc");
+    }
+
+    #[test]
+    fn test_buffer_read_to_end() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = Vec::new();
+        buf.read_to_end(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_read_exact() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = [0; 2];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [97, 98]);
+
+        let mut output = [0; 1];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [99]);
+
+        let mut output = [0; 1];
+        assert_eq!(buf.read(&mut output).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_buffer_as_bytes() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let bytes = buf.bytes().collect::<Result<Vec<u8>, _>>();
+        assert_eq!(bytes.unwrap(), [97, 98, 99]);
+    }
 }

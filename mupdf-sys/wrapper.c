@@ -991,11 +991,13 @@ fz_buffer *mupdf_pdf_read_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
-    size_t len;
     size_t remaining_input = 0;
     unsigned char *data;
-    len = fz_buffer_storage(ctx, buf, &data);
-    if (at >= len) {
+    size_t len = fz_buffer_storage(ctx, buf, &data);
+    if (at == len) {
+        // EOF
+        return 0;
+    } else if (at > len) {
         mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
         err->type = -1;
         err->message = strdup("offset >= buffer length");
