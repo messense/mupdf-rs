@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::ffi::CString;
 use std::io;
 use std::ptr;
@@ -99,6 +100,42 @@ impl Drop for Buffer {
                 fz_drop_buffer(context(), self.inner);
             }
         }
+    }
+}
+
+impl TryFrom<&str> for Buffer {
+    type Error = Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Buffer::from_str(s)
+    }
+}
+
+impl TryFrom<String> for Buffer {
+    type Error = Error;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Buffer::from_str(&s)
+    }
+}
+
+impl TryFrom<&[u8]> for Buffer {
+    type Error = Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        let mut buf = Buffer::with_capacity(bytes.len());
+        buf.write_bytes(bytes)?;
+        Ok(buf)
+    }
+}
+
+impl TryFrom<Vec<u8>> for Buffer {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        let mut buf = Buffer::with_capacity(bytes.len());
+        buf.write_bytes(&bytes)?;
+        Ok(buf)
     }
 }
 
