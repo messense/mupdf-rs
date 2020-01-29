@@ -23,9 +23,9 @@ static void lock(void *user, int lock)
     // supress unused variable warning
     (void)user;
 #ifdef _WIN32
-	EnterCriticalSection(&mutexes[lock]);
+    EnterCriticalSection(&mutexes[lock]);
 #else
-	(void)pthread_mutex_lock(&mutexes[lock]);
+    (void)pthread_mutex_lock(&mutexes[lock]);
 #endif
 }
 
@@ -34,18 +34,17 @@ static void unlock(void *user, int lock)
     // supress unused variable warning
     (void)user;
 #ifdef _WIN32
-	LeaveCriticalSection(&mutexes[lock]);
+    LeaveCriticalSection(&mutexes[lock]);
 #else
-	(void)pthread_mutex_unlock(&mutexes[lock]);
+    (void)pthread_mutex_unlock(&mutexes[lock]);
 #endif
 }
 
 static const fz_locks_context locks =
-{
-	NULL, /* user */
-	lock,
-	unlock
-};
+    {
+        NULL, /* user */
+        lock,
+        unlock};
 
 typedef struct mupdf_error
 {
@@ -64,19 +63,24 @@ void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
     *errptr = err;
 }
 
-void mupdf_drop_error(mupdf_error_t *err) {
-    if (err == NULL) {
+void mupdf_drop_error(mupdf_error_t *err)
+{
+    if (err == NULL)
+    {
         return;
     }
-    if (err->message != NULL) {
+    if (err->message != NULL)
+    {
         free(err->message);
     }
     free(err);
     err = NULL;
 }
 
-void mupdf_drop_str(char *s) {
-    if (s != NULL) {
+void mupdf_drop_str(char *s)
+{
+    if (s != NULL)
+    {
         free(s);
         s = NULL;
     }
@@ -85,15 +89,17 @@ void mupdf_drop_str(char *s) {
 /* Context */
 fz_context *mupdf_new_base_context()
 {
-    for (int i = 0; i < FZ_LOCK_MAX; i++) {
+    for (int i = 0; i < FZ_LOCK_MAX; i++)
+    {
 #ifdef _WIN32
-		InitializeCriticalSection(&mutexes[i]);
+        InitializeCriticalSection(&mutexes[i]);
 #else
-		(void)pthread_mutex_init(&mutexes[i], NULL);
+        (void)pthread_mutex_init(&mutexes[i], NULL);
 #endif
     }
     fz_context *ctx = fz_new_context(NULL, &locks, FZ_STORE_DEFAULT);
-    if (!ctx) {
+    if (!ctx)
+    {
         return NULL;
     }
     fz_register_document_handlers(ctx);
@@ -102,16 +108,17 @@ fz_context *mupdf_new_base_context()
 
 void mupdf_drop_base_context(fz_context *ctx)
 {
-    for (int i = 0; i < FZ_LOCK_MAX; i++) {
+    for (int i = 0; i < FZ_LOCK_MAX; i++)
+    {
 #ifdef _WIN32
-		DeleteCriticalSection(&mutexes[i]);
+        DeleteCriticalSection(&mutexes[i]);
 #else
-		(void)pthread_mutex_destroy(&mutexes[i]);
+        (void)pthread_mutex_destroy(&mutexes[i]);
 #endif
     }
 
-	fz_drop_context(ctx);
-	ctx = NULL;
+    fz_drop_context(ctx);
+    ctx = NULL;
 }
 
 /* Pixmap */
@@ -201,9 +208,12 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_erro
         int size;
 
         data = fz_lookup_base14_font(ctx, name, &size);
-        if (data) {
+        if (data)
+        {
             font = fz_new_font_from_memory(ctx, name, data, size, index, 0);
-        } else {
+        }
+        else
+        {
             font = fz_new_font_from_file(ctx, name, name, index, 0);
         }
     }
@@ -527,9 +537,12 @@ fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, f
     fz_pixmap *pixmap = NULL;
     fz_try(ctx)
     {
-        if (show_extras) {
+        if (show_extras)
+        {
             pixmap = fz_new_pixmap_from_page(ctx, page, ctm, cs, alpha);
-        } else {
+        }
+        else
+        {
             pixmap = fz_new_pixmap_from_page_contents(ctx, page, ctm, cs, alpha);
         }
     }
@@ -739,11 +752,13 @@ bool mupdf_pdf_is_stream(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     return b ? true : false;
 }
 
-pdf_obj *mupdf_pdf_new_null() {
+pdf_obj *mupdf_pdf_new_null()
+{
     return PDF_NULL;
 }
 
-pdf_obj *mupdf_pdf_new_bool(bool b) {
+pdf_obj *mupdf_pdf_new_bool(bool b)
+{
     return b ? PDF_TRUE : PDF_FALSE;
 }
 
@@ -994,10 +1009,13 @@ size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsig
     size_t remaining_input = 0;
     unsigned char *data;
     size_t len = fz_buffer_storage(ctx, buf, &data);
-    if (at == len) {
+    if (at == len)
+    {
         // EOF
         return 0;
-    } else if (at > len) {
+    }
+    else if (at > len)
+    {
         mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
         err->type = -1;
         err->message = strdup("offset >= buffer length");
@@ -1039,7 +1057,8 @@ fz_document *mupdf_open_document(fz_context *ctx, const char *filename, mupdf_er
 
 fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, const char *magic, mupdf_error_t **errptr)
 {
-    if (!magic) {
+    if (!magic)
+    {
         return NULL;
     }
     fz_document *doc = NULL;
@@ -1062,7 +1081,8 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
 
 bool mupdf_recognize_document(fz_context *ctx, const char *magic, mupdf_error_t **errptr)
 {
-    if (!magic) {
+    if (!magic)
+    {
         return false;
     }
     bool recognized = false;
@@ -1119,7 +1139,7 @@ int mupdf_document_page_count(fz_context *ctx, fz_document *doc, mupdf_error_t *
     return count;
 }
 
-char* mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, char info[], int info_len, mupdf_error_t **errptr)
+char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, char info[], int info_len, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
@@ -1254,7 +1274,7 @@ pdf_obj *mupdf_pdf_add_simple_font(fz_context *ctx, pdf_document *pdf, fz_font *
     return ind;
 }
 
-void mupdf_pdf_save_document(fz_context *ctx, pdf_document *pdf, const char* filename, pdf_write_options pwo, mupdf_error_t **errptr)
+void mupdf_pdf_save_document(fz_context *ctx, pdf_document *pdf, const char *filename, pdf_write_options pwo, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
