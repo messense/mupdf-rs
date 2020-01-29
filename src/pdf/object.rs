@@ -1,5 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::io::{self, BufReader, Read, Write};
+use std::slice;
 
 use mupdf_sys::*;
 
@@ -111,7 +112,12 @@ impl PdfObject {
     }
 
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
-        todo!()
+        let mut len = 0;
+        unsafe {
+            let ptr = ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len));
+            let byte_slice = slice::from_raw_parts(ptr, len);
+            Ok(byte_slice.to_vec())
+        }
     }
 
     pub fn resolve(&self) -> Result<Option<Self>, Error> {

@@ -428,6 +428,7 @@ mod test {
         let obj = pdf.new_string("PDF").unwrap();
         assert!(obj.is_string().unwrap());
         assert_eq!(obj.as_string().unwrap(), "PDF");
+        assert_eq!(obj.as_bytes().unwrap(), [80, 68, 70]);
 
         let obj = pdf.new_name("Type").unwrap();
         assert!(obj.is_name().unwrap());

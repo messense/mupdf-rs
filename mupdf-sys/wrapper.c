@@ -944,6 +944,20 @@ char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     return strdup(s);
 }
 
+const unsigned char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *len, mupdf_error_t **errptr)
+{
+    const char *s = NULL;
+    fz_try(ctx)
+    {
+        s = pdf_to_string(ctx, obj, len);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return (unsigned char *)s;
+}
+
 pdf_obj *mupdf_pdf_resolve_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
