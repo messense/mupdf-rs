@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::io::{self, Write};
+use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
@@ -160,18 +161,22 @@ impl PdfWriteOptions {
 #[derive(Debug)]
 pub struct PdfDocument {
     inner: *mut pdf_document,
+    doc: Document,
 }
 
 impl PdfDocument {
     pub fn new() -> Self {
-        let inner = unsafe { pdf_create_document(context()) };
-        Self { inner }
+        unsafe {
+            let inner = pdf_create_document(context());
+            let doc = Document::from_raw(&mut (*inner).super_, false);
+            Self { inner, doc }
+        }
     }
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let doc = Document::open(filename)?;
         let inner = unsafe { ffi_try!(mupdf_pdf_document_from_fz_document(context(), doc.inner)) };
-        Ok(Self { inner })
+        Ok(Self { inner, doc })
     }
 
     pub fn new_null(&self) -> PdfObject {
@@ -489,6 +494,20 @@ impl Drop for PdfDocument {
     }
 }
 
+impl Deref for PdfDocument {
+    type Target = Document;
+
+    fn deref(&self) -> &Self::Target {
+        &self.doc
+    }
+}
+
+impl DerefMut for PdfDocument {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.doc
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::PdfDocument;
@@ -499,6 +518,7 @@ mod test {
         assert!(!doc.has_unsaved_changes());
         assert!(!doc.has_acro_form().unwrap());
         assert!(!doc.has_xfa_form().unwrap());
+        assert!(!doc.needs_password().unwrap());
 
         let trailer = doc.trailer().unwrap();
         assert!(!trailer.is_null().unwrap());
