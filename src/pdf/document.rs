@@ -1,7 +1,8 @@
 use std::convert::TryFrom;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
+use std::ptr;
 
 use bitflags::bitflags;
 use mupdf_sys::*;
@@ -165,7 +166,34 @@ impl PdfWriteOptions {
         self.inner.permissions = value.bits;
         self
     }
-    // TODO: password
+
+    pub fn owner_password(&self) -> &str {
+        let c_pwd = unsafe { CStr::from_ptr(self.inner.opwd_utf8.as_ptr()) };
+        c_pwd.to_str().unwrap()
+    }
+
+    pub fn set_owner_password(&mut self, pwd: &str) -> &mut Self {
+        let len = pwd.len() + 1;
+        let c_pwd = CString::new(pwd).unwrap();
+        unsafe {
+            ptr::copy_nonoverlapping(c_pwd.as_ptr(), self.inner.opwd_utf8.as_mut_ptr(), len);
+        }
+        self
+    }
+
+    pub fn user_password(&self) -> &str {
+        let c_pwd = unsafe { CStr::from_ptr(self.inner.upwd_utf8.as_ptr()) };
+        c_pwd.to_str().unwrap()
+    }
+
+    pub fn set_user_password(&mut self, pwd: &str) -> &mut Self {
+        let len = pwd.len() + 1;
+        let c_pwd = CString::new(pwd).unwrap();
+        unsafe {
+            ptr::copy_nonoverlapping(c_pwd.as_ptr(), self.inner.upwd_utf8.as_mut_ptr(), len);
+        }
+        self
+    }
 }
 
 #[derive(Debug)]
@@ -527,7 +555,22 @@ impl TryFrom<Document> for PdfDocument {
 
 #[cfg(test)]
 mod test {
-    use super::{PdfDocument, Permission};
+    use super::{PdfDocument, PdfWriteOptions, Permission};
+
+    #[test]
+    fn test_pdf_write_options_passwords() {
+        let mut options = PdfWriteOptions::default();
+        let owner_pwd = options.owner_password();
+        let user_pwd = options.user_password();
+        assert!(owner_pwd.is_empty());
+        assert!(user_pwd.is_empty());
+
+        options.set_owner_password("abc").set_user_password("def");
+        let owner_pwd = options.owner_password();
+        let user_pwd = options.user_password();
+        assert_eq!(owner_pwd, "abc");
+        assert_eq!(user_pwd, "def");
+    }
 
     #[test]
     fn test_open_pdf_document() {
