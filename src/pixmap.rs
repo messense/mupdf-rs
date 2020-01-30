@@ -243,6 +243,7 @@ mod test {
     fn test_pixmap_invert() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
         pixmap.invert().unwrap();
     }
 
@@ -250,6 +251,7 @@ mod test {
     fn test_pixmap_gamma() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
         pixmap.gamma(2.0).unwrap();
     }
 
@@ -257,6 +259,7 @@ mod test {
     fn test_pixmap_tint() {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
         pixmap.tint(0, 255).unwrap();
     }
 }
