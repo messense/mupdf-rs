@@ -7,7 +7,7 @@ use mupdf_sys::*;
 
 use crate::{
     context, Buffer, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
-    PdfPage, SimpleFontEncoding, WriteMode,
+    PdfPage, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -459,21 +459,22 @@ impl PdfDocument {
         }
     }
 
-    pub fn new_page_at(&mut self, page_no: i32, width: f32, height: f32) -> Result<PdfPage, Error> {
+    pub fn new_page_at<T: Into<Size>>(&mut self, page_no: i32, size: T) -> Result<PdfPage, Error> {
+        let size = size.into();
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_page(
                 context(),
                 self.inner,
                 page_no,
-                width,
-                height
+                size.width,
+                size.height
             ));
             Ok(PdfPage::from_raw(inner))
         }
     }
 
-    pub fn new_page(&mut self, width: f32, height: f32) -> Result<PdfPage, Error> {
-        self.new_page_at(-1, width, height)
+    pub fn new_page<T: Into<Size>>(&mut self, size: T) -> Result<PdfPage, Error> {
+        self.new_page_at(-1, size)
     }
 
     pub fn insert_page(&mut self, page_no: i32, page: &PdfObject) -> Result<(), Error> {
@@ -572,8 +573,10 @@ mod test {
 
     #[test]
     fn test_pdf_document_new_page() {
+        use crate::Size;
+
         let mut pdf = PdfDocument::new();
-        let page = pdf.new_page(595.0, 842.0).unwrap();
+        let page = pdf.new_page(Size::A4).unwrap();
         assert!(pdf.has_unsaved_changes());
 
         assert_eq!(page.rotation().unwrap(), 0);

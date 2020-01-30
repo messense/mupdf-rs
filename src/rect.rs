@@ -11,7 +11,7 @@ pub struct IRect {
 }
 
 impl IRect {
-    pub fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
+    pub const fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
         Self { x0, y0, x1, y1 }
     }
 
@@ -74,7 +74,7 @@ pub struct Rect {
 }
 
 impl Rect {
-    pub fn new(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
+    pub const fn new(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
         Self { x0, y0, x1, y1 }
     }
 

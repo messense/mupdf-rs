@@ -21,6 +21,7 @@ mod point;
 mod quad;
 mod rect;
 mod shade;
+mod size;
 mod stroke_state;
 mod text;
 
@@ -49,5 +50,6 @@ pub use point::Point;
 pub use quad::Quad;
 pub use rect::{IRect, Rect};
 pub use shade::Shade;
+pub use size::Size;
 pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::Text;

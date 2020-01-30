@@ -2,12 +2,12 @@ use mupdf_sys::fz_point;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
-    x: f32,
-    y: f32,
+    pub x: f32,
+    pub y: f32,
 }
 
 impl Point {
-    pub fn new(x: f32, y: f32) -> Self {
+    pub const fn new(x: f32, y: f32) -> Self {
         Self { x, y }
     }
 }
