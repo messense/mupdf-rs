@@ -1538,6 +1538,21 @@ pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **e
     return obj;
 }
 
+pdf_obj *mupdf_pdf_catalog(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_dict_get(ctx, pdf_trailer(ctx, pdf), PDF_NAME(Root));
+        pdf_keep_obj(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
 int mupdf_pdf_count_objects(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     int count = 0;

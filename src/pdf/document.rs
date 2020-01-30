@@ -420,6 +420,13 @@ impl PdfDocument {
         }
     }
 
+    pub fn catalog(&self) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_catalog(context(), self.inner));
+            Ok(PdfObject::from_raw(inner, true))
+        }
+    }
+
     pub fn count_objects(&self) -> Result<u32, Error> {
         let count = unsafe { ffi_try!(mupdf_pdf_count_objects(context(), self.inner)) };
         Ok(count as u32)
@@ -592,6 +599,9 @@ mod test {
 
         let perm = doc.permissions();
         assert!(perm.contains(Permission::PRINT));
+
+        let catalog = doc.catalog().unwrap();
+        assert!(!catalog.is_null().unwrap());
     }
 
     #[test]
