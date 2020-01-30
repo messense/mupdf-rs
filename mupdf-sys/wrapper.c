@@ -1655,6 +1655,10 @@ void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupd
     fz_try(ctx)
     {
         pdf_delete_page(ctx, pdf, page_no);
+        if (pdf->rev_page_map)
+        {
+            pdf_drop_page_tree(ctx, pdf);
+        }
     }
     fz_catch(ctx)
     {
