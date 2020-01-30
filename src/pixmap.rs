@@ -118,6 +118,15 @@ impl Pixmap {
         }
         Ok(())
     }
+
+    pub fn shrink(&mut self, factor: i32) -> Result<(), Error> {
+        if factor >= 1 {
+            unsafe {
+                fz_subsample_pixmap(context(), self.inner, factor);
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Drop for Pixmap {
