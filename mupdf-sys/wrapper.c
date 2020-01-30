@@ -65,7 +65,7 @@ static void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
 
 static mupdf_error_t *mupdf_new_error_from_str(const char *message) {
     mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-    err->type = -1;
+    err->type = FZ_ERROR_GENERIC;
     err->message = strdup(message);
     return err;
 }
