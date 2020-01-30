@@ -1607,6 +1607,7 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
     {
         fz_drop_buffer(ctx, contents);
         pdf_drop_obj(ctx, page_obj);
+        pdf_drop_obj(ctx, resources);
     }
     fz_catch(ctx)
     {
