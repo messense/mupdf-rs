@@ -198,6 +198,18 @@ impl Pixmap {
         }
         Ok(())
     }
+
+    pub fn copy_from(&mut self, src: &Pixmap, bbox: IRect) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_copy_pixmap_rect(
+                context(),
+                self.inner,
+                src.inner,
+                bbox.into()
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Drop for Pixmap {

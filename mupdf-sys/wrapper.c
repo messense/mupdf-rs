@@ -197,6 +197,7 @@ void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma, mupdf_e
 {
     if (!fz_pixmap_colorspace(ctx, pixmap))
     {
+        *errptr = mupdf_new_error_from_str("colorspace invalid for function");
         return;
     }
     fz_try(ctx)
@@ -220,6 +221,28 @@ void mupdf_tint_pixmap(fz_context *ctx, fz_pixmap *pixmap, int black, int white,
     fz_try(ctx)
     {
         fz_tint_pixmap(ctx, pixmap, black, white);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_copy_pixmap_rect(fz_context *ctx, fz_pixmap *self, fz_pixmap *src, fz_irect bbox, mupdf_error_t **errptr)
+{
+    if (!fz_pixmap_colorspace(ctx, src))
+    {
+        *errptr = mupdf_new_error_from_str("cannot copy pixmap with NULL colorspace");
+        return;
+    }
+    if (self->alpha != src->alpha)
+    {
+        *errptr = mupdf_new_error_from_str("source and target alpha must be equal");
+        return;
+    }
+    fz_try(ctx)
+    {
+        fz_copy_pixmap_rect(ctx, self, src, bbox, NULL);
     }
     fz_catch(ctx)
     {
