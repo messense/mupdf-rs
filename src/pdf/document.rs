@@ -13,15 +13,15 @@ use crate::{
 };
 
 bitflags! {
-    pub struct Permission: i32 {
-        const PRINT = 1 << 2;
-        const MODIFY = 1 << 3;
-        const COPY = 1 << 4;
-        const ANNOTATE = 1 << 5;
-        const FORM = 1 << 8;
-        const ACCESSIBILITY = 1 << 9;
-        const ASSEMBLE = 1 << 10;
-        const PRINT_HQ = 1 << 11;
+    pub struct Permission: u32 {
+        const PRINT = PDF_PERM_PRINT as _;
+        const MODIFY = PDF_PERM_MODIFY as _;
+        const COPY = PDF_PERM_COPY as _;
+        const ANNOTATE = PDF_PERM_ANNOTATE as _;
+        const FORM = PDF_PERM_FORM as _;
+        const ACCESSIBILITY = PDF_PERM_ACCESSIBILITY as _;
+        const ASSEMBLE = PDF_PERM_ASSEMBLE as _;
+        const PRINT_HQ = PDF_PERM_PRINT_HQ as _;
     }
 }
 
@@ -159,11 +159,11 @@ impl PdfWriteOptions {
     }
 
     pub fn permissions(&self) -> Permission {
-        Permission::from_bits(self.inner.permissions).unwrap()
+        Permission::from_bits(self.inner.permissions as u32).unwrap()
     }
 
     pub fn set_permissions(&mut self, value: Permission) -> &mut Self {
-        self.inner.permissions = value.bits;
+        self.inner.permissions = value.bits as _;
         self
     }
 
@@ -458,7 +458,7 @@ impl PdfDocument {
 
     pub fn permissions(&self) -> Permission {
         let bits = unsafe { pdf_document_permissions(context(), self.inner) };
-        Permission::from_bits(bits).unwrap_or_else(Permission::all)
+        Permission::from_bits(bits as u32).unwrap_or_else(Permission::all)
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Error> {
