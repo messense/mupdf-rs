@@ -170,18 +170,6 @@ void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value
     }
 }
 
-void mupdf_save_pixmap_as_png(fz_context *ctx, fz_pixmap *pixmap, const char *filename, mupdf_error_t **errptr)
-{
-    fz_try(ctx)
-    {
-        fz_save_pixmap_as_png(ctx, pixmap, filename);
-    }
-    fz_catch(ctx)
-    {
-        mupdf_save_error(ctx, errptr);
-    }
-}
-
 void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     fz_try(ctx)
@@ -244,6 +232,38 @@ void mupdf_copy_pixmap_rect(fz_context *ctx, fz_pixmap *self, fz_pixmap *src, fz
     fz_try(ctx)
     {
         fz_copy_pixmap_rect(ctx, self, src, bbox, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_save_pixmap_as(fz_context *ctx, fz_pixmap *pixmap, const char *filename, int format, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        switch (format)
+        {
+        case (0):
+            fz_save_pixmap_as_png(ctx, pixmap, filename);
+            break;
+        case (1):
+            fz_save_pixmap_as_pnm(ctx, pixmap, filename);
+            break;
+        case (2):
+            fz_save_pixmap_as_pam(ctx, pixmap, filename);
+            break;
+        case (3): // Adobe Photoshop Document
+            fz_save_pixmap_as_psd(ctx, pixmap, filename);
+            break;
+        case (4): // Postscript format
+            fz_save_pixmap_as_ps(ctx, pixmap, (char *)filename, 0);
+            break;
+        default:
+            fz_save_pixmap_as_png(ctx, pixmap, filename);
+            break;
+        }
     }
     fz_catch(ctx)
     {

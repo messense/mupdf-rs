@@ -159,13 +159,14 @@ impl Pixmap {
         Ok(())
     }
 
-    pub fn save_as_png(&self, filename: &str) -> Result<(), Error> {
+    pub fn save_as(&self, filename: &str, format: ImageFormat) -> Result<(), Error> {
         let c_filename = CString::new(filename)?;
         unsafe {
-            ffi_try!(mupdf_save_pixmap_as_png(
+            ffi_try!(mupdf_save_pixmap_as(
                 context(),
                 self.inner,
-                c_filename.as_ptr()
+                c_filename.as_ptr(),
+                format as i32
             ));
         }
         Ok(())
