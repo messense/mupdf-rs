@@ -1,6 +1,8 @@
+use std::io::Read;
+
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Error, Matrix, Pixmap, Rect};
+use crate::{context, Buffer, ColorSpace, Error, Matrix, Pixmap, Rect};
 
 #[derive(Debug)]
 pub struct Page {
@@ -36,6 +38,16 @@ impl Page {
             Ok(Pixmap::from_raw(inner))
         }
     }
+
+    pub fn to_svg(&self, ctm: &Matrix) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_svg(context(), self.inner, ctm.into()));
+            Buffer::from_raw(inner)
+        };
+        let mut svg = String::new();
+        buf.read_to_string(&mut svg)?;
+        Ok(svg)
+    }
 }
 
 impl Drop for Page {
@@ -45,5 +57,18 @@ impl Drop for Page {
                 fz_drop_page(context(), self.inner);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{Document, Matrix};
+
+    #[test]
+    fn test_page_to_svg() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let svg = page0.to_svg(&Matrix::IDENTITY).unwrap();
+        assert!(!svg.is_empty());
     }
 }
