@@ -51,6 +51,20 @@ impl IRect {
     }
 }
 
+impl From<fz_irect> for IRect {
+    fn from(r: fz_irect) -> IRect {
+        let fz_irect { x0, y0, x1, y1 } = r;
+        IRect { x0, y0, x1, y1 }
+    }
+}
+
+impl Into<fz_irect> for IRect {
+    fn into(self) -> fz_irect {
+        let IRect { x0, y0, x1, y1 } = self;
+        fz_irect { x0, y0, x1, y1 }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rect {
     pub x0: f32,

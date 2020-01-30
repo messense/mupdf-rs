@@ -209,6 +209,24 @@ void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma, mupdf_e
     }
 }
 
+void mupdf_tint_pixmap(fz_context *ctx, fz_pixmap *pixmap, int black, int white, mupdf_error_t **errptr)
+{
+    fz_colorspace *cs = fz_pixmap_colorspace(ctx, pixmap);
+    if (!cs || cs->n > 3)
+    {
+        *errptr = mupdf_new_error_from_str("colorspace invalid for function");
+        return;
+    }
+    fz_try(ctx)
+    {
+        fz_tint_pixmap(ctx, pixmap, black, white);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Font */
 fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_error_t **errptr)
 {
