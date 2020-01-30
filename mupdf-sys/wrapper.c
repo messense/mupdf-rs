@@ -52,7 +52,7 @@ typedef struct mupdf_error
     char *message;
 } mupdf_error_t;
 
-void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
+static void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
 {
     assert(errptr != NULL);
     int type = fz_caught(ctx);
@@ -61,6 +61,13 @@ void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
     err->type = type;
     err->message = strdup(message);
     *errptr = err;
+}
+
+static mupdf_error_t *mupdf_new_error_from_str(const char *message) {
+    mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
+    err->type = -1;
+    err->message = strdup(message);
+    return err;
 }
 
 void mupdf_drop_error(mupdf_error_t *err)
@@ -1051,10 +1058,7 @@ void mupdf_pdf_write_object(fz_context *ctx, pdf_obj *self, pdf_obj *obj, mupdf_
     pdf_document *pdf = pdf_get_bound_document(ctx, self);
     if (!pdf)
     {
-        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-        err->type = -1;
-        err->message = strdup("object not bound to document");
-        *errptr = err;
+        *errptr = mupdf_new_error_from_str("object not bound to document");
         return;
     }
     fz_try(ctx)
@@ -1072,10 +1076,7 @@ void mupdf_pdf_write_stream_buffer(fz_context *ctx, pdf_obj *obj, fz_buffer *buf
     pdf_document *pdf = pdf_get_bound_document(ctx, obj);
     if (!pdf)
     {
-        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-        err->type = -1;
-        err->message = strdup("object not bound to document");
-        *errptr = err;
+        *errptr = mupdf_new_error_from_str("object not bound to document");
         return;
     }
     fz_try(ctx)
@@ -1115,10 +1116,7 @@ size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsig
     }
     else if (at > len)
     {
-        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-        err->type = -1;
-        err->message = strdup("offset >= buffer length");
-        *errptr = err;
+        *errptr = mupdf_new_error_from_str("invalid offset, offset > buffer length");
         return 0;
     }
     remaining_input = len - at;
@@ -1612,10 +1610,7 @@ pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_
 void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_obj *page, mupdf_error_t **errptr)
 {
     if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
-        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-        err->type = -1;
-        err->message = strdup("page_no is not a valid page");
-        *errptr = err;
+        *errptr = mupdf_new_error_from_str("page_no is not a valid page");
         return;
     }
     fz_try(ctx)
@@ -1631,10 +1626,7 @@ void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_
 void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupdf_error_t **errptr)
 {
     if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
-        mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
-        err->type = -1;
-        err->message = strdup("page_no is not a valid page");
-        *errptr = err;
+        *errptr = mupdf_new_error_from_str("page_no is not a valid page");
         return;
     }
     fz_try(ctx)
