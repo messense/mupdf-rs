@@ -63,6 +63,11 @@ impl Pixmap {
         unsafe { (*self.inner).y }
     }
 
+    /// Pixmap origin, `(x, y)`
+    pub fn origin(&self) -> (i32, i32) {
+        unsafe { ((*self.inner).x, (*self.inner).y) }
+    }
+
     /// Width of the region in pixels.
     pub fn width(&self) -> u32 {
         unsafe { (*self.inner).w as u32 }
@@ -222,6 +227,8 @@ mod test {
 
         let rect = pixmap.rect();
         assert_eq!(rect, IRect::new(0, 0, 100, 100));
+
+        assert_eq!(pixmap.origin(), (0, 0));
     }
 
     #[test]
