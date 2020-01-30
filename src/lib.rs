@@ -45,7 +45,7 @@ pub use outline::Outline;
 pub use page::Page;
 pub use path::Path;
 pub use pdf::*;
-pub use pixmap::Pixmap;
+pub use pixmap::{ImageFormat, Pixmap};
 pub use point::Point;
 pub use quad::Quad;
 pub use rect::{IRect, Rect};

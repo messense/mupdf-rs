@@ -63,7 +63,8 @@ static void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr)
     *errptr = err;
 }
 
-static mupdf_error_t *mupdf_new_error_from_str(const char *message) {
+static mupdf_error_t *mupdf_new_error_from_str(const char *message)
+{
     mupdf_error_t *err = malloc(sizeof(mupdf_error_t));
     err->type = FZ_ERROR_GENERIC;
     err->message = strdup(message);
@@ -248,6 +249,48 @@ void mupdf_copy_pixmap_rect(fz_context *ctx, fz_pixmap *self, fz_pixmap *src, fz
     {
         mupdf_save_error(ctx, errptr);
     }
+}
+
+fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int format, mupdf_error_t **errptr)
+{
+    fz_output *out = NULL;
+    fz_buffer *buf = NULL;
+    fz_try(ctx)
+    {
+        size_t size = fz_pixmap_stride(ctx, pixmap) * pixmap->h;
+        buf = fz_new_buffer(ctx, size);
+        out = fz_new_output_with_buffer(ctx, buf);
+        switch (format)
+        {
+        case (0):
+            fz_write_pixmap_as_png(ctx, out, pixmap);
+            break;
+        case (1):
+            fz_write_pixmap_as_pnm(ctx, out, pixmap);
+            break;
+        case (2):
+            fz_write_pixmap_as_pam(ctx, out, pixmap);
+            break;
+        case (3): // Adobe Photoshop Document
+            fz_write_pixmap_as_psd(ctx, out, pixmap);
+            break;
+        case (4): // Postscript format
+            fz_write_pixmap_as_ps(ctx, out, pixmap);
+            break;
+        default:
+            fz_write_pixmap_as_png(ctx, out, pixmap);
+            break;
+        }
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
 }
 
 /* Font */
@@ -1635,7 +1678,8 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
         pdf->dirty = 1;
         int n = page_no;
         int page_count = pdf_count_pages(ctx, pdf);
-        while (n < 0) {
+        while (n < 0)
+        {
             n += page_count;
         }
         fz_page *fz_page = fz_load_page(ctx, &pdf->super, n);
@@ -1659,7 +1703,7 @@ pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_
     pdf_obj *obj = NULL;
     fz_try(ctx)
     {
-        obj =pdf_lookup_page_obj(ctx, pdf, page_no);
+        obj = pdf_lookup_page_obj(ctx, pdf, page_no);
     }
     fz_catch(ctx)
     {
@@ -1670,7 +1714,8 @@ pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_
 
 void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_obj *page, mupdf_error_t **errptr)
 {
-    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
+    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf))
+    {
         *errptr = mupdf_new_error_from_str("page_no is not a valid page");
         return;
     }
@@ -1686,7 +1731,8 @@ void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_
 
 void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupdf_error_t **errptr)
 {
-    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf)) {
+    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf))
+    {
         *errptr = mupdf_new_error_from_str("page_no is not a valid page");
         return;
     }

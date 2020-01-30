@@ -1,8 +1,19 @@
 use std::ffi::CString;
+use std::io::{self, Write};
 
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Error, IRect};
+use crate::{context, Buffer, ColorSpace, Error, IRect};
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
+pub enum ImageFormat {
+    PNG = 0,
+    PNM = 1,
+    PAM = 2,
+    PSD = 3,
+    PS = 4,
+}
 
 /// Pixmaps (pixel maps) are objects at the heart of MuPDF’s rendering capabilities.
 ///
@@ -209,6 +220,23 @@ impl Pixmap {
             ));
         }
         Ok(())
+    }
+
+    fn get_image_data(&self, format: ImageFormat) -> Result<Buffer, Error> {
+        let buf = unsafe {
+            let inner = ffi_try!(mupdf_pixmap_get_image_data(
+                context(),
+                self.inner,
+                format as i32
+            ));
+            Buffer::from_raw(inner)
+        };
+        Ok(buf)
+    }
+
+    pub fn write_to<W: Write>(&self, w: &mut W, format: ImageFormat) -> Result<u64, Error> {
+        let mut buf = self.get_image_data(format)?;
+        Ok(io::copy(&mut buf, w)?)
     }
 }
 
