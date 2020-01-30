@@ -424,6 +424,11 @@ impl PdfDocument {
         Ok(false)
     }
 
+    pub fn permissions(&self) -> Permission {
+        let bits = unsafe { pdf_document_permissions(context(), self.inner) };
+        Permission::from_bits(bits).unwrap_or_else(Permission::all)
+    }
+
     pub fn save(&self, filename: &str) -> Result<(), Error> {
         self.save_with_options(filename, PdfWriteOptions::default())
     }
@@ -513,7 +518,7 @@ impl DerefMut for PdfDocument {
 
 #[cfg(test)]
 mod test {
-    use super::PdfDocument;
+    use super::{PdfDocument, Permission};
 
     #[test]
     fn test_open_pdf_document() {
@@ -532,6 +537,9 @@ mod test {
         let mut output = Vec::new();
         let n = doc.write_to(&mut output).unwrap();
         assert!(n > 0);
+
+        let perm = doc.permissions();
+        assert!(perm.contains(Permission::PRINT));
     }
 
     #[test]
