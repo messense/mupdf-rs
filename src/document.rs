@@ -56,7 +56,7 @@ impl Document {
         Ok(ret)
     }
 
-    pub fn authenticate_password(&mut self, password: &str) -> Result<bool, Error> {
+    pub fn authenticate(&mut self, password: &str) -> Result<bool, Error> {
         let c_pass = CString::new(password)?;
         let ret = unsafe {
             ffi_try!(mupdf_authenticate_password(
