@@ -1334,21 +1334,6 @@ pdf_page *mupdf_pdf_page_from_fz_page(fz_context *ctx, fz_page *page, mupdf_erro
     return pdf_page;
 }
 
-pdf_document *mupdf_pdf_document_from_fz_document(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
-{
-    pdf_document *pdf = NULL;
-    fz_try(ctx)
-    {
-        pdf = pdf_document_from_fz_document(ctx, doc);
-        pdf_keep_document(ctx, pdf);
-    }
-    fz_catch(ctx)
-    {
-        mupdf_save_error(ctx, errptr);
-    }
-    return pdf;
-}
-
 pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;

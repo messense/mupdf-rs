@@ -58,6 +58,7 @@ macro_rules! ffi_try {
 pub enum Error {
     Io(io::Error),
     InvalidLanguage(String),
+    InvalidPdfDocument,
     MuPdf(MuPdfError),
     Nul(NulError),
 }
@@ -67,6 +68,7 @@ impl fmt::Display for Error {
         match *self {
             Error::Io(ref err) => err.fmt(f),
             Error::InvalidLanguage(ref lang) => write!(f, "invalid language {}", lang),
+            Error::InvalidPdfDocument => write!(f, "invalid pdf document"),
             Error::MuPdf(ref err) => err.fmt(f),
             Error::Nul(ref err) => err.fmt(f),
         }

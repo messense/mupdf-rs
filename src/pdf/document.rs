@@ -168,14 +168,17 @@ impl PdfDocument {
     pub fn new() -> Self {
         unsafe {
             let inner = pdf_create_document(context());
-            let doc = Document::from_raw(&mut (*inner).super_, false);
+            let doc = Document::from_raw(&mut (*inner).super_);
             Self { inner, doc }
         }
     }
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let doc = Document::open(filename)?;
-        let inner = unsafe { ffi_try!(mupdf_pdf_document_from_fz_document(context(), doc.inner)) };
+        let inner = unsafe { pdf_document_from_fz_document(context(), doc.inner) };
+        if inner.is_null() {
+            return Err(Error::InvalidPdfDocument);
+        }
         Ok(Self { inner, doc })
     }
 
@@ -481,16 +484,6 @@ impl PdfDocument {
             ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no));
         }
         Ok(())
-    }
-}
-
-impl Drop for PdfDocument {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                pdf_drop_document(context(), self.inner);
-            }
-        }
     }
 }
 

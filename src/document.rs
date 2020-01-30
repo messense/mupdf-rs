@@ -17,18 +17,17 @@ pub enum MetaDataType {
 #[derive(Debug)]
 pub struct Document {
     pub(crate) inner: *mut fz_document,
-    owned: bool,
 }
 
 impl Document {
-    pub(crate) unsafe fn from_raw(ptr: *mut fz_document, owned: bool) -> Self {
-        Self { inner: ptr, owned }
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_document) -> Self {
+        Self { inner: ptr }
     }
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let c_name = CString::new(filename)?;
         let inner = unsafe { ffi_try!(mupdf_open_document(context(), c_name.as_ptr())) };
-        Ok(Self { inner, owned: true })
+        Ok(Self { inner })
     }
 
     pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
@@ -43,7 +42,7 @@ impl Document {
                 c_magic.as_ptr()
             ))
         };
-        Ok(Self { inner, owned: true })
+        Ok(Self { inner })
     }
 
     pub fn recognize(magic: &str) -> Result<bool, Error> {
@@ -125,7 +124,7 @@ impl Document {
 
 impl Drop for Document {
     fn drop(&mut self) {
-        if self.owned && !self.inner.is_null() {
+        if !self.inner.is_null() {
             unsafe {
                 fz_drop_document(context(), self.inner);
             }
