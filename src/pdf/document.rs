@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 
+use bitflags::bitflags;
 use mupdf_sys::*;
 
 use crate::{
@@ -9,18 +10,17 @@ use crate::{
     PdfPage, SimpleFontEncoding, WriteMode,
 };
 
-// FIXME: use bitflags
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(u32)]
-pub enum Permission {
-    Print = 1 << 2,
-    Modify = 1 << 3,
-    Copy = 1 << 4,
-    Annotate = 1 << 5,
-    Form = 1 << 8,
-    Accessibility = 1 << 9,
-    Assemble = 1 << 10,
-    PrintHQ = 1 << 11,
+bitflags! {
+    pub struct Permission: i32 {
+        const PRINT = 1 << 2;
+        const MODIFY = 1 << 3;
+        const COPY = 1 << 4;
+        const ANNOTATE = 1 << 5;
+        const FORM = 1 << 8;
+        const ACCESSIBILITY = 1 << 9;
+        const ASSEMBLE = 1 << 10;
+        const PRINT_HQ = 1 << 11;
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -155,7 +155,16 @@ impl PdfWriteOptions {
         self.inner.do_encrypt = if value { 1 } else { 0 };
         self
     }
-    // TODO: permission, password
+
+    pub fn permissions(&self) -> Permission {
+        Permission::from_bits(self.inner.permissions).unwrap()
+    }
+
+    pub fn set_permissions(&mut self, value: Permission) -> &mut Self {
+        self.inner.permissions = value.bits;
+        self
+    }
+    // TODO: password
 }
 
 #[derive(Debug)]

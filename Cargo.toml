@@ -13,6 +13,7 @@ repository = "https://github.com/messense/mupdf-rs"
 mupdf-sys = { version = "0.0.1", path = "mupdf-sys" }
 once_cell = "1.3.1"
 num_enum = "0.4.2"
+bitflags = "1.2.1"
 
 [workspace]
 members = [
