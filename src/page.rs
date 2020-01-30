@@ -4,7 +4,7 @@ use crate::{context, ColorSpace, Error, Matrix, Pixmap, Rect};
 
 #[derive(Debug)]
 pub struct Page {
-    inner: *mut fz_page,
+    pub(crate) inner: *mut fz_page,
 }
 
 impl Page {

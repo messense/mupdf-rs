@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::ffi::CString;
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
@@ -184,11 +185,7 @@ impl PdfDocument {
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let doc = Document::open(filename)?;
-        let inner = unsafe { pdf_document_from_fz_document(context(), doc.inner) };
-        if inner.is_null() {
-            return Err(Error::InvalidPdfDocument);
-        }
-        Ok(Self { inner, doc })
+        Self::try_from(doc)
     }
 
     pub fn new_null(&self) -> PdfObject {
@@ -513,6 +510,18 @@ impl Deref for PdfDocument {
 impl DerefMut for PdfDocument {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.doc
+    }
+}
+
+impl TryFrom<Document> for PdfDocument {
+    type Error = Error;
+
+    fn try_from(doc: Document) -> Result<Self, Self::Error> {
+        let inner = unsafe { pdf_document_from_fz_document(context(), doc.inner) };
+        if inner.is_null() {
+            return Err(Error::InvalidPdfDocument);
+        }
+        Ok(Self { inner, doc })
     }
 }
 

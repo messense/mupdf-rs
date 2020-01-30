@@ -70,3 +70,13 @@ impl DerefMut for PdfPage {
         &mut self.page
     }
 }
+
+impl From<Page> for PdfPage {
+    fn from(page: Page) -> Self {
+        let ptr = page.inner;
+        Self {
+            inner: ptr as *mut pdf_page,
+            page,
+        }
+    }
+}

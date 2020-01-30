@@ -101,6 +101,14 @@ impl Document {
         Ok(ret)
     }
 
+    pub fn is_pdf(&self) -> bool {
+        let pdf = unsafe { pdf_specifics(context(), self.inner) };
+        if !pdf.is_null() {
+            return true;
+        }
+        return false;
+    }
+
     pub fn layout(&mut self, width: f32, height: f32, em: f32) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_layout_document(
@@ -148,7 +156,9 @@ mod test {
     #[test]
     fn test_document_load_page() {
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        assert!(doc.is_pdf());
         assert_eq!(doc.page_count().unwrap(), 1);
+
         let page0 = doc.load_page(0).unwrap();
         let bounds = page0.bounds().unwrap();
         assert_eq!(bounds.x0, 0.0);
