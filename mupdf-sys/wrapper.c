@@ -195,6 +195,10 @@ void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **err
 
 void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma, mupdf_error_t **errptr)
 {
+    if (!fz_pixmap_colorspace(ctx, pixmap))
+    {
+        return;
+    }
     fz_try(ctx)
     {
         fz_gamma_pixmap(ctx, pixmap, gamma);

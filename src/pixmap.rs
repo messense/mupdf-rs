@@ -86,7 +86,7 @@ impl Pixmap {
         Ok(())
     }
 
-    pub fn clear_with_value(&mut self, value: i32) -> Result<(), Error> {
+    pub fn clear_with(&mut self, value: i32) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_clear_pixmap_with_value(context(), self.inner, value));
         }
@@ -154,7 +154,7 @@ mod test {
         let cs = ColorSpace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
-        pixmap.clear_with_value(1).unwrap();
+        pixmap.clear_with(1).unwrap();
     }
 
     #[test]
