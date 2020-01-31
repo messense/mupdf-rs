@@ -96,6 +96,15 @@ impl Document {
         Ok(c_info.to_string_lossy().into_owned())
     }
 
+    pub fn resolve_link(&self, uri: &str) -> Result<Option<i32>, Error> {
+        let c_uri = CString::new(uri)?;
+        let n = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) };
+        if n >= 0 {
+            return Ok(Some(n));
+        }
+        Ok(None)
+    }
+
     pub fn is_reflowable(&self) -> Result<bool, Error> {
         let ret = unsafe { ffi_try!(mupdf_is_document_reflowable(context(), self.inner)) };
         Ok(ret)

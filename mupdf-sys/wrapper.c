@@ -1603,6 +1603,22 @@ pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, in
     return pdf;
 }
 
+int mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, mupdf_error_t **errptr)
+{
+    int page_no = -1;
+    float xp = 0.0f, yp = 0.0f;
+    fz_try(ctx)
+    {
+        page_no = fz_resolve_link(ctx, doc, uri, &xp, &yp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return page_no;
+}
+
+/* PdfDocument */
 pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
