@@ -203,6 +203,11 @@ pub struct PdfDocument {
 }
 
 impl PdfDocument {
+    pub(crate) unsafe fn from_raw(ptr: *mut pdf_document) -> Self {
+        let doc = Document::from_raw(&mut (*ptr).super_);
+        Self { inner: ptr, doc }
+    }
+
     pub fn new() -> Self {
         unsafe {
             let inner = pdf_create_document(context());

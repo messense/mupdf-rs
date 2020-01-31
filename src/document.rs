@@ -4,7 +4,7 @@ use std::os::raw::{c_char, c_int};
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Error, Page};
+use crate::{context, Buffer, Error, Page, PdfDocument};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetaDataType {
@@ -107,6 +107,35 @@ impl Document {
             return true;
         }
         return false;
+    }
+
+    pub fn convert_to_pdf(
+        &self,
+        start_page: i32,
+        end_page: i32,
+        rotate: u32,
+    ) -> Result<PdfDocument, Error> {
+        let page_count = self.page_count()? as i32;
+        let start_page = if start_page > page_count - 1 {
+            page_count - 1
+        } else {
+            start_page
+        };
+        let end_page = if end_page > page_count - 1 || end_page < 0 {
+            page_count - 1
+        } else {
+            end_page
+        };
+        unsafe {
+            let inner = ffi_try!(mupdf_convert_to_pdf(
+                context(),
+                self.inner,
+                start_page as _,
+                end_page as _,
+                rotate as _
+            ));
+            Ok(PdfDocument::from_raw(inner))
+        }
     }
 
     pub fn layout(&mut self, width: f32, height: f32, em: f32) -> Result<(), Error> {

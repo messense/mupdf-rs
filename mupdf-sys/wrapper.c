@@ -1536,6 +1536,73 @@ fz_page *mupdf_load_page(fz_context *ctx, fz_document *doc, int page_no, mupdf_e
     return page;
 }
 
+static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate)
+{
+    pdf_document *pdfout = pdf_create_document(ctx);
+    int i, incr = 1, s = fp, e = tp;
+    if (fp > tp)  // revert page sequence
+    {
+        incr = -1;
+        s = tp;
+        e = fp;
+    }
+    fz_rect mediabox;
+    fz_device *dev = NULL;
+    fz_buffer *contents = NULL;
+    pdf_obj *resources = NULL;
+    fz_page *page;
+    fz_var(dev);
+    fz_var(contents);
+    fz_var(resources);
+    fz_var(page);
+    for (i = fp; i >= s && i<= e; i += incr)
+    {
+        fz_try(ctx)
+        {
+            page = fz_load_page(ctx, doc, i);
+            mediabox = fz_bound_page(ctx, page);
+            dev = pdf_page_write(ctx, pdfout, mediabox, &resources, &contents);
+            fz_run_page(ctx, page, dev, fz_identity, NULL);
+            fz_close_device(ctx, dev);
+            fz_drop_device(ctx, dev);
+            dev = NULL;
+            pdf_obj *page_obj = pdf_add_page(ctx, pdfout, mediabox, rotate, resources, contents);
+            pdf_insert_page(ctx, pdfout, -1, page_obj);
+            pdf_drop_obj(ctx, page_obj);
+        }
+        fz_always(ctx)
+        {
+            pdf_drop_obj(ctx, resources);
+            fz_drop_buffer(ctx, contents);
+            fz_drop_device(ctx, dev);
+        }
+        fz_catch(ctx)
+        {
+            fz_drop_page(ctx, page);
+            fz_rethrow(ctx);
+        }
+    }
+    return pdfout;
+}
+
+pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, mupdf_error_t **errptr)
+{
+    if (rotate % 90) {
+        *errptr = mupdf_new_error_from_str("rotation not multiple of 90");
+        return NULL;
+    }
+    pdf_document *pdf = NULL;
+    fz_try(ctx)
+    {
+        pdf = mupdf_convert_to_pdf_internal(ctx, doc, fp, tp, rotate);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pdf;
+}
+
 pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
