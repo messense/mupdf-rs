@@ -2,7 +2,9 @@ use std::io::Read;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, ColorSpace, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
+use crate::{
+    context, Buffer, ColorSpace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions,
+};
 
 #[derive(Debug)]
 pub struct Page {
@@ -58,6 +60,54 @@ impl Page {
             ));
             Ok(TextPage::from_raw(inner))
         }
+    }
+
+    pub fn run(&self, device: &Device, ctm: &Matrix) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_contents(&self, device: &Device, ctm: &Matrix) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_contents(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_annotations(&self, device: &Device, ctm: &Matrix) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_annots(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_widgets(&self, device: &Device, ctm: &Matrix) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_widgets(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into()
+            ))
+        }
+        Ok(())
     }
 }
 

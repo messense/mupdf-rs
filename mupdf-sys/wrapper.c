@@ -715,6 +715,54 @@ fz_stext_page *mupdf_page_to_text_page(fz_context *ctx, fz_page *page, int flags
     return text_page;
 }
 
+void mupdf_run_page(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_run_page(ctx, page, device, ctm, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_run_page_contents(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_run_page_contents(ctx, page, device, ctm, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_run_page_annots(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_run_page_annots(ctx, page, device, ctm, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_run_page_widgets(ctx, page, device, ctm, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Cookie */
 fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
 {
