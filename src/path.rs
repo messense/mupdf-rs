@@ -4,7 +4,7 @@ use crate::{context, Error, Matrix, Point, Rect, StrokeState};
 
 #[derive(Debug)]
 pub struct Path {
-    inner: *mut fz_path,
+    pub(crate) inner: *mut fz_path,
 }
 
 impl Path {

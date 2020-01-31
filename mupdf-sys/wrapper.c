@@ -1934,6 +1934,272 @@ fz_device *mupdf_new_stext_device(fz_context *ctx, fz_stext_page *tp, int flags,
     return device;
 }
 
+void mupdf_fill_path(fz_context *ctx, fz_device *device, fz_path *path, bool even_odd, fz_matrix ctm, fz_colorspace *cs, const float *color, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_fill_path(ctx, device, path, even_odd, ctm, cs, color, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_stroke_path(fz_context *ctx, fz_device *device, fz_path *path, fz_stroke_state *stroke, fz_matrix ctm, fz_colorspace *cs, const float *color, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_stroke_path(ctx, device, path, stroke, ctm, cs, color, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_clip_path(fz_context *ctx, fz_device *device, fz_path *path, bool even_odd, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_clip_path(ctx, device, path, even_odd, ctm, fz_infinite_rect);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_clip_stroke_path(fz_context *ctx, fz_device *device, fz_path *path, fz_stroke_state *stroke, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_clip_stroke_path(ctx, device, path, stroke, ctm, fz_infinite_rect);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_fill_text(fz_context *ctx, fz_device *device, fz_text *text, fz_matrix ctm, fz_colorspace *cs, const float *color, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_fill_text(ctx, device, text, ctm, cs, color, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_stroke_text(fz_context *ctx, fz_device *device, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm, fz_colorspace *cs, const float *color, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_stroke_text(ctx, device, text, stroke, ctm, cs, color, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_clip_text(fz_context *ctx, fz_device *device, fz_text *text, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_clip_text(ctx, device, text, ctm, fz_infinite_rect);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_clip_stroke_text(fz_context *ctx, fz_device *device, fz_text *text, fz_stroke_state *stroke, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_clip_stroke_text(ctx, device, text, stroke, ctm, fz_infinite_rect);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_ignore_text(fz_context *ctx, fz_device *device, fz_text *text, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_ignore_text(ctx, device, text, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_fill_shade(fz_context *ctx, fz_device *device, fz_shade *shade, fz_matrix ctm, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_fill_shade(ctx, device, shade, ctm, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_fill_image(fz_context *ctx, fz_device *device, fz_image *image, fz_matrix ctm, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_fill_image(ctx, device, image, ctm, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_fill_image_mask(fz_context *ctx, fz_device *device, fz_image *image, fz_matrix ctm, fz_colorspace *cs, const float *color, float alpha, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_fill_image_mask(ctx, device, image, ctm, cs, color, alpha, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_clip_image_mask(fz_context *ctx, fz_device *device, fz_image *image, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_clip_image_mask(ctx, device, image, ctm, fz_infinite_rect);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pop_clip(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_pop_clip(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_begin_layer(fz_context *ctx, fz_device *device, const char *name, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_begin_layer(ctx, device, name);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_end_layer(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_layer(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_begin_mask(fz_context *ctx, fz_device *device, fz_rect area, bool luminosity, fz_colorspace *cs, const float *color, fz_color_params cp, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_begin_mask(ctx, device, area, luminosity, cs, color, cp);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_end_mask(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_mask(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_begin_group(fz_context *ctx, fz_device *device, fz_rect area, fz_colorspace *cs, bool isolated, bool knockout, int blendmode, float alpha, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_begin_group(ctx, device, area, cs, isolated, knockout, blendmode, alpha);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_end_group(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_group(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+int mupdf_begin_tile(fz_context *ctx, fz_device *device, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id, mupdf_error_t **errptr)
+{
+    int i = 0;
+    fz_try(ctx)
+    {
+        i = fz_begin_tile_id(ctx, device, area, view, xstep, ystep, ctm, id);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return i;
+}
+
+void mupdf_end_tile(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_tile(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* PdfPage */
 pdf_annot *mupdf_pdf_create_annot(fz_context *ctx, pdf_page *page, int subtype, mupdf_error_t **errptr)
 {

@@ -1,13 +1,15 @@
+use std::ffi::CString;
 use std::ptr;
 
 use mupdf_sys::*;
 
 use crate::{
-    context, ColorSpace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect, Shade,
-    StrokeState, Text, TextPage, TextPageOptions,
+    context, ColorParams, ColorSpace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect,
+    Shade, StrokeState, Text, TextPage, TextPageOptions,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[repr(C)]
 pub enum BlendMode {
     /* PDF 1.4 -- standard separable */
     Normal = 0,
@@ -70,10 +72,6 @@ impl Device {
         })
     }
 
-    pub fn close(&mut self) -> Result<(), Error> {
-        todo!()
-    }
-
     pub fn fill_path(
         &self,
         path: &Path,
@@ -82,9 +80,22 @@ impl Device {
         cs: &ColorSpace,
         color: &[f32],
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_fill_path(
+                context(),
+                self.dev,
+                path.inner,
+                even_odd,
+                ctm.into(),
+                cs.inner,
+                color.as_ptr(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn stroke_path(
@@ -95,22 +106,53 @@ impl Device {
         cs: &ColorSpace,
         color: &[f32],
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_stroke_path(
+                context(),
+                self.dev,
+                path.inner,
+                stroke.inner,
+                ctm.into(),
+                cs.inner,
+                color.as_ptr(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn clip_path(&self, path: &Path, even_odd: bool, ctm: &Matrix) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_clip_path(
+                context(),
+                self.dev,
+                path.inner,
+                even_odd,
+                ctm.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn clip_stroke_path(
         &self,
         path: &Path,
-        stoke: &StrokeState,
+        stroke: &StrokeState,
         ctm: &Matrix,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_clip_stroke_path(
+                context(),
+                self.dev,
+                path.inner,
+                stroke.inner,
+                ctm.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn fill_text(
@@ -120,9 +162,21 @@ impl Device {
         cs: &ColorSpace,
         color: &[f32],
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_fill_text(
+                context(),
+                self.dev,
+                text.inner,
+                ctm.into(),
+                cs.inner,
+                color.as_ptr(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn stroke_text(
@@ -133,13 +187,27 @@ impl Device {
         cs: &ColorSpace,
         color: &[f32],
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_stroke_text(
+                context(),
+                self.dev,
+                text.inner,
+                stroke.inner,
+                ctm.into(),
+                cs.inner,
+                color.as_ptr(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn clip_text(&self, text: &Text, ctm: &Matrix) -> Result<(), Error> {
-        todo!()
+        unsafe { ffi_try!(mupdf_clip_text(context(), self.dev, text.inner, ctm.into())) }
+        Ok(())
     }
 
     pub fn clip_stroke_text(
@@ -148,15 +216,48 @@ impl Device {
         stroke: &StrokeState,
         ctm: &Matrix,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_clip_stroke_text(
+                context(),
+                self.dev,
+                text.inner,
+                stroke.inner,
+                ctm.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn ignore_text(&self, text: &Text, ctm: &Matrix) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_ignore_text(
+                context(),
+                self.dev,
+                text.inner,
+                ctm.into()
+            ));
+        }
+        Ok(())
     }
 
-    pub fn fill_shade(&self, shd: &Shade, ctm: &Matrix, alpha: f32, cp: i32) -> Result<(), Error> {
-        todo!()
+    pub fn fill_shade(
+        &self,
+        shd: &Shade,
+        ctm: &Matrix,
+        alpha: f32,
+        cp: ColorParams,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_fill_shade(
+                context(),
+                self.dev,
+                shd.inner,
+                ctm.into(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn fill_image(
@@ -164,9 +265,19 @@ impl Device {
         image: &Image,
         ctm: &Matrix,
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_fill_image(
+                context(),
+                self.dev,
+                image.inner,
+                ctm.into(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn fill_image_mask(
@@ -176,17 +287,40 @@ impl Device {
         cs: &ColorSpace,
         color: &[f32],
         alpha: f32,
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_fill_image_mask(
+                context(),
+                self.dev,
+                image.inner,
+                ctm.into(),
+                cs.inner,
+                color.as_ptr(),
+                alpha,
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn clip_image_mask(&self, image: &Image, ctm: &Matrix) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_clip_image_mask(
+                context(),
+                self.dev,
+                image.inner,
+                ctm.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn pop_clip(&self) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_pop_clip(context(), self.dev));
+        }
+        Ok(())
     }
 
     pub fn begin_mask(
@@ -195,13 +329,27 @@ impl Device {
         luminosity: bool,
         cs: &ColorSpace,
         bc: &[f32],
-        cp: i32,
+        cp: ColorParams,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_begin_mask(
+                context(),
+                self.dev,
+                area.into(),
+                luminosity,
+                cs.inner,
+                bc.as_ptr(),
+                cp.into()
+            ));
+        }
+        Ok(())
     }
 
     pub fn end_mask(&self) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_end_mask(context(), self.dev));
+        }
+        Ok(())
     }
 
     pub fn begin_group(
@@ -213,11 +361,26 @@ impl Device {
         blend_mode: BlendMode,
         alpha: f32,
     ) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_begin_group(
+                context(),
+                self.dev,
+                area.into(),
+                cs.inner,
+                isolated,
+                knockout,
+                blend_mode as _,
+                alpha
+            ));
+        }
+        Ok(())
     }
 
     pub fn end_group(&self) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_end_group(context(), self.dev));
+        }
+        Ok(())
     }
 
     pub fn begin_tile(
@@ -229,19 +392,41 @@ impl Device {
         ctm: &Matrix,
         id: i32,
     ) -> Result<i32, Error> {
-        todo!()
+        let i = unsafe {
+            ffi_try!(mupdf_begin_tile(
+                context(),
+                self.dev,
+                area.into(),
+                view.into(),
+                xstep,
+                ystep,
+                ctm.into(),
+                id
+            ))
+        };
+        Ok(i)
     }
 
     pub fn end_tile(&self) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_end_tile(context(), self.dev));
+        }
+        Ok(())
     }
 
     pub fn begin_layer(&self, name: &str) -> Result<(), Error> {
-        todo!()
+        let c_name = CString::new(name)?;
+        unsafe {
+            ffi_try!(mupdf_begin_layer(context(), self.dev, c_name.as_ptr()));
+        }
+        Ok(())
     }
 
     pub fn end_layer(&self) -> Result<(), Error> {
-        todo!()
+        unsafe {
+            ffi_try!(mupdf_end_layer(context(), self.dev));
+        }
+        Ok(())
     }
 }
 
