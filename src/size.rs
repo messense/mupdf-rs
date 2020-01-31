@@ -31,6 +31,30 @@ impl Size {
     pub const B8: Self = Size::new(176.0, 249.0);
     pub const B9: Self = Size::new(125.0, 176.0);
     pub const B10: Self = Size::new(88.0, 125.0);
+    // ISO Sizes C series
+    pub const C0: Self = Size::new(2599.0, 3677.0);
+    pub const C1: Self = Size::new(1837.0, 2599.0);
+    pub const C2: Self = Size::new(1298.0, 1837.0);
+    pub const C3: Self = Size::new(918.0, 1298.0);
+    pub const C4: Self = Size::new(649.0, 918.0);
+    pub const C5: Self = Size::new(459.0, 649.0);
+    pub const C6: Self = Size::new(323.0, 459.0);
+    pub const C7: Self = Size::new(230.0, 323.0);
+    pub const C8: Self = Size::new(162.0, 230.0);
+    pub const C9: Self = Size::new(113.0, 162.0);
+    pub const C10: Self = Size::new(79.0, 113.0);
+    // Others
+    pub const CARD_4X6: Self = Size::new(288.0, 432.0);
+    pub const CARD_5X7: Self = Size::new(360.0, 504.0);
+    pub const COMMERCIAL: Self = Size::new(297.0, 684.0);
+    pub const EXECUTIVE: Self = Size::new(522.0, 756.0);
+    pub const INVOICE: Self = Size::new(396.0, 612.0);
+    pub const LEDGER: Self = Size::new(792.0, 1224.0);
+    pub const LEGAL: Self = Size::new(612.0, 1008.0);
+    pub const LEGAL_13: Self = Size::new(612.0, 936.0);
+    pub const LETTER: Self = Size::new(612.0, 792.0);
+    pub const MONARCH: Self = Size::new(279.0, 540.0);
+    pub const TABLOID_EXTRA: Self = Size::new(864.0, 1296.0);
 
     pub const fn new(width: f32, height: f32) -> Self {
         Self { width, height }
