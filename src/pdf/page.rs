@@ -55,6 +55,13 @@ impl PdfPage {
         }
         Ok(0)
     }
+
+    pub fn set_rotation(&mut self, rotate: i32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_page_set_rotation(context(), self.inner, rotate));
+        }
+        Ok(())
+    }
 }
 
 impl Deref for PdfPage {
@@ -78,5 +85,23 @@ impl From<Page> for PdfPage {
             inner: ptr as *mut pdf_page,
             page,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{PdfDocument, PdfPage};
+
+    #[test]
+    fn test_page_rotation() {
+        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let mut page0 = PdfPage::from(doc.load_page(0).unwrap());
+
+        let rotation = page0.rotation().unwrap();
+        assert_eq!(rotation, 0);
+
+        page0.set_rotation(90).unwrap();
+        let rotation = page0.rotation().unwrap();
+        assert_eq!(rotation, 90);
     }
 }

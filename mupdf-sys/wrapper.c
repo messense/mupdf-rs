@@ -1989,6 +1989,23 @@ bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errp
     return redacted;
 }
 
+void mupdf_pdf_page_set_rotation(fz_context *ctx, pdf_page *page, int rotation, mupdf_error_t **errptr)
+{
+    if (rotation % 90) {
+        *errptr = mupdf_new_error_from_str("rotation not multiple of 90");
+        return;
+    }
+    fz_try(ctx)
+    {
+        pdf_dict_put_int(ctx, page->obj, PDF_NAME(Rotate), (int64_t) rotation);
+        page->doc->dirty = 1;
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* PDFAnnotation */
 int mupdf_pdf_annot_type(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
 {
