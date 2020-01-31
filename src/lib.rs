@@ -22,6 +22,7 @@ mod shade;
 mod size;
 mod stroke_state;
 mod text;
+mod text_page;
 
 pub use buffer::Buffer;
 pub use color_params::{ColorParams, RenderingIntent};
@@ -49,3 +50,4 @@ pub use shade::Shade;
 pub use size::Size;
 pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::Text;
+pub use text_page::{TextPage, TextPageOptions};

@@ -4,7 +4,7 @@ use mupdf_sys::*;
 
 use crate::{
     context, ColorSpace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect, Shade,
-    StrokeState, Text,
+    StrokeState, Text, TextPage, TextPageOptions,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -53,6 +53,20 @@ impl Device {
         Ok(Self {
             dev,
             list: list.inner,
+        })
+    }
+
+    pub fn from_text_page(page: &TextPage, opts: TextPageOptions) -> Result<Self, Error> {
+        let dev = unsafe {
+            ffi_try!(mupdf_new_stext_device(
+                context(),
+                page.inner,
+                opts.bits() as _
+            ))
+        };
+        Ok(Self {
+            dev,
+            list: ptr::null_mut(),
         })
     }
 

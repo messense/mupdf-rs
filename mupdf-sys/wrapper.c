@@ -1835,6 +1835,22 @@ fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list,
     return device;
 }
 
+fz_device *mupdf_new_stext_device(fz_context *ctx, fz_stext_page *tp, int flags, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        fz_stext_options opts = { 0 };
+        opts.flags = flags;
+        device = fz_new_stext_device(ctx, tp, &opts);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
+
 /* PdfPage */
 pdf_annot *mupdf_pdf_create_annot(fz_context *ctx, pdf_page *page, int subtype, mupdf_error_t **errptr)
 {
