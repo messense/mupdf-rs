@@ -122,6 +122,22 @@ impl Matrix {
         }
         self
     }
+
+    pub fn pre_translate(&mut self, x: f32, y: f32) -> &mut Self {
+        self.e += x * self.a + y * self.c;
+        self.f += x * self.b + y * self.d;
+        self
+    }
+
+    pub fn pre_shear(&mut self, h: f32, v: f32) -> &mut Self {
+        let a = self.a;
+        let b = self.b;
+        self.a += v * self.c;
+        self.b += v * self.d;
+        self.c += h * a;
+        self.d += h * b;
+        self
+    }
 }
 
 impl Default for Matrix {
