@@ -1514,6 +1514,15 @@ void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, 
 {
     fz_try(ctx)
     {
+        if (!fz_is_document_reflowable(ctx, doc))
+        {
+            return;
+        }
+        if (w <= 0.0f || h <= 0.0f)
+        {
+            *errptr = mupdf_new_error_from_str("invalid width or height");
+            return;
+        }
         fz_layout_document(ctx, doc, w, h, em);
     }
     fz_catch(ctx)
