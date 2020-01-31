@@ -375,6 +375,10 @@ impl PdfDocument {
         unsafe { pdf_has_unsaved_changes(context(), self.inner) != 0 }
     }
 
+    pub fn is_dirty(&self) -> bool {
+        self.has_unsaved_changes()
+    }
+
     pub fn can_be_saved_incrementally(&self) -> bool {
         unsafe { pdf_can_be_saved_incrementally(context(), self.inner) != 0 }
     }
@@ -459,6 +463,14 @@ impl PdfDocument {
             }
         }
         Ok(false)
+    }
+
+    pub fn has_xref_streams(&self) -> bool {
+        unsafe { (*self.inner).has_xref_streams > 0 }
+    }
+
+    pub fn has_old_style_xrefs(&self) -> bool {
+        unsafe { (*self.inner).has_old_style_xrefs > 0 }
     }
 
     pub fn permissions(&self) -> Permission {
