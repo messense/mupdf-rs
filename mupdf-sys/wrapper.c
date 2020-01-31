@@ -1801,13 +1801,17 @@ void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupd
     }
 }
 
-/* DrawDevice */
-fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
+/* Device */
+fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect clip, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
     fz_try(ctx)
     {
-        device = fz_new_draw_device(ctx, fz_identity, pixmap);
+        if (fz_is_infinite_irect(clip)) {
+            device = fz_new_draw_device(ctx, fz_identity, pixmap);
+        } else {
+            device = fz_new_draw_device_with_bbox(ctx, fz_identity, pixmap, &clip);
+        }
     }
     fz_catch(ctx)
     {
@@ -1816,13 +1820,13 @@ fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, mupdf_error
     return device;
 }
 
-/* DisplayListDevice */
 fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
     fz_try(ctx)
     {
         device = fz_new_list_device(ctx, list);
+        fz_keep_display_list(ctx, list);
     }
     fz_catch(ctx)
     {
