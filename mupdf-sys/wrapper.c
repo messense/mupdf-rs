@@ -699,6 +699,22 @@ fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, mupd
     return buf;
 }
 
+fz_stext_page *mupdf_page_to_text_page(fz_context *ctx, fz_page *page, int flags, mupdf_error_t **errptr)
+{
+    fz_stext_page *text_page = NULL;
+    fz_stext_options opts = {0};
+    opts.flags = flags;
+    fz_try(ctx)
+    {
+        text_page = fz_new_stext_page_from_page(ctx, page, &opts);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return text_page;
+}
+
 /* Cookie */
 fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
 {
@@ -741,6 +757,22 @@ fz_pixmap *mupdf_display_list_to_pixmap(fz_context *ctx, fz_display_list *list, 
         mupdf_save_error(ctx, errptr);
     }
     return pixmap;
+}
+
+fz_stext_page *mupdf_display_list_to_text_page(fz_context *ctx, fz_display_list *list, int flags, mupdf_error_t **errptr)
+{
+    fz_stext_page *text_page = NULL;
+    fz_stext_options opts = {0};
+    opts.flags = flags;
+    fz_try(ctx)
+    {
+        text_page = fz_new_stext_page_from_display_list(ctx, list, &opts);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return text_page;
 }
 
 /* PDFObject */
@@ -1807,9 +1839,12 @@ fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect cl
     fz_device *device = NULL;
     fz_try(ctx)
     {
-        if (fz_is_infinite_irect(clip)) {
+        if (fz_is_infinite_irect(clip))
+        {
             device = fz_new_draw_device(ctx, fz_identity, pixmap);
-        } else {
+        }
+        else
+        {
             device = fz_new_draw_device_with_bbox(ctx, fz_identity, pixmap, &clip);
         }
     }
@@ -1840,7 +1875,7 @@ fz_device *mupdf_new_stext_device(fz_context *ctx, fz_stext_page *tp, int flags,
     fz_device *device = NULL;
     fz_try(ctx)
     {
-        fz_stext_options opts = { 0 };
+        fz_stext_options opts = {0};
         opts.flags = flags;
         device = fz_new_stext_device(ctx, tp, &opts);
     }

@@ -2,7 +2,7 @@ use std::io::Read;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, ColorSpace, Error, Matrix, Pixmap, Rect};
+use crate::{context, Buffer, ColorSpace, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
 
 #[derive(Debug)]
 pub struct Page {
@@ -47,6 +47,17 @@ impl Page {
         let mut svg = String::new();
         buf.read_to_string(&mut svg)?;
         Ok(svg)
+    }
+
+    pub fn to_text_page(&self, opts: TextPageOptions) -> Result<TextPage, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_page_to_text_page(
+                context(),
+                self.inner,
+                opts.bits() as _
+            ));
+            Ok(TextPage::from_raw(inner))
+        }
     }
 }
 

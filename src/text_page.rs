@@ -20,6 +20,12 @@ pub struct TextPage {
     pub(crate) inner: *mut fz_stext_page,
 }
 
+impl TextPage {
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_stext_page) -> Self {
+        Self { inner: ptr }
+    }
+}
+
 impl Drop for TextPage {
     fn drop(&mut self) {
         if !self.inner.is_null() {

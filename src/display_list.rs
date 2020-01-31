@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Error, Matrix, Pixmap, Rect};
+use crate::{context, ColorSpace, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
 
 #[derive(Debug)]
 pub struct DisplayList {
@@ -23,6 +23,17 @@ impl DisplayList {
                 alpha
             ));
             Ok(Pixmap::from_raw(inner))
+        }
+    }
+
+    pub fn to_text_page(&self, opts: TextPageOptions) -> Result<TextPage, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_display_list_to_text_page(
+                context(),
+                self.inner,
+                opts.bits() as _
+            ));
+            Ok(TextPage::from_raw(inner))
         }
     }
 }
