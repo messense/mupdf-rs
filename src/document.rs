@@ -1,17 +1,41 @@
 use std::ffi::{CStr, CString};
 use std::io::Write;
-use std::os::raw::{c_char, c_int};
 
 use mupdf_sys::*;
 
 use crate::{context, Buffer, Error, Page, PdfDocument};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub enum MetaDataType {
+pub enum MetadataName {
     Format,
     Encryption,
     Author,
     Title,
+    Producer,
+    Creator,
+    CreationDate,
+    ModDate,
+    Subject,
+    Keywords,
+}
+
+impl MetadataName {
+    pub fn to_str(&self) -> &'static str {
+        use MetadataName::*;
+
+        match *self {
+            Format => "format",
+            Encryption => "encryption",
+            Author => "info:Author",
+            Title => "info::Title",
+            Producer => "info:Producer",
+            Creator => "info:Creator",
+            CreationDate => "info:CreationDate",
+            ModDate => "info:ModDate",
+            Subject => "info:Subject",
+            Keywords => "info:Keywords",
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -73,27 +97,19 @@ impl Document {
         Ok(count as usize)
     }
 
-    pub fn metadata(&self, typ: MetaDataType) -> Result<String, Error> {
-        let key = match typ {
-            MetaDataType::Format => "format",
-            MetaDataType::Encryption => "encryption",
-            MetaDataType::Author => "info:Author",
-            MetaDataType::Title => "info::Title",
-        };
-        let c_key = CString::new(key)?;
-        const INFO_LEN: usize = 256;
-        let mut info: [c_char; INFO_LEN] = [0; INFO_LEN];
-        unsafe {
-            ffi_try!(mupdf_lookup_metadata(
-                context(),
-                self.inner,
-                c_key.as_ptr(),
-                info.as_mut_ptr(),
-                INFO_LEN as c_int
-            ));
+    pub fn metadata(&self, name: MetadataName) -> Result<String, Error> {
+        let c_key = CString::new(name.to_str())?;
+        let info_ptr =
+            unsafe { ffi_try!(mupdf_lookup_metadata(context(), self.inner, c_key.as_ptr())) };
+        if info_ptr.is_null() {
+            return Ok(String::new());
         }
-        let c_info = unsafe { CStr::from_ptr(info.as_ptr()) };
-        Ok(c_info.to_string_lossy().into_owned())
+        let c_info = unsafe { CStr::from_ptr(info_ptr) };
+        let info = c_info.to_string_lossy().into_owned();
+        unsafe {
+            mupdf_drop_str(info_ptr);
+        }
+        Ok(info)
     }
 
     pub fn resolve_link(&self, uri: &str) -> Result<Option<i32>, Error> {
@@ -180,7 +196,7 @@ impl Drop for Document {
 
 #[cfg(test)]
 mod test {
-    use super::Document;
+    use super::{Document, MetadataName};
 
     #[test]
     fn test_recognize_document() {
@@ -203,5 +219,32 @@ mod test {
         assert_eq!(bounds.y0, 0.0);
         assert_eq!(bounds.x1, 595.0);
         assert_eq!(bounds.y1, 842.0);
+    }
+
+    #[test]
+    fn test_document_metadata() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+
+        let format = doc.metadata(MetadataName::Format).unwrap();
+        assert_eq!(format, "PDF 1.4");
+        let encryption = doc.metadata(MetadataName::Encryption).unwrap();
+        assert_eq!(encryption, "None");
+        let author = doc.metadata(MetadataName::Author).unwrap();
+        assert_eq!(author, "Evangelos Vlachogiannis");
+        let title = doc.metadata(MetadataName::Title).unwrap();
+        assert!(title.is_empty());
+        let producer = doc.metadata(MetadataName::Producer).unwrap();
+        assert_eq!(producer, "OpenOffice.org 2.1");
+        let creator = doc.metadata(MetadataName::Creator).unwrap();
+        assert_eq!(creator, "Writer");
+        let creation_date = doc.metadata(MetadataName::CreationDate).unwrap();
+        // FIXME: parse Date format
+        assert_eq!(creation_date, "D:20070223175637+02'00'");
+        let mod_date = doc.metadata(MetadataName::ModDate).unwrap();
+        assert!(mod_date.is_empty());
+        let subject = doc.metadata(MetadataName::Subject).unwrap();
+        assert!(subject.is_empty());
+        let keywords = doc.metadata(MetadataName::Keywords).unwrap();
+        assert!(keywords.is_empty());
     }
 }

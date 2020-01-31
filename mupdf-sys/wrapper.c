@@ -1483,17 +1483,23 @@ int mupdf_document_page_count(fz_context *ctx, fz_document *doc, mupdf_error_t *
     return count;
 }
 
-char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, char info[], int info_len, mupdf_error_t **errptr)
+char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, mupdf_error_t **errptr)
 {
+    int len;
+    char *value = NULL;
     fz_try(ctx)
     {
-        fz_lookup_metadata(ctx, doc, key, info, info_len);
+        len = fz_lookup_metadata(ctx, doc, key, NULL, 0) + 1;
+        if (len > 1) {
+            value = calloc(len, sizeof(char));
+            fz_lookup_metadata(ctx, doc, key, value, len);
+        }
     }
     fz_catch(ctx)
     {
         mupdf_save_error(ctx, errptr);
     }
-    return info;
+    return value;
 }
 
 bool mupdf_is_document_reflowable(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
