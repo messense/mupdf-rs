@@ -38,6 +38,10 @@ pub struct Device {
 }
 
 impl Device {
+    pub(crate) unsafe fn from_raw(dev: *mut fz_device, list: *mut fz_display_list) -> Self {
+        Self { dev, list }
+    }
+
     pub fn from_pixmap_with_clip(pixmap: &Pixmap, clip: IRect) -> Result<Self, Error> {
         let dev = unsafe { ffi_try!(mupdf_new_draw_device(context(), pixmap.inner, clip.into())) };
         Ok(Self {

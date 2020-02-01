@@ -2511,3 +2511,44 @@ int mupdf_pdf_annot_type(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errp
     }
     return subtype;
 }
+
+/* DocumentWriter */
+fz_document_writer *mupdf_new_document_writer(fz_context *ctx, const char *filename, const char *format, const char *options, mupdf_error_t **errptr)
+{
+    fz_document_writer *writer = NULL;
+    fz_try(ctx)
+    {
+        writer = fz_new_document_writer(ctx, filename, format, options);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return writer;
+}
+
+fz_device *mupdf_document_writer_begin_page(fz_context *ctx, fz_document_writer *writer, fz_rect mediabox, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        device = fz_begin_page(ctx, writer, mediabox);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
+
+void mupdf_document_writer_end_page(fz_context *ctx, fz_document_writer *writer, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_page(ctx, writer);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
