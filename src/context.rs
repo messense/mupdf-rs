@@ -1,10 +1,12 @@
 use std::cell::RefCell;
+use std::ffi::{CStr, CString};
 use std::ptr;
 use std::sync::Mutex;
 
+use mupdf_sys::*;
 use once_cell::sync::Lazy;
 
-use mupdf_sys::*;
+use crate::Error;
 
 static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
     let ctx = unsafe { mupdf_new_base_context() };
@@ -66,6 +68,86 @@ impl Context {
             Self { inner: new_ctx }
         })
     }
+
+    pub fn enable_icc(&mut self) {
+        unsafe {
+            fz_enable_icc(self.inner);
+        }
+    }
+
+    pub fn disable_icc(&mut self) {
+        unsafe {
+            fz_disable_icc(self.inner);
+        }
+    }
+
+    pub fn aa_level(&self) -> i32 {
+        unsafe { fz_aa_level(self.inner) }
+    }
+
+    pub fn set_aa_level(&mut self, bits: i32) {
+        unsafe {
+            fz_set_aa_level(self.inner, bits);
+        }
+    }
+
+    pub fn text_aa_level(&self) -> i32 {
+        unsafe { fz_text_aa_level(self.inner) }
+    }
+
+    pub fn set_text_aa_level(&mut self, bits: i32) {
+        unsafe {
+            fz_set_text_aa_level(self.inner, bits);
+        }
+    }
+
+    pub fn graphics_aa_level(&self) -> i32 {
+        unsafe { fz_graphics_aa_level(self.inner) }
+    }
+
+    pub fn set_graphics_aa_level(&mut self, bits: i32) {
+        unsafe {
+            fz_set_graphics_aa_level(self.inner, bits);
+        }
+    }
+
+    pub fn graphics_min_line_width(&self) -> f32 {
+        unsafe { fz_graphics_min_line_width(self.inner) }
+    }
+
+    pub fn set_graphics_min_line_width(&mut self, min_line_width: f32) {
+        unsafe {
+            fz_set_graphics_min_line_width(self.inner, min_line_width);
+        }
+    }
+
+    pub fn use_document_css(&self) -> bool {
+        unsafe { fz_use_document_css(self.inner) > 0 }
+    }
+
+    pub fn set_use_document_css(&mut self, should_use: bool) {
+        let flag = if should_use { 1 } else { 0 };
+        unsafe {
+            fz_set_use_document_css(self.inner, flag);
+        }
+    }
+
+    pub fn user_css(&self) -> Option<&str> {
+        let css = unsafe { fz_user_css(self.inner) };
+        if css.is_null() {
+            return None;
+        }
+        let c_css = unsafe { CStr::from_ptr(css) };
+        c_css.to_str().ok()
+    }
+
+    pub fn set_user_css(&mut self, css: &str) -> Result<(), Error> {
+        let c_css = CString::new(css)?;
+        unsafe {
+            fz_set_user_css(self.inner, c_css.as_ptr());
+        }
+        Ok(())
+    }
 }
 
 impl Default for Context {
@@ -84,6 +166,12 @@ mod test {
 
     #[test]
     fn test_context() {
-        let _ctx = Context::get();
+        let ctx = Context::get();
+        assert_eq!(ctx.aa_level(), 8);
+        assert_eq!(ctx.text_aa_level(), 8);
+        assert_eq!(ctx.graphics_aa_level(), 8);
+        assert_eq!(ctx.graphics_min_line_width(), 0.0);
+        assert!(ctx.use_document_css());
+        assert!(ctx.user_css().is_none());
     }
 }
