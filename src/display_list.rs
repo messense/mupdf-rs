@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
+use crate::{context, ColorSpace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
 
 #[derive(Debug)]
 pub struct DisplayList {
@@ -15,6 +15,11 @@ impl DisplayList {
     pub fn new(media_box: Rect) -> Result<Self, Error> {
         let inner = unsafe { ffi_try!(mupdf_new_display_list(context(), media_box.into())) };
         Ok(Self { inner })
+    }
+
+    pub fn bounds(&self) -> Rect {
+        let rect = unsafe { fz_bound_display_list(context(), self.inner) };
+        rect.into()
     }
 
     pub fn to_pixmap(&self, ctm: &Matrix, cs: &ColorSpace, alpha: bool) -> Result<Pixmap, Error> {
@@ -39,6 +44,19 @@ impl DisplayList {
             ));
             Ok(TextPage::from_raw(inner))
         }
+    }
+
+    pub fn run(&self, device: &Device, ctm: &Matrix, area: Rect) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_display_list_run(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                area.into()
+            ));
+        }
+        Ok(())
     }
 }
 

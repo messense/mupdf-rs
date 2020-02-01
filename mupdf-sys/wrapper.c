@@ -844,6 +844,18 @@ fz_stext_page *mupdf_display_list_to_text_page(fz_context *ctx, fz_display_list 
     return text_page;
 }
 
+void mupdf_display_list_run(fz_context *ctx, fz_display_list *list, fz_device *device, fz_matrix ctm, fz_rect area, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_run_display_list(ctx, list, device, ctm, area, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* PDFObject */
 bool mupdf_pdf_is_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
