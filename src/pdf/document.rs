@@ -577,6 +577,15 @@ impl TryFrom<Document> for PdfDocument {
     }
 }
 
+impl<'a> IntoIterator for &'a PdfDocument {
+    type Item = Result<crate::Page, Error>;
+    type IntoIter = crate::PageIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.doc.into_iter()
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{PdfDocument, PdfWriteOptions, Permission};
