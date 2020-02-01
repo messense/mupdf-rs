@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Page, PdfAnnotation, PdfObject};
+use crate::{context, Error, Page, PdfAnnotation, PdfObject, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -62,6 +62,33 @@ impl PdfPage {
         }
         Ok(())
     }
+
+    pub fn media_box(&self) -> Result<Rect, Error> {
+        let rect = unsafe { mupdf_pdf_page_media_box(context(), self.inner) };
+        Ok(rect.into())
+    }
+
+    pub fn crop_box(&self) -> Result<Rect, Error> {
+        let bounds = self.bounds()?;
+        let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.inner) };
+        let media_box = self.media_box()?;
+        let x0 = pos.x;
+        let y0 = media_box.height() - pos.y - bounds.height();
+        let x1 = x0 + bounds.width();
+        let y1 = y0 + bounds.height();
+        Ok(Rect::new(x0, y0, x1, y1))
+    }
+
+    pub fn set_crop_box(&mut self, crop_box: Rect) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_page_set_crop_box(
+                context(),
+                self.inner,
+                crop_box.into()
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Deref for PdfPage {
@@ -90,18 +117,33 @@ impl From<Page> for PdfPage {
 
 #[cfg(test)]
 mod test {
-    use crate::{PdfDocument, PdfPage};
+    use crate::{PdfDocument, PdfPage, Rect};
 
     #[test]
-    fn test_page_rotation() {
+    fn test_page_properties() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
         let mut page0 = PdfPage::from(doc.load_page(0).unwrap());
 
+        // Rotation
         let rotation = page0.rotation().unwrap();
         assert_eq!(rotation, 0);
 
         page0.set_rotation(90).unwrap();
         let rotation = page0.rotation().unwrap();
         assert_eq!(rotation, 90);
+        page0.set_rotation(0).unwrap(); // reset rotation
+
+        // MediaBox
+        let media_box = page0.media_box().unwrap();
+        assert_eq!(media_box, Rect::new(0.0, 0.0, 595.0, 842.0));
+
+        // CropBox
+        let crop_box = page0.crop_box().unwrap();
+        assert_eq!(crop_box, Rect::new(0.0, 0.0, 595.0, 842.0));
+        page0
+            .set_crop_box(Rect::new(100.0, 100.0, 400.0, 400.0))
+            .unwrap();
+        let crop_box = page0.crop_box().unwrap();
+        assert_eq!(crop_box, Rect::new(100.0, 100.0, 400.0, 400.0));
     }
 }

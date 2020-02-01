@@ -33,6 +33,14 @@ impl IRect {
         x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
     }
 
+    pub fn width(&self) -> i32 {
+        self.x1 - self.x0
+    }
+
+    pub fn height(&self) -> i32 {
+        self.y1 - self.y0
+    }
+
     pub fn r#union(&mut self, other: IRect) -> &mut Self {
         let IRect { x0, y0, x1, y1 } = other;
         if self.is_empty() {
@@ -101,6 +109,14 @@ impl Rect {
             return false;
         }
         x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
+    }
+
+    pub fn width(&self) -> f32 {
+        self.x1 - self.x0
+    }
+
+    pub fn height(&self) -> f32 {
+        self.y1 - self.y0
     }
 
     pub fn r#union(&mut self, other: Rect) -> &mut Self {
