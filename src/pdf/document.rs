@@ -293,6 +293,18 @@ impl PdfDocument {
         }
     }
 
+    pub fn new_object_from_str(&self, src: &str) -> Result<PdfObject, Error> {
+        let c_src = CString::new(src)?;
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_obj_from_str(
+                context(),
+                self.inner,
+                c_src.as_ptr()
+            ));
+            Ok(PdfObject::from_raw(inner, true))
+        }
+    }
+
     pub fn graft_object(&self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner));
@@ -664,6 +676,12 @@ mod test {
         assert!(obj.is_array().unwrap());
 
         let obj = pdf.new_dict().unwrap();
+        assert!(obj.is_dict().unwrap());
+
+        let obj = pdf.new_object_from_str(r#"<</Author<FEFF004500760061006E00670065006C006F007300200056006C006100630068006F006700690061006E006E00690073>
+        /Creator<FEFF005700720069007400650072>
+        /Producer<FEFF004F00700065006E004F00660066006900630065002E006F0072006700200032002E0031>
+        /CreationDate(D:20070223175637+02'00')>>"#).unwrap();
         assert!(obj.is_dict().unwrap());
     }
 

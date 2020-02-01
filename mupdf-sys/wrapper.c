@@ -1086,6 +1086,28 @@ pdf_obj *mupdf_pdf_new_dict(fz_context *ctx, pdf_document *pdf, int capacity, mu
     return obj;
 }
 
+pdf_obj *mupdf_pdf_obj_from_str(fz_context *ctx, pdf_document *pdf, const char *src, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    pdf_lexbuf lexbuf;
+    fz_stream *stream = fz_open_memory(ctx, (unsigned char *)src, strlen(src));
+    pdf_lexbuf_init(ctx, &lexbuf, PDF_LEXBUF_SMALL);
+    fz_try(ctx)
+    {
+        obj = pdf_parse_stm_obj(ctx, pdf, stream, &lexbuf);
+    }
+    fz_always(ctx)
+    {
+        pdf_lexbuf_fin(ctx, &lexbuf);
+        fz_drop_stream(ctx, stream);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
 bool mupdf_pdf_to_bool(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     bool b = false;
@@ -1490,7 +1512,8 @@ char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, 
     fz_try(ctx)
     {
         len = fz_lookup_metadata(ctx, doc, key, NULL, 0) + 1;
-        if (len > 1) {
+        if (len > 1)
+        {
             value = calloc(len, sizeof(char));
             fz_lookup_metadata(ctx, doc, key, value, len);
         }
@@ -1555,7 +1578,7 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
 {
     pdf_document *pdfout = pdf_create_document(ctx);
     int i, incr = 1, s = fp, e = tp;
-    if (fp > tp)  // revert page sequence
+    if (fp > tp) // revert page sequence
     {
         incr = -1;
         s = tp;
@@ -1570,7 +1593,7 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
     fz_var(contents);
     fz_var(resources);
     fz_var(page);
-    for (i = fp; i >= s && i<= e; i += incr)
+    for (i = fp; i >= s && i <= e; i += incr)
     {
         fz_try(ctx)
         {
@@ -1602,7 +1625,8 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
 
 pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, mupdf_error_t **errptr)
 {
-    if (rotate % 90) {
+    if (rotate % 90)
+    {
         *errptr = mupdf_new_error_from_str("rotation not multiple of 90");
         return NULL;
     }
@@ -2355,13 +2379,14 @@ bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errp
 
 void mupdf_pdf_page_set_rotation(fz_context *ctx, pdf_page *page, int rotation, mupdf_error_t **errptr)
 {
-    if (rotation % 90) {
+    if (rotation % 90)
+    {
         *errptr = mupdf_new_error_from_str("rotation not multiple of 90");
         return;
     }
     fz_try(ctx)
     {
-        pdf_dict_put_int(ctx, page->obj, PDF_NAME(Rotate), (int64_t) rotation);
+        pdf_dict_put_int(ctx, page->obj, PDF_NAME(Rotate), (int64_t)rotation);
         page->doc->dirty = 1;
     }
     fz_catch(ctx)
