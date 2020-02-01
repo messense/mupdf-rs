@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{Quad, Size};
+use crate::{Point, Quad, Size};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IRect {
@@ -39,6 +39,10 @@ impl IRect {
 
     pub fn height(&self) -> i32 {
         self.y1 - self.y0
+    }
+
+    pub fn origin(&self) -> Point {
+        Point::new(self.x0 as f32, self.y0 as f32)
     }
 
     pub fn size(&self) -> Size {
@@ -121,6 +125,10 @@ impl Rect {
 
     pub fn height(&self) -> f32 {
         self.y1 - self.y0
+    }
+
+    pub fn origin(&self) -> Point {
+        Point::new(self.x0, self.y0)
     }
 
     pub fn size(&self) -> Size {
