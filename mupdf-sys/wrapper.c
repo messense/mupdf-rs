@@ -1658,6 +1658,26 @@ int mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, mupdf
 }
 
 /* PdfDocument */
+pdf_document *mupdf_pdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, mupdf_error_t **errptr)
+{
+    pdf_document *pdf = NULL;
+    fz_stream *stream = NULL;
+    fz_try(ctx)
+    {
+        stream = fz_open_buffer(ctx, bytes);
+        pdf = pdf_open_document_with_stream(ctx, stream);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_stream(ctx, stream);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pdf;
+}
+
 pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;

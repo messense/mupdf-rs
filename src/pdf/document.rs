@@ -221,6 +221,16 @@ impl PdfDocument {
         Self::try_from(doc)
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let len = bytes.len();
+        let mut buf = Buffer::with_capacity(len);
+        buf.write(bytes)?;
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_open_document_from_bytes(context(), buf.inner));
+            Ok(Self::from_raw(inner))
+        }
+    }
+
     pub fn new_null(&self) -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_null();
@@ -640,6 +650,18 @@ mod test {
 
         let catalog = doc.catalog().unwrap();
         assert!(!catalog.is_null().unwrap());
+    }
+
+    #[test]
+    fn test_open_pdf_document_from_bytes() {
+        use std::fs;
+        use std::io::Read;
+
+        let mut bytes = Vec::new();
+        let mut file = fs::File::open("tests/files/dummy.pdf").unwrap();
+        file.read_to_end(&mut bytes).unwrap();
+        let doc = PdfDocument::from_bytes(&bytes).unwrap();
+        assert!(!doc.needs_password().unwrap());
     }
 
     #[test]
