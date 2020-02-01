@@ -8,6 +8,10 @@ pub struct DisplayList {
 }
 
 impl DisplayList {
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_display_list) -> Self {
+        Self { inner: ptr }
+    }
+
     pub fn new(media_box: Rect) -> Result<Self, Error> {
         let inner = unsafe { ffi_try!(mupdf_new_display_list(context(), media_box.into())) };
         Ok(Self { inner })

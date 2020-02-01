@@ -715,6 +715,27 @@ fz_stext_page *mupdf_page_to_text_page(fz_context *ctx, fz_page *page, int flags
     return text_page;
 }
 
+fz_display_list *mupdf_page_to_display_list(fz_context *ctx, fz_page *page, bool annots, mupdf_error_t **errptr)
+{
+    fz_display_list *list = NULL;
+    fz_try(ctx)
+    {
+        if (annots)
+        {
+            list = fz_new_display_list_from_page(ctx, page);
+        }
+        else
+        {
+            list = fz_new_display_list_from_page_contents(ctx, page);
+        }
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return list;
+}
+
 void mupdf_run_page(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
 {
     fz_try(ctx)

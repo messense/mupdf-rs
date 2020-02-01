@@ -3,7 +3,8 @@ use std::io::Read;
 use mupdf_sys::*;
 
 use crate::{
-    context, Buffer, ColorSpace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions,
+    context, Buffer, ColorSpace, Device, DisplayList, Error, Matrix, Pixmap, Rect, TextPage,
+    TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -59,6 +60,17 @@ impl Page {
                 opts.bits() as _
             ));
             Ok(TextPage::from_raw(inner))
+        }
+    }
+
+    pub fn to_display_list(&self, annotations: bool) -> Result<DisplayList, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_page_to_display_list(
+                context(),
+                self.inner,
+                annotations
+            ));
+            Ok(DisplayList::from_raw(inner))
         }
     }
 
@@ -131,5 +143,24 @@ mod test {
         let page0 = doc.load_page(0).unwrap();
         let svg = page0.to_svg(&Matrix::IDENTITY).unwrap();
         assert!(!svg.is_empty());
+    }
+
+    #[test]
+    fn test_page_to_display_list() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let _dl = page0.to_display_list(true).unwrap();
+        let _dl = page0.to_display_list(false).unwrap();
+    }
+
+    #[test]
+    fn test_page_to_text_page() {
+        use crate::TextPageOptions;
+
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let _tp = page0
+            .to_text_page(TextPageOptions::PRESERVE_IMAGES)
+            .unwrap();
     }
 }
