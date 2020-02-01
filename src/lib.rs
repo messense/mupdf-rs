@@ -31,7 +31,7 @@ pub(crate) use context::context;
 pub use context::Context;
 pub use device::{BlendMode, Device};
 pub use display_list::DisplayList;
-pub use document::Document;
+pub use document::{Document, PageIter};
 pub(crate) use error::ffi_error;
 pub use error::Error;
 pub use font::{CjkFontOrdering, Font, SimpleFontEncoding, WriteMode};

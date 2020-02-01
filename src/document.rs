@@ -92,9 +92,9 @@ impl Document {
         Ok(ret)
     }
 
-    pub fn page_count(&self) -> Result<usize, Error> {
+    pub fn page_count(&self) -> Result<i32, Error> {
         let count = unsafe { ffi_try!(mupdf_document_page_count(context(), self.inner)) };
-        Ok(count as usize)
+        Ok(count)
     }
 
     pub fn metadata(&self, name: MetadataName) -> Result<String, Error> {
@@ -182,6 +182,14 @@ impl Document {
             Ok(Page::from_raw(inner))
         }
     }
+
+    pub fn pages(&self) -> Result<PageIter, Error> {
+        Ok(PageIter {
+            index: 0,
+            total: self.page_count()?,
+            doc: self,
+        })
+    }
 }
 
 impl Drop for Document {
@@ -194,9 +202,47 @@ impl Drop for Document {
     }
 }
 
+#[derive(Debug)]
+pub struct PageIter<'a> {
+    index: i32,
+    total: i32,
+    doc: &'a Document,
+}
+
+impl<'a> Iterator for PageIter<'a> {
+    type Item = Result<Page, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.total {
+            return None;
+        }
+        let page = self.doc.load_page(self.index);
+        self.index += 1;
+        Some(page)
+    }
+}
+
+impl<'a> IntoIterator for &'a Document {
+    type Item = Result<Page, Error>;
+    type IntoIter = PageIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.pages().unwrap()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Document {
+    type Item = Result<Page, Error>;
+    type IntoIter = PageIter<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.pages().unwrap()
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use super::{Document, MetadataName};
+    use super::{Document, MetadataName, Page};
 
     #[test]
     fn test_recognize_document() {
@@ -214,6 +260,20 @@ mod test {
         assert_eq!(doc.page_count().unwrap(), 1);
 
         let page0 = doc.load_page(0).unwrap();
+        let bounds = page0.bounds().unwrap();
+        assert_eq!(bounds.x0, 0.0);
+        assert_eq!(bounds.y0, 0.0);
+        assert_eq!(bounds.x1, 595.0);
+        assert_eq!(bounds.y1, 842.0);
+    }
+
+    #[test]
+    fn test_document_page_iterator() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let pages: Result<Vec<Page>, _> = doc.into_iter().collect();
+        let pages = pages.unwrap();
+        assert_eq!(pages.len(), 1);
+        let page0 = &pages[0];
         let bounds = page0.bounds().unwrap();
         assert_eq!(bounds.x0, 0.0);
         assert_eq!(bounds.y0, 0.0);
