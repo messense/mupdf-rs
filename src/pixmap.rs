@@ -130,6 +130,13 @@ impl Pixmap {
         }
     }
 
+    // Set resolution
+    pub fn set_resolution(&mut self, x_res: i32, y_res: i32) {
+        unsafe {
+            fz_set_pixmap_resolution(context(), self.inner, x_res, y_res);
+        }
+    }
+
     /// Size of pixmap
     pub fn size(&self) -> usize {
         unsafe { fz_pixmap_size(context(), self.inner) }
