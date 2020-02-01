@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
+use crate::{context, Colorspace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
 
 #[derive(Debug)]
 pub struct DisplayList {
@@ -22,7 +22,7 @@ impl DisplayList {
         rect.into()
     }
 
-    pub fn to_pixmap(&self, ctm: &Matrix, cs: &ColorSpace, alpha: bool) -> Result<Pixmap, Error> {
+    pub fn to_pixmap(&self, ctm: &Matrix, cs: &Colorspace, alpha: bool) -> Result<Pixmap, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_display_list_to_pixmap(
                 context(),

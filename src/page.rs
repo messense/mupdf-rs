@@ -3,7 +3,7 @@ use std::io::Read;
 use mupdf_sys::*;
 
 use crate::{
-    context, Buffer, ColorSpace, Device, DisplayList, Error, Matrix, Pixmap, Rect, TextPage,
+    context, Buffer, Colorspace, Device, DisplayList, Error, Matrix, Pixmap, Rect, TextPage,
     TextPageOptions,
 };
 
@@ -25,7 +25,7 @@ impl Page {
     pub fn to_pixmap(
         &self,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         alpha: f32,
         show_extras: bool,
     ) -> Result<Pixmap, Error> {

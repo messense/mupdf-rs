@@ -1,7 +1,7 @@
 #[rustfmt::skip] #[macro_use] mod error;
 mod buffer;
 mod color_params;
-mod color_space;
+mod colorspace;
 mod context;
 mod device;
 mod display_list;
@@ -27,7 +27,7 @@ mod text_page;
 
 pub use buffer::Buffer;
 pub use color_params::{ColorParams, RenderingIntent};
-pub use color_space::ColorSpace;
+pub use colorspace::Colorspace;
 pub(crate) use context::context;
 pub use context::Context;
 pub use device::{BlendMode, Device};

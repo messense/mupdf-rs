@@ -3,7 +3,7 @@ use std::io::{self, Write};
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, ColorSpace, Error, IRect};
+use crate::{context, Buffer, Colorspace, Error, IRect};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -34,7 +34,7 @@ impl Pixmap {
     ///
     /// Note that the image area is not initialized and will contain crap data
     pub fn new(
-        cs: &ColorSpace,
+        cs: &Colorspace,
         x: i32,
         y: i32,
         w: i32,
@@ -49,7 +49,7 @@ impl Pixmap {
     /// Create an empty pixmap of size and origin given by the rectangle.
     ///
     /// Note that the image area is not initialized and will contain crap data
-    pub fn new_with_rect(cs: &ColorSpace, rect: IRect, alpha: bool) -> Result<Self, Error> {
+    pub fn new_with_rect(cs: &Colorspace, rect: IRect, alpha: bool) -> Result<Self, Error> {
         let x = rect.x0;
         let y = rect.y0;
         let w = rect.x1 - rect.x0;
@@ -60,7 +60,7 @@ impl Pixmap {
     /// Create an empty pixmap of size with origin set to `(0, 0)`.
     ///
     /// Note that the image area is not initialized and will contain crap data
-    pub fn new_with_w_h(cs: &ColorSpace, w: i32, h: i32, alpha: bool) -> Result<Self, Error> {
+    pub fn new_with_w_h(cs: &Colorspace, w: i32, h: i32, alpha: bool) -> Result<Self, Error> {
         Self::new(cs, 0, 0, w, h, alpha)
     }
 
@@ -111,13 +111,13 @@ impl Pixmap {
     // The colorspace of the pixmap.
     //
     // This value may be None if the image is to be treated as a so-called image mask or stencil mask
-    pub fn color_space(&self) -> Option<ColorSpace> {
+    pub fn color_space(&self) -> Option<Colorspace> {
         unsafe {
             let ptr = (*self.inner).colorspace;
             if ptr.is_null() {
                 return None;
             }
-            Some(ColorSpace::from_raw(ptr))
+            Some(Colorspace::from_raw(ptr))
         }
     }
 
@@ -287,11 +287,11 @@ impl Drop for Pixmap {
 
 #[cfg(test)]
 mod test {
-    use super::{ColorSpace, IRect, Pixmap};
+    use super::{Colorspace, IRect, Pixmap};
 
     #[test]
     fn test_pixmap_properties() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         let pixmap_cs = pixmap.color_space().unwrap();
         assert_eq!(cs, pixmap_cs);
@@ -310,7 +310,7 @@ mod test {
 
     #[test]
     fn test_pixmap_clear() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.clear_with(1).unwrap();
@@ -318,7 +318,7 @@ mod test {
 
     #[test]
     fn test_pixmap_invert() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.invert().unwrap();
@@ -326,7 +326,7 @@ mod test {
 
     #[test]
     fn test_pixmap_gamma() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.gamma(2.0).unwrap();
@@ -334,7 +334,7 @@ mod test {
 
     #[test]
     fn test_pixmap_tint() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.tint(0, 255).unwrap();
@@ -342,7 +342,7 @@ mod test {
 
     #[test]
     fn test_pixmap_scale() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.scale(0.0, 0.0, 50.0, 50.0).unwrap();

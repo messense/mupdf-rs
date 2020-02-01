@@ -4,7 +4,7 @@ use std::ptr;
 use mupdf_sys::*;
 
 use crate::{
-    context, ColorParams, ColorSpace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect,
+    context, ColorParams, Colorspace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect,
     Shade, StrokeState, Text, TextPage, TextPageOptions,
 };
 
@@ -81,7 +81,7 @@ impl Device {
         path: &Path,
         even_odd: bool,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -107,7 +107,7 @@ impl Device {
         path: &Path,
         stroke: &StrokeState,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -163,7 +163,7 @@ impl Device {
         &self,
         text: &Text,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -188,7 +188,7 @@ impl Device {
         text: &Text,
         stroke: &StrokeState,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -288,7 +288,7 @@ impl Device {
         &self,
         image: &Image,
         ctm: &Matrix,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -331,7 +331,7 @@ impl Device {
         &self,
         area: Rect,
         luminosity: bool,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         bc: &[f32],
         cp: ColorParams,
     ) -> Result<(), Error> {
@@ -359,7 +359,7 @@ impl Device {
     pub fn begin_group(
         &self,
         area: Rect,
-        cs: &ColorSpace,
+        cs: &Colorspace,
         isolated: bool,
         knockout: bool,
         blend_mode: BlendMode,
@@ -452,11 +452,11 @@ impl Drop for Device {
 
 #[cfg(test)]
 mod test {
-    use crate::{ColorSpace, Device, DisplayList, Pixmap, Rect};
+    use crate::{Colorspace, Device, DisplayList, Pixmap, Rect};
 
     #[test]
     fn test_new_device_from_pixmap() {
-        let cs = ColorSpace::device_rgb();
+        let cs = Colorspace::device_rgb();
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         let _device = Device::from_pixmap(&pixmap).unwrap();

@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use mupdf_sys::*;
 
-use crate::{context, ColorSpace, Error, Pixmap};
+use crate::{context, Colorspace, Error, Pixmap};
 
 #[derive(Debug)]
 pub struct Image {
@@ -41,8 +41,8 @@ impl Image {
         unsafe { (*self.inner).bpc }
     }
 
-    pub fn color_space(&self) -> ColorSpace {
-        unsafe { ColorSpace::from_raw((*self.inner).colorspace) }
+    pub fn color_space(&self) -> Colorspace {
+        unsafe { Colorspace::from_raw((*self.inner).colorspace) }
     }
 
     pub fn resolution(&self) -> (i32, i32) {

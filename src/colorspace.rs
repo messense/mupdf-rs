@@ -6,11 +6,11 @@ use mupdf_sys::*;
 use crate::context;
 
 #[derive(Debug)]
-pub struct ColorSpace {
+pub struct Colorspace {
     pub(crate) inner: *mut fz_colorspace,
 }
 
-impl ColorSpace {
+impl Colorspace {
     pub(crate) unsafe fn from_raw(inner: *mut fz_colorspace) -> Self {
         Self { inner }
     }
@@ -86,7 +86,7 @@ impl ColorSpace {
     }
 }
 
-impl PartialEq for ColorSpace {
+impl PartialEq for Colorspace {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
     }
@@ -94,23 +94,23 @@ impl PartialEq for ColorSpace {
 
 #[cfg(test)]
 mod test {
-    use super::ColorSpace;
+    use super::Colorspace;
 
     #[test]
     fn test_color_space_device_colors() {
-        let gray = ColorSpace::device_gray();
+        let gray = Colorspace::device_gray();
         assert!(gray.is_device_gray());
         assert!(gray.is_gray());
         assert_eq!(gray.name(), "DeviceGray");
 
-        let rgb = ColorSpace::device_rgb();
+        let rgb = Colorspace::device_rgb();
         assert!(rgb.is_rgb());
         assert_eq!(rgb.name(), "DeviceRGB");
 
-        let bgr = ColorSpace::device_bgr();
+        let bgr = Colorspace::device_bgr();
         assert_eq!(bgr.name(), "DeviceBGR");
 
-        let cmyk = ColorSpace::device_cmyk();
+        let cmyk = Colorspace::device_cmyk();
         assert!(cmyk.is_device_cmyk());
         assert!(cmyk.is_cmyk());
         assert_eq!(cmyk.name(), "DeviceCMYK");
