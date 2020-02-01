@@ -313,6 +313,20 @@ fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int f
     return buf;
 }
 
+fz_pixmap *mupdf_scale_pixmap(fz_context *ctx, fz_pixmap *pixmap, float x, float y, float w, float h, const fz_irect *clip, mupdf_error_t **errptr)
+{
+    fz_pixmap *scaled = NULL;
+    fz_try(ctx)
+    {
+        scaled = fz_scale_pixmap(ctx, pixmap, x, y, w, h, clip);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return scaled;
+}
+
 /* Font */
 fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_error_t **errptr)
 {

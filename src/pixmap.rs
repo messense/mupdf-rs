@@ -246,6 +246,35 @@ impl Pixmap {
         let mut buf = self.get_image_data(format)?;
         Ok(io::copy(&mut buf, w)?)
     }
+
+    pub fn scale_with_clip(
+        &self,
+        x: f32,
+        y: f32,
+        w: f32,
+        h: f32,
+        clip: IRect,
+    ) -> Result<Self, Error> {
+        let clip = clip.into();
+        let inner =
+            unsafe { ffi_try!(mupdf_scale_pixmap(context(), self.inner, x, y, w, h, &clip)) };
+        Ok(Self { inner })
+    }
+
+    pub fn scale(&self, x: f32, y: f32, w: f32, h: f32) -> Result<Self, Error> {
+        let inner = unsafe {
+            ffi_try!(mupdf_scale_pixmap(
+                context(),
+                self.inner,
+                x,
+                y,
+                w,
+                h,
+                std::ptr::null()
+            ))
+        };
+        Ok(Self { inner })
+    }
 }
 
 impl Drop for Pixmap {
@@ -309,5 +338,13 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.tint(0, 255).unwrap();
+    }
+
+    #[test]
+    fn test_pixmap_scale() {
+        let cs = ColorSpace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        pixmap.scale(0.0, 0.0, 50.0, 50.0).unwrap();
     }
 }
