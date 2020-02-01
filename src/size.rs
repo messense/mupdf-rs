@@ -1,3 +1,5 @@
+use crate::Rect;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Size {
     pub width: f32,
@@ -58,6 +60,10 @@ impl Size {
 
     pub const fn new(width: f32, height: f32) -> Self {
         Self { width, height }
+    }
+
+    pub fn to_rect(&self) -> Rect {
+        Rect::new(0.0, 0.0, self.width, self.height)
     }
 }
 
