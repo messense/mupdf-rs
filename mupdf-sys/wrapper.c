@@ -1286,12 +1286,12 @@ pdf_obj *mupdf_pdf_array_get(fz_context *ctx, pdf_obj *obj, int index, mupdf_err
     return val;
 }
 
-pdf_obj *mupdf_pdf_dict_gets(fz_context *ctx, pdf_obj *obj, const char *key, mupdf_error_t **errptr)
+pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, pdf_obj *key, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
     fz_try(ctx)
     {
-        val = pdf_dict_gets(ctx, obj, key);
+        val = pdf_dict_get(ctx, obj, key);
         pdf_keep_obj(ctx, val);
     }
     fz_catch(ctx)

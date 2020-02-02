@@ -49,7 +49,7 @@ impl PdfPage {
     pub fn rotation(&self) -> Result<i32, Error> {
         if let Some(rotate) = self
             .object()
-            .get_dict_inheritable(&PdfObject::new_name("Rotate")?)?
+            .get_dict_inheritable(PdfObject::new_name("Rotate")?)?
         {
             return rotate.as_int();
         }

@@ -263,16 +263,17 @@ impl PdfObject {
         Ok(Some(Self { inner, owned: true }))
     }
 
-    pub fn get_dict(&self, key: &str) -> Result<Option<Self>, Error> {
-        let c_key = CString::new(key)?;
-        let inner = unsafe { ffi_try!(mupdf_pdf_dict_gets(context(), self.inner, c_key.as_ptr())) };
+    pub fn get_dict<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
+        let key = key.into_pdf_dict_key()?;
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, key.inner)) };
         if inner.is_null() {
             return Ok(None);
         }
         Ok(Some(Self { inner, owned: true }))
     }
 
-    pub fn get_dict_inheritable(&self, key: &PdfObject) -> Result<Option<Self>, Error> {
+    pub fn get_dict_inheritable<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
+        let key = key.into_pdf_dict_key()?;
         let inner = unsafe {
             ffi_try!(mupdf_pdf_dict_get_inheritable(
                 context(),
