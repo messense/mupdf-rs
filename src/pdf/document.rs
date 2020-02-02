@@ -688,15 +688,26 @@ mod test {
     }
 
     #[test]
-    fn test_pdf_object_array_put() {
+    fn test_pdf_object_array() {
         let pdf = PdfDocument::new();
         let mut obj = pdf.new_array().unwrap();
         obj.array_put(0, true.into()).unwrap();
         obj.array_put(1, pdf.new_int(1).unwrap()).unwrap();
+        obj.array_push(pdf.new_string("abc").unwrap()).unwrap();
+        let val0 = obj.get_array(0).unwrap().unwrap();
+        assert!(val0.as_bool().unwrap());
+        let val1 = obj.get_array(1).unwrap().unwrap();
+        assert_eq!(val1.as_int().unwrap(), 1);
+        let val2 = obj.get_array(2).unwrap().unwrap();
+        assert_eq!(val2.as_string().unwrap(), "abc");
+        assert_eq!(obj.len().unwrap(), 3);
+        // delete
+        obj.array_delete(2).unwrap();
+        assert_eq!(obj.len().unwrap(), 2);
     }
 
     #[test]
-    fn test_pdf_object_dict_put() {
+    fn test_pdf_object_dict() {
         let pdf = PdfDocument::new();
         let mut obj = pdf.new_dict().unwrap();
         obj.dict_put("name", true.into()).unwrap();
@@ -705,6 +716,11 @@ mod test {
             pdf.new_string("test").unwrap(),
         )
         .unwrap();
+        let val0 = obj.get_dict("name").unwrap().unwrap();
+        assert!(val0.as_bool().unwrap());
+        let val1 = obj.get_dict("test").unwrap().unwrap();
+        assert_eq!(val1.as_string().unwrap(), "test");
+        obj.dict_delete("test").unwrap();
     }
 
     #[test]

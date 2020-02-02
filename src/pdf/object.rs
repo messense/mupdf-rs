@@ -303,6 +303,20 @@ impl PdfObject {
         Ok(())
     }
 
+    pub fn array_push(&mut self, value: Self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_array_push(context(), self.inner, value.inner));
+        }
+        Ok(())
+    }
+
+    pub fn array_delete(&mut self, index: i32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_array_delete(context(), self.inner, index));
+        }
+        Ok(())
+    }
+
     pub fn dict_put<K: IntoPdfDictKey>(&mut self, key: K, value: Self) -> Result<(), Error> {
         let key_obj = key.into_pdf_dict_key()?;
         unsafe {
@@ -312,6 +326,14 @@ impl PdfObject {
                 key_obj.inner,
                 value.inner
             ));
+        }
+        Ok(())
+    }
+
+    pub fn dict_delete<K: IntoPdfDictKey>(&mut self, key: K) -> Result<(), Error> {
+        let key_obj = key.into_pdf_dict_key()?;
+        unsafe {
+            ffi_try!(mupdf_pdf_dict_delete(context(), self.inner, key_obj.inner));
         }
         Ok(())
     }

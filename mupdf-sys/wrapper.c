@@ -1406,11 +1406,47 @@ void mupdf_pdf_array_put(fz_context *ctx, pdf_obj *self, int i, pdf_obj *item, m
     }
 }
 
+void mupdf_pdf_array_push(fz_context *ctx, pdf_obj *self, pdf_obj *item, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_array_push(ctx, self, item);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_array_delete(fz_context *ctx, pdf_obj *self, int i, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_array_delete(ctx, self, i);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 void mupdf_pdf_dict_put(fz_context *ctx, pdf_obj *self, pdf_obj *key, pdf_obj *value, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
         pdf_dict_put(ctx, self, key, value);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_dict_delete(fz_context *ctx, pdf_obj *self, pdf_obj *key, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_dict_del(ctx, self, key);
     }
     fz_catch(ctx)
     {
