@@ -177,12 +177,12 @@ impl PdfObject {
         }
     }
 
-    pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
+    pub fn as_bytes(&self) -> Result<&[u8], Error> {
         let mut len = 0;
         unsafe {
             let ptr = ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len));
             let byte_slice = slice::from_raw_parts(ptr, len);
-            Ok(byte_slice.to_vec())
+            Ok(byte_slice)
         }
     }
 
