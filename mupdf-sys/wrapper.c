@@ -800,6 +800,30 @@ void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, f
     }
 }
 
+fz_buffer *mupdf_stext_page_to_text(fz_context *ctx, fz_stext_page *page, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_output *out = NULL;
+    fz_var(buf);
+    fz_var(out);
+    fz_try(ctx)
+    {
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+        fz_print_stext_page_as_text(ctx, out, page);
+        fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
 /* Cookie */
 fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
 {

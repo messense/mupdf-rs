@@ -1,8 +1,10 @@
+use std::io::Read;
+
 use mupdf_sys::*;
 
 use bitflags::bitflags;
 
-use crate::context;
+use crate::{context, Buffer, Error};
 
 bitflags! {
     pub struct TextPageOptions: u32 {
@@ -23,6 +25,16 @@ pub struct TextPage {
 impl TextPage {
     pub(crate) unsafe fn from_raw(ptr: *mut fz_stext_page) -> Self {
         Self { inner: ptr }
+    }
+
+    pub fn to_text(&self) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_stext_page_to_text(context(), self.inner));
+            Buffer::from_raw(inner)
+        };
+        let mut text = String::new();
+        buf.read_to_string(&mut text)?;
+        Ok(text)
     }
 }
 
