@@ -1211,7 +1211,7 @@ int mupdf_pdf_to_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     return ind;
 }
 
-char *mupdf_pdf_to_string(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+const char *mupdf_pdf_to_string(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     const char *s = NULL;
     fz_try(ctx)
@@ -1222,10 +1222,10 @@ char *mupdf_pdf_to_string(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     {
         mupdf_save_error(ctx, errptr);
     }
-    return strdup(s);
+    return s;
 }
 
-char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+const char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     const char *s = NULL;
     fz_try(ctx)
@@ -1236,7 +1236,7 @@ char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     {
         mupdf_save_error(ctx, errptr);
     }
-    return strdup(s);
+    return s;
 }
 
 const unsigned char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *len, mupdf_error_t **errptr)

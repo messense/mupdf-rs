@@ -100,22 +100,20 @@ impl PdfObject {
         Ok(ret)
     }
 
-    pub fn as_name(&self) -> Result<String, Error> {
+    pub fn as_name(&self) -> Result<&str, Error> {
         unsafe {
             let name_ptr = ffi_try!(mupdf_pdf_to_name(context(), self.inner));
             let c_name = CStr::from_ptr(name_ptr);
-            let name = c_name.to_string_lossy().into_owned();
-            mupdf_drop_str(name_ptr);
+            let name = c_name.to_str().unwrap();
             Ok(name)
         }
     }
 
-    pub fn as_string(&self) -> Result<String, Error> {
+    pub fn as_string(&self) -> Result<&str, Error> {
         unsafe {
             let str_ptr = ffi_try!(mupdf_pdf_to_string(context(), self.inner));
             let c_str = CStr::from_ptr(str_ptr);
-            let string = c_str.to_string_lossy().into_owned();
-            mupdf_drop_str(str_ptr);
+            let string = c_str.to_str().unwrap();
             Ok(string)
         }
     }
