@@ -8,6 +8,10 @@ pub struct Path {
 }
 
 impl Path {
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_path) -> Self {
+        Self { inner: ptr }
+    }
+
     pub fn new() -> Result<Self, Error> {
         let inner = unsafe { ffi_try!(mupdf_new_path(context())) };
         Ok(Self { inner })

@@ -397,6 +397,20 @@ float mupdf_advance_glyph(fz_context *ctx, fz_font *font, int glyph, bool wmode,
     return advance;
 }
 
+fz_path *mupdf_outline_glyph(fz_context *ctx, fz_font *font, int glyph, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_path *path = NULL;
+    fz_try(ctx)
+    {
+        path = fz_outline_glyph(ctx, font, glyph, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return path;
+}
+
 /* Image */
 fz_image *mupdf_new_image_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {

@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use mupdf_sys::*;
 
-use crate::{context, Error};
+use crate::{context, Error, Matrix, Path};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -100,6 +100,22 @@ impl Font {
 
     pub fn advance_glyph(&self, glyph: i32) -> Result<f32, Error> {
         self.advance_glyph_with_wmode(glyph, false)
+    }
+
+    pub fn outline_glyph_with_ctm(&self, glyph: i32, ctm: &Matrix) -> Result<Path, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_outline_glyph(
+                context(),
+                self.inner,
+                glyph,
+                ctm.into()
+            ));
+            Ok(Path::from_raw(inner))
+        }
+    }
+
+    pub fn outline_glyph(&self, glyph: i32) -> Result<Path, Error> {
+        self.outline_glyph_with_ctm(glyph, &Matrix::IDENTITY)
     }
 }
 
