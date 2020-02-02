@@ -121,6 +121,46 @@ impl Page {
         }
         Ok(())
     }
+
+    pub fn to_html(&self) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_html(context(), self.inner));
+            Buffer::from_raw(inner)
+        };
+        let mut out = String::new();
+        buf.read_to_string(&mut out)?;
+        Ok(out)
+    }
+
+    pub fn to_xhtml(&self) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_xhtml(context(), self.inner));
+            Buffer::from_raw(inner)
+        };
+        let mut out = String::new();
+        buf.read_to_string(&mut out)?;
+        Ok(out)
+    }
+
+    pub fn to_xml(&self) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_xml(context(), self.inner));
+            Buffer::from_raw(inner)
+        };
+        let mut out = String::new();
+        buf.read_to_string(&mut out)?;
+        Ok(out)
+    }
+
+    pub fn to_text(&self) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_text(context(), self.inner));
+            Buffer::from_raw(inner)
+        };
+        let mut out = String::new();
+        buf.read_to_string(&mut out)?;
+        Ok(out)
+    }
 }
 
 impl Drop for Page {
@@ -143,6 +183,38 @@ mod test {
         let page0 = doc.load_page(0).unwrap();
         let svg = page0.to_svg(&Matrix::IDENTITY).unwrap();
         assert!(!svg.is_empty());
+    }
+
+    #[test]
+    fn test_page_to_html() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let html = page0.to_html().unwrap();
+        assert!(!html.is_empty());
+    }
+
+    #[test]
+    fn test_page_to_xhtml() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let xhtml = page0.to_xhtml().unwrap();
+        assert!(!xhtml.is_empty());
+    }
+
+    #[test]
+    fn test_page_to_xml() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let xml = page0.to_xml().unwrap();
+        assert!(!xml.is_empty());
+    }
+
+    #[test]
+    fn test_page_to_text() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text = page0.to_text().unwrap();
+        assert!(!text.is_empty());
     }
 
     #[test]

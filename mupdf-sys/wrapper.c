@@ -800,6 +800,122 @@ void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, f
     }
 }
 
+fz_buffer *mupdf_page_to_html(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_output *out = NULL;
+    fz_stext_page *text = NULL;
+    fz_var(text);
+    fz_var(buf);
+    fz_var(out);
+    fz_try(ctx)
+    {
+        text = fz_new_stext_page_from_page(ctx, page, NULL);
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+		fz_print_stext_header_as_html(ctx, out);
+		fz_print_stext_page_as_html(ctx, out, text, page->number);
+		fz_print_stext_trailer_as_html(ctx, out);
+		fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+        fz_drop_stext_page(ctx, text);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
+fz_buffer *mupdf_page_to_xhtml(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_output *out = NULL;
+    fz_stext_page *text = NULL;
+    fz_var(text);
+    fz_var(buf);
+    fz_var(out);
+    fz_try(ctx)
+    {
+        text = fz_new_stext_page_from_page(ctx, page, NULL);
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+		fz_print_stext_header_as_xhtml(ctx, out);
+		fz_print_stext_page_as_xhtml(ctx, out, text, page->number);
+		fz_print_stext_trailer_as_xhtml(ctx, out);
+		fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+        fz_drop_stext_page(ctx, text);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
+fz_buffer *mupdf_page_to_xml(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_output *out = NULL;
+    fz_stext_page *text = NULL;
+    fz_var(text);
+    fz_var(buf);
+    fz_var(out);
+    fz_try(ctx)
+    {
+        text = fz_new_stext_page_from_page(ctx, page, NULL);
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+		fz_print_stext_page_as_xml(ctx, out, text, page->number);
+		fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+        fz_drop_stext_page(ctx, text);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
+fz_buffer *mupdf_page_to_text(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_buffer *buf = NULL;
+    fz_output *out = NULL;
+    fz_stext_page *text = NULL;
+    fz_var(text);
+    fz_var(buf);
+    fz_var(out);
+    fz_try(ctx)
+    {
+        text = fz_new_stext_page_from_page(ctx, page, NULL);
+        buf = fz_new_buffer(ctx, 8192);
+        out = fz_new_output_with_buffer(ctx, buf);
+		fz_print_stext_page_as_text(ctx, out, text);
+		fz_close_output(ctx, out);
+    }
+    fz_always(ctx)
+    {
+        fz_drop_output(ctx, out);
+        fz_drop_stext_page(ctx, text);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return buf;
+}
+
 fz_buffer *mupdf_stext_page_to_text(fz_context *ctx, fz_stext_page *page, mupdf_error_t **errptr)
 {
     fz_buffer *buf = NULL;
