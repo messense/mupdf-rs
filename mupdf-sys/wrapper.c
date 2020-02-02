@@ -2796,3 +2796,18 @@ void mupdf_document_writer_end_page(fz_context *ctx, fz_document_writer *writer,
         mupdf_save_error(ctx, errptr);
     }
 }
+
+/* Glyphs */
+fz_glyph *mupdf_new_glyph_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
+{
+    fz_glyph *glyph = NULL;
+    fz_try(ctx)
+    {
+        glyph = fz_new_glyph_from_pixmap(ctx, pixmap);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return glyph;
+}
