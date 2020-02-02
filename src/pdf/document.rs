@@ -232,47 +232,27 @@ impl PdfDocument {
     }
 
     pub fn new_null(&self) -> PdfObject {
-        unsafe {
-            let inner = mupdf_pdf_new_null();
-            PdfObject::from_raw(inner, true)
-        }
+        PdfObject::new_null()
     }
 
     pub fn new_bool(&self, b: bool) -> PdfObject {
-        unsafe {
-            let inner = mupdf_pdf_new_bool(b);
-            PdfObject::from_raw(inner, true)
-        }
+        PdfObject::new_bool(b)
     }
 
     pub fn new_int(&self, i: i32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_int(context(), i));
-            Ok(PdfObject::from_raw(inner, true))
-        }
+        PdfObject::new_int(i)
     }
 
     pub fn new_real(&self, f: f32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_real(context(), f));
-            Ok(PdfObject::from_raw(inner, true))
-        }
+        PdfObject::new_real(f)
     }
 
     pub fn new_string(&self, s: &str) -> Result<PdfObject, Error> {
-        let c_str = CString::new(s)?;
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr()));
-            Ok(PdfObject::from_raw(inner, true))
-        }
+        PdfObject::new_string(s)
     }
 
     pub fn new_name(&self, name: &str) -> Result<PdfObject, Error> {
-        let c_name = CString::new(name)?;
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr()));
-            Ok(PdfObject::from_raw(inner, true))
-        }
+        PdfObject::new_name(name)
     }
 
     pub fn new_indirect(&self, num: i32, gen: i32) -> Result<PdfObject, Error> {
@@ -705,6 +685,26 @@ mod test {
         /Producer<FEFF004F00700065006E004F00660066006900630065002E006F0072006700200032002E0031>
         /CreationDate(D:20070223175637+02'00')>>"#).unwrap();
         assert!(obj.is_dict().unwrap());
+    }
+
+    #[test]
+    fn test_pdf_object_array_put() {
+        let pdf = PdfDocument::new();
+        let mut obj = pdf.new_array().unwrap();
+        obj.array_put(0, true.into()).unwrap();
+        obj.array_put(1, pdf.new_int(1).unwrap()).unwrap();
+    }
+
+    #[test]
+    fn test_pdf_object_dict_put() {
+        let pdf = PdfDocument::new();
+        let mut obj = pdf.new_dict().unwrap();
+        obj.dict_put("name", true.into()).unwrap();
+        obj.dict_put(
+            pdf.new_name("test").unwrap(),
+            pdf.new_string("test").unwrap(),
+        )
+        .unwrap();
     }
 
     #[test]

@@ -1,3 +1,4 @@
+use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::{self, BufReader, Read, Write};
 use std::slice;
@@ -5,6 +6,28 @@ use std::slice;
 use mupdf_sys::*;
 
 use crate::{context, Buffer, Error};
+
+pub trait IntoPdfDictKey {
+    fn into_pdf_dict_key(self) -> Result<PdfObject, Error>;
+}
+
+impl IntoPdfDictKey for &str {
+    fn into_pdf_dict_key(self) -> Result<PdfObject, Error> {
+        PdfObject::new_name(self)
+    }
+}
+
+impl IntoPdfDictKey for String {
+    fn into_pdf_dict_key(self) -> Result<PdfObject, Error> {
+        PdfObject::new_name(&self)
+    }
+}
+
+impl IntoPdfDictKey for PdfObject {
+    fn into_pdf_dict_key(self) -> Result<PdfObject, Error> {
+        Ok(self)
+    }
+}
 
 #[derive(Debug)]
 pub struct PdfObject {
@@ -15,6 +38,42 @@ pub struct PdfObject {
 impl PdfObject {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj, owned: bool) -> Self {
         Self { inner: ptr, owned }
+    }
+
+    pub fn new_null() -> PdfObject {
+        unsafe {
+            let inner = mupdf_pdf_new_null();
+            PdfObject::from_raw(inner, true)
+        }
+    }
+
+    pub fn new_bool(b: bool) -> PdfObject {
+        unsafe {
+            let inner = mupdf_pdf_new_bool(b);
+            PdfObject::from_raw(inner, true)
+        }
+    }
+
+    pub fn new_int(i: i32) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_int(context(), i));
+            Ok(PdfObject::from_raw(inner, true))
+        }
+    }
+
+    pub fn new_real(f: f32) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_real(context(), f));
+            Ok(PdfObject::from_raw(inner, true))
+        }
+    }
+
+    pub fn new_string(s: &str) -> Result<PdfObject, Error> {
+        let c_str = CString::new(s)?;
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr()));
+            Ok(PdfObject::from_raw(inner, true))
+        }
     }
 
     pub fn new_name(name: &str) -> Result<PdfObject, Error> {
@@ -231,6 +290,31 @@ impl PdfObject {
         let size = unsafe { ffi_try!(mupdf_pdf_array_len(context(), self.inner)) };
         Ok(size as usize)
     }
+
+    pub fn array_put(&mut self, index: i32, value: Self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_array_put(
+                context(),
+                self.inner,
+                index,
+                value.inner
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn dict_put<K: IntoPdfDictKey>(&mut self, key: K, value: Self) -> Result<(), Error> {
+        let key_obj = key.into_pdf_dict_key()?;
+        unsafe {
+            ffi_try!(mupdf_pdf_dict_put(
+                context(),
+                self.inner,
+                key_obj.inner,
+                value.inner
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Write for PdfObject {
@@ -255,5 +339,43 @@ impl Drop for PdfObject {
                 pdf_drop_obj(context(), self.inner);
             }
         }
+    }
+}
+
+impl From<bool> for PdfObject {
+    fn from(b: bool) -> PdfObject {
+        PdfObject::new_bool(b)
+    }
+}
+
+impl TryFrom<i32> for PdfObject {
+    type Error = Error;
+
+    fn try_from(i: i32) -> Result<PdfObject, Self::Error> {
+        PdfObject::new_int(i)
+    }
+}
+
+impl TryFrom<f32> for PdfObject {
+    type Error = Error;
+
+    fn try_from(f: f32) -> Result<PdfObject, Self::Error> {
+        PdfObject::new_real(f)
+    }
+}
+
+impl TryFrom<&str> for PdfObject {
+    type Error = Error;
+
+    fn try_from(s: &str) -> Result<PdfObject, Self::Error> {
+        PdfObject::new_string(s)
+    }
+}
+
+impl TryFrom<String> for PdfObject {
+    type Error = Error;
+
+    fn try_from(s: String) -> Result<PdfObject, Self::Error> {
+        PdfObject::new_string(&s)
     }
 }

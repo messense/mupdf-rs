@@ -1394,6 +1394,30 @@ int mupdf_pdf_array_len(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
     return len;
 }
 
+void mupdf_pdf_array_put(fz_context *ctx, pdf_obj *self, int i, pdf_obj *item, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_array_put(ctx, self, i, item);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_dict_put(fz_context *ctx, pdf_obj *self, pdf_obj *key, pdf_obj *value, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_dict_put(ctx, self, key, value);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
