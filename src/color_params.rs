@@ -8,7 +8,7 @@ pub enum RenderingIntent {
     AbsoluteColorimetric,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct ColorParams(i32);
 
 impl ColorParams {
@@ -66,5 +66,11 @@ impl Into<fz_color_params> for ColorParams {
         let opm = ((flags >> 7) & 1) as u8;
         let ri = (flags & 32) as u8;
         fz_color_params { ri, bp, op, opm }
+    }
+}
+
+impl Default for ColorParams {
+    fn default() -> Self {
+        Self::new(RenderingIntent::RelativeColorimetric, true, false, false)
     }
 }
