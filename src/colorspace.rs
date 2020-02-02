@@ -79,10 +79,10 @@ impl Colorspace {
         unsafe { fz_colorspace_is_subtractive(context(), self.inner) > 0 }
     }
 
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         let ptr = unsafe { fz_colorspace_name(context(), self.inner) };
         let name_cstr = unsafe { CStr::from_ptr(ptr) };
-        name_cstr.to_string_lossy().into_owned()
+        name_cstr.to_str().unwrap()
     }
 }
 
