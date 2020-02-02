@@ -456,6 +456,13 @@ fz_text *mupdf_new_text(fz_context *ctx, mupdf_error_t **errptr)
 }
 
 /* StrokeState */
+fz_stroke_state *mupdf_default_stroke_state(fz_context *ctx)
+{
+    fz_stroke_state *stroke = NULL;
+    stroke = fz_clone_stroke_state(ctx, (fz_stroke_state *)&fz_default_stroke_state);
+    return stroke;
+}
+
 fz_stroke_state *mupdf_new_stroke_state(
     fz_context *ctx, uint32_t start_cap, uint32_t dash_cap, uint32_t end_cap, uint32_t line_join, float line_width,
     float miter_limit, float dash_phase, const float dash[], int dash_len, mupdf_error_t **errptr)

@@ -143,3 +143,20 @@ impl Clone for StrokeState {
         self.try_clone().unwrap()
     }
 }
+
+impl Default for StrokeState {
+    fn default() -> Self {
+        let inner = unsafe { mupdf_default_stroke_state(context()) };
+        Self { inner }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::StrokeState;
+
+    #[test]
+    fn test_default_stroke_state() {
+        let _stroke = StrokeState::default();
+    }
+}
