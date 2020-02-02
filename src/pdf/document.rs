@@ -6,6 +6,7 @@ use std::ptr;
 
 use bitflags::bitflags;
 use mupdf_sys::*;
+use num_enum::TryFromPrimitive;
 
 use crate::{
     context, Buffer, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
@@ -22,6 +23,24 @@ bitflags! {
         const ACCESSIBILITY = PDF_PERM_ACCESSIBILITY as _;
         const ASSEMBLE = PDF_PERM_ASSEMBLE as _;
         const PRINT_HQ = PDF_PERM_PRINT_HQ as _;
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, TryFromPrimitive)]
+#[repr(u32)]
+pub enum Encryption {
+    Aes128 = PDF_ENCRYPT_AES_128,
+    Aes256 = PDF_ENCRYPT_AES_256,
+    Rc4_40 = PDF_ENCRYPT_RC4_40,
+    Rc4_128 = PDF_ENCRYPT_RC4_128,
+    Keep = PDF_ENCRYPT_KEEP,
+    None = PDF_ENCRYPT_NONE,
+    Unknown = PDF_ENCRYPT_UNKNOWN,
+}
+
+impl Default for Encryption {
+    fn default() -> Encryption {
+        Self::None
     }
 }
 
@@ -149,12 +168,12 @@ impl PdfWriteOptions {
         self
     }
 
-    pub fn encrypt(&self) -> bool {
-        self.inner.do_encrypt != 0
+    pub fn encryption(&self) -> Encryption {
+        Encryption::try_from(self.inner.do_encrypt as u32).unwrap()
     }
 
-    pub fn set_encrypt(&mut self, value: bool) -> &mut Self {
-        self.inner.do_encrypt = if value { 1 } else { 0 };
+    pub fn set_encryption(&mut self, value: Encryption) -> &mut Self {
+        self.inner.do_encrypt = value as _;
         self
     }
 
