@@ -153,4 +153,11 @@ mod test {
         let advance = font.advance_glyph(glyph).unwrap();
         assert_eq!(advance, 0.6);
     }
+
+    #[test]
+    fn test_outline_glyph() {
+        let font = Font::new("Courier").expect("new font failed");
+        let glyph = font.encode_character(97).unwrap();
+        let _path = font.outline_glyph(glyph).unwrap();
+    }
 }
