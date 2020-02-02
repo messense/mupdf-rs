@@ -2520,6 +2520,20 @@ fz_rect mupdf_pdf_page_media_box(fz_context *ctx, pdf_page *page)
     return r;
 }
 
+fz_matrix mupdf_pdf_page_transform(fz_context *ctx, pdf_page *page, mupdf_error_t **errptr)
+{
+    fz_matrix ctm = fz_identity;
+    fz_try(ctx)
+    {
+        pdf_page_transform(ctx, page, NULL, &ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return ctm;
+}
+
 /* PDFAnnotation */
 int mupdf_pdf_annot_type(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
 {

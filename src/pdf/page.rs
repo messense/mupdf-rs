@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Page, PdfAnnotation, PdfObject, Rect};
+use crate::{context, Error, Matrix, Page, PdfAnnotation, PdfObject, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -89,6 +89,11 @@ impl PdfPage {
         }
         Ok(())
     }
+
+    pub fn ctm(&self) -> Result<Matrix, Error> {
+        let m = unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.inner)) };
+        Ok(m.into())
+    }
 }
 
 impl Deref for PdfPage {
@@ -117,12 +122,16 @@ impl From<Page> for PdfPage {
 
 #[cfg(test)]
 mod test {
-    use crate::{PdfDocument, PdfPage, Rect};
+    use crate::{Matrix, PdfDocument, PdfPage, Rect};
 
     #[test]
     fn test_page_properties() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
         let mut page0 = PdfPage::from(doc.load_page(0).unwrap());
+
+        // CTM
+        let ctm = page0.ctm().unwrap();
+        assert_eq!(ctm, Matrix::new(1.0, 0.0, 0.0, -1.0, 0.0, 842.0));
 
         // Rotation
         let rotation = page0.rotation().unwrap();
