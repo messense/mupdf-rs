@@ -275,6 +275,8 @@ fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int f
 {
     fz_output *out = NULL;
     fz_buffer *buf = NULL;
+    fz_var(out);
+    fz_var(buf);
     fz_try(ctx)
     {
         size_t size = fz_pixmap_stride(ctx, pixmap) * pixmap->h;
@@ -1139,6 +1141,7 @@ pdf_obj *mupdf_pdf_obj_from_str(fz_context *ctx, pdf_document *pdf, const char *
     pdf_lexbuf lexbuf;
     fz_stream *stream = fz_open_memory(ctx, (unsigned char *)src, strlen(src));
     pdf_lexbuf_init(ctx, &lexbuf, PDF_LEXBUF_SMALL);
+    fz_var(stream);
     fz_try(ctx)
     {
         obj = pdf_parse_stm_obj(ctx, pdf, stream, &lexbuf);
@@ -1476,6 +1479,7 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
     }
     fz_document *doc = NULL;
     fz_stream *stream = NULL;
+    fz_var(stream);
     fz_try(ctx)
     {
         stream = fz_open_buffer(ctx, bytes);
@@ -1709,6 +1713,7 @@ pdf_document *mupdf_pdf_open_document_from_bytes(fz_context *ctx, fz_buffer *byt
 {
     pdf_document *pdf = NULL;
     fz_stream *stream = NULL;
+    fz_var(stream);
     fz_try(ctx)
     {
         stream = fz_open_buffer(ctx, bytes);
@@ -1838,6 +1843,7 @@ fz_buffer *mupdf_pdf_write_document(fz_context *ctx, pdf_document *pdf, pdf_writ
     fz_output *out = NULL;
     fz_buffer *buf = NULL;
     fz_var(out);
+    fz_var(buf);
     fz_try(ctx)
     {
         buf = fz_new_buffer(ctx, 8192);
@@ -1989,6 +1995,9 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
     pdf_obj *resources = NULL, *page_obj = NULL;
     fz_buffer *contents = NULL;
     pdf_page *page = NULL;
+    fz_var(resources);
+    fz_var(page_obj);
+    fz_var(contents);
     fz_try(ctx)
     {
         // create /Resources and /Contents objects
