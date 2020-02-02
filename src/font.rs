@@ -82,10 +82,10 @@ impl Font {
         Ok(Self { inner })
     }
 
-    pub fn name(&self) -> String {
+    pub fn name(&self) -> &str {
         let f_name = unsafe { fz_font_name(context(), self.inner) };
         let c_name = unsafe { CStr::from_ptr(f_name) };
-        c_name.to_string_lossy().into_owned()
+        c_name.to_str().unwrap()
     }
 
     pub fn encode_character(&self, unicode: i32) -> Result<i32, Error> {
