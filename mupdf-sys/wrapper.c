@@ -129,6 +129,21 @@ void mupdf_drop_base_context(fz_context *ctx)
     ctx = NULL;
 }
 
+/* Rect */
+fz_rect mupdf_adjust_rect_for_stroke(fz_context *ctx, fz_rect self, fz_stroke_state *stroke, fz_matrix ctm, mupdf_error_t **errptr)
+{
+    fz_rect rect;
+    fz_try(ctx)
+    {
+        rect = fz_adjust_rect_for_stroke(ctx, self, stroke, ctm);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return rect;
+}
+
 /* Pixmap */
 fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, int w, int h, bool alpha, mupdf_error_t **errptr)
 {
@@ -832,10 +847,10 @@ fz_buffer *mupdf_page_to_html(fz_context *ctx, fz_page *page, mupdf_error_t **er
         text = fz_new_stext_page_from_page(ctx, page, NULL);
         buf = fz_new_buffer(ctx, 8192);
         out = fz_new_output_with_buffer(ctx, buf);
-		fz_print_stext_header_as_html(ctx, out);
-		fz_print_stext_page_as_html(ctx, out, text, page->number);
-		fz_print_stext_trailer_as_html(ctx, out);
-		fz_close_output(ctx, out);
+        fz_print_stext_header_as_html(ctx, out);
+        fz_print_stext_page_as_html(ctx, out, text, page->number);
+        fz_print_stext_trailer_as_html(ctx, out);
+        fz_close_output(ctx, out);
     }
     fz_always(ctx)
     {
@@ -862,10 +877,10 @@ fz_buffer *mupdf_page_to_xhtml(fz_context *ctx, fz_page *page, mupdf_error_t **e
         text = fz_new_stext_page_from_page(ctx, page, NULL);
         buf = fz_new_buffer(ctx, 8192);
         out = fz_new_output_with_buffer(ctx, buf);
-		fz_print_stext_header_as_xhtml(ctx, out);
-		fz_print_stext_page_as_xhtml(ctx, out, text, page->number);
-		fz_print_stext_trailer_as_xhtml(ctx, out);
-		fz_close_output(ctx, out);
+        fz_print_stext_header_as_xhtml(ctx, out);
+        fz_print_stext_page_as_xhtml(ctx, out, text, page->number);
+        fz_print_stext_trailer_as_xhtml(ctx, out);
+        fz_close_output(ctx, out);
     }
     fz_always(ctx)
     {
@@ -892,8 +907,8 @@ fz_buffer *mupdf_page_to_xml(fz_context *ctx, fz_page *page, mupdf_error_t **err
         text = fz_new_stext_page_from_page(ctx, page, NULL);
         buf = fz_new_buffer(ctx, 8192);
         out = fz_new_output_with_buffer(ctx, buf);
-		fz_print_stext_page_as_xml(ctx, out, text, page->number);
-		fz_close_output(ctx, out);
+        fz_print_stext_page_as_xml(ctx, out, text, page->number);
+        fz_close_output(ctx, out);
     }
     fz_always(ctx)
     {
@@ -920,8 +935,8 @@ fz_buffer *mupdf_page_to_text(fz_context *ctx, fz_page *page, mupdf_error_t **er
         text = fz_new_stext_page_from_page(ctx, page, NULL);
         buf = fz_new_buffer(ctx, 8192);
         out = fz_new_output_with_buffer(ctx, buf);
-		fz_print_stext_page_as_text(ctx, out, text);
-		fz_close_output(ctx, out);
+        fz_print_stext_page_as_text(ctx, out, text);
+        fz_close_output(ctx, out);
     }
     fz_always(ctx)
     {

@@ -2,7 +2,7 @@ use std::fmt;
 
 use mupdf_sys::*;
 
-use crate::{Point, Quad, Size};
+use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IRect {
@@ -165,6 +165,19 @@ impl Rect {
             }
         }
         self
+    }
+
+    pub fn adjust_for_stroke(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Self, Error> {
+        let r = (*self).into();
+        let new_rect = unsafe {
+            ffi_try!(mupdf_adjust_rect_for_stroke(
+                context(),
+                r,
+                stroke.inner,
+                ctm.into()
+            ))
+        };
+        Ok(new_rect.into())
     }
 }
 
