@@ -111,6 +111,9 @@ fz_context *mupdf_new_base_context()
         return NULL;
     }
     fz_register_document_handlers(ctx);
+    // Disable default warning & error printing
+    fz_set_warning_callback(ctx, NULL, NULL);
+    fz_set_error_callback(ctx, NULL, NULL);
     return ctx;
 }
 
