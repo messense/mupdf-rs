@@ -1,4 +1,5 @@
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::os::raw::c_int;
 use std::str::FromStr;
 
@@ -126,6 +127,12 @@ impl Drop for Font {
                 fz_drop_font(context(), self.inner);
             }
         }
+    }
+}
+
+impl fmt::Display for Font {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "Font({})", self.name())
     }
 }
 
