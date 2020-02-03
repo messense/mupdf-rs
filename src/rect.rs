@@ -1,3 +1,5 @@
+use std::fmt;
+
 use mupdf_sys::*;
 
 use crate::{Point, Quad, Size};
@@ -71,6 +73,12 @@ impl IRect {
             }
         }
         self
+    }
+}
+
+impl fmt::Display for IRect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{} {} {} {}]", self.x0, self.y0, self.x1, self.y1)
     }
 }
 
@@ -157,6 +165,12 @@ impl Rect {
             }
         }
         self
+    }
+}
+
+impl fmt::Display for Rect {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "[{} {} {} {}]", self.x0, self.y0, self.x1, self.y1)
     }
 }
 
