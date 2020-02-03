@@ -718,7 +718,7 @@ fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, f
     return pixmap;
 }
 
-fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, mupdf_error_t **errptr)
+fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_rect mediabox = fz_bound_page(ctx, page);
     fz_device *dev = NULL;
@@ -734,7 +734,7 @@ fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, mupd
         buf = fz_new_buffer(ctx, 1024);
         out = fz_new_output_with_buffer(ctx, buf);
         dev = fz_new_svg_device(ctx, out, tbounds.x1 - tbounds.x0, tbounds.y1 - tbounds.y0, FZ_SVG_TEXT_AS_PATH, 1);
-        fz_run_page(ctx, page, dev, ctm, NULL);
+        fz_run_page(ctx, page, dev, ctm, cookie);
         fz_close_device(ctx, dev);
     }
     fz_always(ctx)
@@ -786,11 +786,11 @@ fz_display_list *mupdf_page_to_display_list(fz_context *ctx, fz_page *page, bool
     return list;
 }
 
-void mupdf_run_page(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+void mupdf_run_page(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_run_page(ctx, page, device, ctm, NULL);
+        fz_run_page(ctx, page, device, ctm, cookie);
     }
     fz_catch(ctx)
     {
@@ -798,11 +798,11 @@ void mupdf_run_page(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix
     }
 }
 
-void mupdf_run_page_contents(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+void mupdf_run_page_contents(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_run_page_contents(ctx, page, device, ctm, NULL);
+        fz_run_page_contents(ctx, page, device, ctm, cookie);
     }
     fz_catch(ctx)
     {
@@ -810,11 +810,11 @@ void mupdf_run_page_contents(fz_context *ctx, fz_page *page, fz_device *device, 
     }
 }
 
-void mupdf_run_page_annots(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+void mupdf_run_page_annots(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_run_page_annots(ctx, page, device, ctm, NULL);
+        fz_run_page_annots(ctx, page, device, ctm, cookie);
     }
     fz_catch(ctx)
     {
@@ -822,11 +822,11 @@ void mupdf_run_page_annots(fz_context *ctx, fz_page *page, fz_device *device, fz
     }
 }
 
-void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, mupdf_error_t **errptr)
+void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_run_page_widgets(ctx, page, device, ctm, NULL);
+        fz_run_page_widgets(ctx, page, device, ctm, cookie);
     }
     fz_catch(ctx)
     {
@@ -1034,11 +1034,11 @@ fz_stext_page *mupdf_display_list_to_text_page(fz_context *ctx, fz_display_list 
     return text_page;
 }
 
-void mupdf_display_list_run(fz_context *ctx, fz_display_list *list, fz_device *device, fz_matrix ctm, fz_rect area, mupdf_error_t **errptr)
+void mupdf_display_list_run(fz_context *ctx, fz_display_list *list, fz_device *device, fz_matrix ctm, fz_rect area, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_run_display_list(ctx, list, device, ctm, area, NULL);
+        fz_run_display_list(ctx, list, device, ctm, area, cookie);
     }
     fz_catch(ctx)
     {
@@ -1875,7 +1875,7 @@ fz_page *mupdf_load_page(fz_context *ctx, fz_document *doc, int page_no, mupdf_e
     return page;
 }
 
-static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate)
+static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, fz_cookie *cookie)
 {
     pdf_document *pdfout = pdf_create_document(ctx);
     int i, incr = 1, s = fp, e = tp;
@@ -1901,7 +1901,7 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
             page = fz_load_page(ctx, doc, i);
             mediabox = fz_bound_page(ctx, page);
             dev = pdf_page_write(ctx, pdfout, mediabox, &resources, &contents);
-            fz_run_page(ctx, page, dev, fz_identity, NULL);
+            fz_run_page(ctx, page, dev, fz_identity, cookie);
             fz_close_device(ctx, dev);
             fz_drop_device(ctx, dev);
             dev = NULL;
@@ -1924,7 +1924,7 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
     return pdfout;
 }
 
-pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, mupdf_error_t **errptr)
+pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, fz_cookie *cookie, mupdf_error_t **errptr)
 {
     if (rotate % 90)
     {
@@ -1934,7 +1934,7 @@ pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, in
     pdf_document *pdf = NULL;
     fz_try(ctx)
     {
-        pdf = mupdf_convert_to_pdf_internal(ctx, doc, fp, tp, rotate);
+        pdf = mupdf_convert_to_pdf_internal(ctx, doc, fp, tp, rotate, cookie);
     }
     fz_catch(ctx)
     {

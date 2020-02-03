@@ -1,6 +1,8 @@
 use mupdf_sys::*;
 
-use crate::{context, Colorspace, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions};
+use crate::{
+    context, Colorspace, Cookie, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions,
+};
 
 #[derive(Debug)]
 pub struct DisplayList {
@@ -53,7 +55,28 @@ impl DisplayList {
                 self.inner,
                 device.dev,
                 ctm.into(),
-                area.into()
+                area.into(),
+                ptr::null_mut()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn run_with_cookie(
+        &self,
+        device: &Device,
+        ctm: &Matrix,
+        area: Rect,
+        cookie: &mut Cookie,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_display_list_run(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                area.into(),
+                cookie.inner
             ));
         }
         Ok(())

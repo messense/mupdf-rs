@@ -3,8 +3,8 @@ use std::io::Read;
 use mupdf_sys::*;
 
 use crate::{
-    context, Buffer, Colorspace, Device, DisplayList, Error, Matrix, Pixmap, Rect, TextPage,
-    TextPageOptions,
+    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Matrix, Pixmap, Rect,
+    TextPage, TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -44,7 +44,27 @@ impl Page {
 
     pub fn to_svg(&self, ctm: &Matrix) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_page_to_svg(context(), self.inner, ctm.into()));
+            let inner = ffi_try!(mupdf_page_to_svg(
+                context(),
+                self.inner,
+                ctm.into(),
+                ptr::null_mut()
+            ));
+            Buffer::from_raw(inner)
+        };
+        let mut svg = String::new();
+        buf.read_to_string(&mut svg)?;
+        Ok(svg)
+    }
+
+    pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &mut Cookie) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_page_to_svg(
+                context(),
+                self.inner,
+                ctm.into(),
+                cookie.inner
+            ));
             Buffer::from_raw(inner)
         };
         let mut svg = String::new();
@@ -80,7 +100,26 @@ impl Page {
                 context(),
                 self.inner,
                 device.dev,
-                ctm.into()
+                ctm.into(),
+                ptr::null_mut()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_with_cookie(
+        &self,
+        device: &Device,
+        ctm: &Matrix,
+        cookie: &mut Cookie,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                cookie.inner
             ))
         }
         Ok(())
@@ -92,7 +131,26 @@ impl Page {
                 context(),
                 self.inner,
                 device.dev,
-                ctm.into()
+                ctm.into(),
+                ptr::null_mut()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_contents_with_cookie(
+        &self,
+        device: &Device,
+        ctm: &Matrix,
+        cookie: &mut Cookie,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_contents(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                cookie.inner
             ))
         }
         Ok(())
@@ -104,7 +162,26 @@ impl Page {
                 context(),
                 self.inner,
                 device.dev,
-                ctm.into()
+                ctm.into(),
+                ptr::null_mut()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_annotations_with_cookie(
+        &self,
+        device: &Device,
+        ctm: &Matrix,
+        cookie: &mut Cookie,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_annots(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                cookie.inner
             ))
         }
         Ok(())
@@ -116,7 +193,26 @@ impl Page {
                 context(),
                 self.inner,
                 device.dev,
-                ctm.into()
+                ctm.into(),
+                ptr::null_mut()
+            ))
+        }
+        Ok(())
+    }
+
+    pub fn run_widgets_with_cookie(
+        &self,
+        device: &Device,
+        ctm: &Matrix,
+        cookie: &mut Cookie,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_run_page_widgets(
+                context(),
+                self.inner,
+                device.dev,
+                ctm.into(),
+                cookie.inner
             ))
         }
         Ok(())

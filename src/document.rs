@@ -1,9 +1,10 @@
 use std::ffi::{CStr, CString};
 use std::io::Write;
+use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Colorspace, Error, Page, PdfDocument};
+use crate::{context, Buffer, Colorspace, Cookie, Error, Page, PdfDocument};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {
@@ -140,6 +141,26 @@ impl Document {
         end_page: i32,
         rotate: u32,
     ) -> Result<PdfDocument, Error> {
+        self.convert_to_pdf_internal(start_page, end_page, rotate, None)
+    }
+
+    pub fn convert_to_pdf_with_cookie(
+        &self,
+        start_page: i32,
+        end_page: i32,
+        rotate: u32,
+        cookie: &mut Cookie,
+    ) -> Result<PdfDocument, Error> {
+        self.convert_to_pdf_internal(start_page, end_page, rotate, Some(cookie))
+    }
+
+    fn convert_to_pdf_internal(
+        &self,
+        start_page: i32,
+        end_page: i32,
+        rotate: u32,
+        cookie: Option<&mut Cookie>,
+    ) -> Result<PdfDocument, Error> {
         let page_count = self.page_count()? as i32;
         let start_page = if start_page > page_count - 1 {
             page_count - 1
@@ -152,12 +173,18 @@ impl Document {
             end_page
         };
         unsafe {
+            let cookie_ptr = if let Some(ck) = cookie {
+                ck.inner
+            } else {
+                ptr::null_mut()
+            };
             let inner = ffi_try!(mupdf_convert_to_pdf(
                 context(),
                 self.inner,
                 start_page as _,
                 end_page as _,
-                rotate as _
+                rotate as _,
+                cookie_ptr
             ));
             Ok(PdfDocument::from_raw(inner))
         }

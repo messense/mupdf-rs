@@ -14,14 +14,41 @@ impl Cookie {
     }
 
     pub fn abort(&mut self) {
-        unsafe { (*self.inner).abort = 1; }
+        unsafe {
+            (*self.inner).abort = 1;
+        }
+    }
+
+    pub fn progress(&self) -> i32 {
+        unsafe { (*self.inner).progress }
+    }
+
+    pub fn max_progress(&self) -> i32 {
+        unsafe { (*self.inner).progress_max }
+    }
+
+    pub fn errors(&self) -> i32 {
+        unsafe { (*self.inner).errors }
+    }
+
+    pub fn incomplete(&self) -> bool {
+        unsafe { (*self.inner).incomplete > 0 }
+    }
+
+    pub fn set_incomplete(&mut self, value: bool) {
+        let val = if value { 1 } else { 0 };
+        unsafe {
+            (*self.inner).incomplete = val;
+        }
     }
 }
 
 impl Drop for Cookie {
     fn drop(&mut self) {
         if !self.inner.is_null() {
-            unsafe { fz_free(context(), self.inner); }
+            unsafe {
+                fz_free(context(), self.inner as _);
+            }
         }
     }
 }
