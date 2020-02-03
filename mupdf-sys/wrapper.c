@@ -545,18 +545,16 @@ fz_path *mupdf_clone_path(fz_context *ctx, fz_path *old_path, mupdf_error_t **er
     return path;
 }
 
-fz_point mupdf_currentpoint(fz_context *ctx, fz_path *path, mupdf_error_t **errptr)
+void mupdf_trim_path(fz_context *ctx, fz_path *path, mupdf_error_t **errptr)
 {
-    fz_point point;
     fz_try(ctx)
     {
-        point = fz_currentpoint(ctx, path);
+        fz_trim_path(ctx, path);
     }
     fz_catch(ctx)
     {
         mupdf_save_error(ctx, errptr);
     }
-    return point;
 }
 
 void mupdf_moveto(fz_context *ctx, fz_path *path, float x, float y, mupdf_error_t **errptr)

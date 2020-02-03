@@ -22,9 +22,9 @@ impl Path {
         Ok(Self { inner })
     }
 
-    pub fn current_point(&self) -> Result<Point, Error> {
-        let inner = unsafe { ffi_try!(mupdf_currentpoint(context(), self.inner)) };
-        Ok(inner.into())
+    pub fn current_point(&self) -> Point {
+        let inner = unsafe { fz_currentpoint(context(), self.inner) };
+        inner.into()
     }
 
     pub fn move_to(&mut self, x: f32, y: f32) -> Result<(), Error> {
@@ -110,6 +110,13 @@ impl Path {
             ))
         };
         Ok(rect.into())
+    }
+
+    pub fn trim(&mut self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_trim_path(context(), self.inner));
+        }
+        Ok(())
     }
 }
 
