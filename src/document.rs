@@ -149,7 +149,7 @@ impl Document {
         start_page: i32,
         end_page: i32,
         rotate: u32,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<PdfDocument, Error> {
         self.convert_to_pdf_internal(start_page, end_page, rotate, Some(cookie))
     }
@@ -159,7 +159,7 @@ impl Document {
         start_page: i32,
         end_page: i32,
         rotate: u32,
-        cookie: Option<&mut Cookie>,
+        cookie: Option<&Cookie>,
     ) -> Result<PdfDocument, Error> {
         let page_count = self.page_count()? as i32;
         let start_page = if start_page > page_count - 1 {

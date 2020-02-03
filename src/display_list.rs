@@ -67,7 +67,7 @@ impl DisplayList {
         device: &Device,
         ctm: &Matrix,
         area: Rect,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_display_list_run(

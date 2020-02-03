@@ -57,7 +57,7 @@ impl Page {
         Ok(svg)
     }
 
-    pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &mut Cookie) -> Result<String, Error> {
+    pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &Cookie) -> Result<String, Error> {
         let mut buf = unsafe {
             let inner = ffi_try!(mupdf_page_to_svg(
                 context(),
@@ -111,7 +111,7 @@ impl Page {
         &self,
         device: &Device,
         ctm: &Matrix,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_run_page(
@@ -142,7 +142,7 @@ impl Page {
         &self,
         device: &Device,
         ctm: &Matrix,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_run_page_contents(
@@ -173,7 +173,7 @@ impl Page {
         &self,
         device: &Device,
         ctm: &Matrix,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_run_page_annots(
@@ -204,7 +204,7 @@ impl Page {
         &self,
         device: &Device,
         ctm: &Matrix,
-        cookie: &mut Cookie,
+        cookie: &Cookie,
     ) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_run_page_widgets(
