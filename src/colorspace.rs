@@ -1,5 +1,6 @@
 use std::cmp::PartialEq;
 use std::ffi::CStr;
+use std::fmt;
 
 use mupdf_sys::*;
 
@@ -35,7 +36,7 @@ impl Colorspace {
         Self { inner }
     }
 
-    pub fn num_of_components(&self) -> u32 {
+    pub fn n(&self) -> u32 {
         unsafe { fz_colorspace_n(context(), self.inner) as u32 }
     }
 
@@ -89,6 +90,17 @@ impl Colorspace {
 impl PartialEq for Colorspace {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner
+    }
+}
+
+impl fmt::Display for Colorspace {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let name = self.name();
+        if name.starts_with("Device") {
+            name.fmt(f)
+        } else {
+            write!(f, "ColorSpace({})", self.n())
+        }
     }
 }
 
