@@ -1,4 +1,5 @@
 #[rustfmt::skip] #[macro_use] mod error;
+mod bitmap;
 mod buffer;
 mod color_params;
 mod colorspace;
@@ -27,6 +28,7 @@ mod stroke_state;
 mod text;
 mod text_page;
 
+pub use bitmap::Bitmap;
 pub use buffer::Buffer;
 pub use color_params::{ColorParams, RenderingIntent};
 pub use colorspace::Colorspace;

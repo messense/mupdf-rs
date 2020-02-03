@@ -2868,3 +2868,18 @@ fz_glyph *mupdf_new_glyph_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_
     }
     return glyph;
 }
+
+/* Bitmap */
+fz_bitmap *mupdf_new_bitmap_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
+{
+    fz_bitmap *bitmap = NULL;
+    fz_try(ctx)
+    {
+        bitmap = fz_new_bitmap_from_pixmap(ctx, pixmap, NULL);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return bitmap;
+}
