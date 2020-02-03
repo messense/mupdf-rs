@@ -3,7 +3,7 @@ use std::io::Write;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Error, Page, PdfDocument};
+use crate::{context, Buffer, Colorspace, Error, Page, PdfDocument};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {
@@ -190,6 +190,16 @@ impl Document {
             doc: self,
         })
     }
+
+    pub fn output_intent(&self) -> Result<Option<Colorspace>, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_document_output_intent(context(), self.inner));
+            if inner.is_null() {
+                return Ok(None);
+            }
+            Ok(Some(Colorspace::from_raw(inner)))
+        }
+    }
 }
 
 impl Drop for Document {
@@ -265,6 +275,9 @@ mod test {
         assert_eq!(bounds.y0, 0.0);
         assert_eq!(bounds.x1, 595.0);
         assert_eq!(bounds.y1, 842.0);
+
+        let cs = doc.output_intent().unwrap();
+        assert!(cs.is_none());
     }
 
     #[test]
