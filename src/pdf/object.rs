@@ -1,5 +1,6 @@
 use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
+use std::fmt;
 use std::io::{self, BufReader, Read, Write};
 use std::slice;
 
@@ -338,6 +339,16 @@ impl PdfObject {
         }
         Ok(())
     }
+
+    fn print(&self, tight: bool, ascii: bool) -> Result<String, Error> {
+        unsafe {
+            let ptr = ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii));
+            let c_str = CStr::from_ptr(ptr);
+            let s = c_str.to_string_lossy().into_owned();
+            fz_free(context(), ptr as _);
+            Ok(s)
+        }
+    }
 }
 
 impl Write for PdfObject {
@@ -362,6 +373,13 @@ impl Drop for PdfObject {
                 pdf_drop_obj(context(), self.inner);
             }
         }
+    }
+}
+
+impl fmt::Display for PdfObject {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let s = self.print(true, false).unwrap();
+        write!(f, "{}", s)
     }
 }
 

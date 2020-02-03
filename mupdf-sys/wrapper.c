@@ -1615,6 +1615,22 @@ void mupdf_pdf_dict_delete(fz_context *ctx, pdf_obj *self, pdf_obj *key, mupdf_e
     }
 }
 
+char *mupdf_pdf_obj_to_string(fz_context *ctx, pdf_obj *obj, bool tight, bool ascii, mupdf_error_t **errptr)
+{
+    char *s = NULL;
+    int n = 0;
+    fz_var(s);
+    fz_try(ctx)
+    {
+        s = pdf_sprint_obj(ctx, NULL, 0, &n, obj, tight, ascii);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return s;
+}
+
 /* Buffer */
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {

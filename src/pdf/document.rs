@@ -669,35 +669,43 @@ mod test {
 
         let obj = pdf.new_null();
         assert!(obj.is_null().unwrap());
+        assert_eq!(obj.to_string(), "null");
 
         let obj = pdf.new_bool(true);
         assert!(obj.is_bool().unwrap());
         assert!(obj.as_bool().unwrap());
+        assert_eq!(obj.to_string(), "true");
 
         let obj = pdf.new_int(1).unwrap();
         assert!(obj.is_int().unwrap());
         assert!(obj.is_number().unwrap());
         assert_eq!(obj.as_int().unwrap(), 1);
+        assert_eq!(obj.to_string(), "1");
 
         let obj = pdf.new_real(1.0).unwrap();
         assert!(obj.is_real().unwrap());
         assert!(obj.is_number().unwrap());
         assert_eq!(obj.as_float().unwrap(), 1.0);
+        assert_eq!(obj.to_string(), "1");
 
         let obj = pdf.new_string("PDF").unwrap();
         assert!(obj.is_string().unwrap());
         assert_eq!(obj.as_string().unwrap(), "PDF");
         assert_eq!(obj.as_bytes().unwrap(), [80, 68, 70]);
+        assert_eq!(obj.to_string(), "(PDF)");
 
         let obj = pdf.new_name("Type").unwrap();
         assert!(obj.is_name().unwrap());
         assert_eq!(obj.as_name().unwrap(), "Type");
+        assert_eq!(obj.to_string(), "/Type");
 
         let obj = pdf.new_array().unwrap();
         assert!(obj.is_array().unwrap());
+        assert_eq!(obj.to_string(), "[]");
 
         let obj = pdf.new_dict().unwrap();
         assert!(obj.is_dict().unwrap());
+        assert_eq!(obj.to_string(), "<<>>");
 
         let obj = pdf.new_object_from_str(r#"<</Author<FEFF004500760061006E00670065006C006F007300200056006C006100630068006F006700690061006E006E00690073>
         /Creator<FEFF005700720069007400650072>
