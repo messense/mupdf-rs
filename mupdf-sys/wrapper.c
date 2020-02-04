@@ -472,6 +472,20 @@ fz_image *mupdf_new_image_from_file(fz_context *ctx, const char *filename, mupdf
     return image;
 }
 
+fz_image *mupdf_new_image_from_display_list(fz_context *ctx, fz_display_list *list, float w, float h, mupdf_error_t **errptr)
+{
+    fz_image *image = NULL;
+    fz_try(ctx)
+    {
+        image = fz_new_image_from_display_list(ctx, w, h, list);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return image;
+}
+
 fz_pixmap *mupdf_get_pixmap_from_image(fz_context *ctx, fz_image *image, mupdf_error_t **errptr)
 {
     fz_pixmap *pixmap = NULL;

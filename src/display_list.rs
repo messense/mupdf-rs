@@ -1,7 +1,8 @@
 use mupdf_sys::*;
 
 use crate::{
-    context, Colorspace, Cookie, Device, Error, Matrix, Pixmap, Rect, TextPage, TextPageOptions,
+    context, Colorspace, Cookie, Device, Error, Image, Matrix, Pixmap, Rect, TextPage,
+    TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -46,6 +47,10 @@ impl DisplayList {
             ));
             Ok(TextPage::from_raw(inner))
         }
+    }
+
+    pub fn to_image(&self, width: f32, height: f32) -> Result<Image, Error> {
+        Image::from_display_list(self, width, height)
     }
 
     pub fn run(&self, device: &Device, ctm: &Matrix, area: Rect) -> Result<(), Error> {

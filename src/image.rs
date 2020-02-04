@@ -2,7 +2,7 @@ use std::ffi::CString;
 
 use mupdf_sys::*;
 
-use crate::{context, Colorspace, Error, Pixmap};
+use crate::{context, Colorspace, DisplayList, Error, Pixmap};
 
 #[derive(Debug)]
 pub struct Image {
@@ -22,6 +22,18 @@ impl Image {
     pub fn from_file(filename: &str) -> Result<Self, Error> {
         let c_filename = CString::new(filename)?;
         let inner = unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) };
+        Ok(Self { inner })
+    }
+
+    pub fn from_display_list(list: &DisplayList, width: f32, height: f32) -> Result<Self, Error> {
+        let inner = unsafe {
+            ffi_try!(mupdf_new_image_from_display_list(
+                context(),
+                list.inner,
+                width,
+                height
+            ))
+        };
         Ok(Self { inner })
     }
 
