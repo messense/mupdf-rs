@@ -1,5 +1,6 @@
 use std::ffi::CString;
 use std::io::{self, Write};
+use std::slice;
 
 use mupdf_sys::*;
 
@@ -144,6 +145,11 @@ impl Pixmap {
 
     pub fn rect(&self) -> IRect {
         unsafe { fz_pixmap_bbox(context(), self.inner).into() }
+    }
+
+    pub fn samples(&self) -> &[u8] {
+        let len = (self.width() * self.height()) as usize;
+        unsafe { slice::from_raw_parts((*self.inner).samples, len) }
     }
 
     /// Initialize the samples area with 0x00
@@ -303,7 +309,8 @@ mod test {
     #[test]
     fn test_pixmap_properties() {
         let cs = Colorspace::device_rgb();
-        let pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear_with(0).unwrap();
         let pixmap_cs = pixmap.color_space().unwrap();
         assert_eq!(cs, pixmap_cs);
 
@@ -317,6 +324,9 @@ mod test {
         assert_eq!(rect, IRect::new(0, 0, 100, 100));
 
         assert_eq!(pixmap.origin(), (0, 0));
+
+        let samples = pixmap.samples();
+        assert!(samples.iter().all(|x| *x == 0));
     }
 
     #[test]
