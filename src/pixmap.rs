@@ -275,6 +275,11 @@ impl Pixmap {
         };
         Ok(Self { inner })
     }
+
+    pub fn try_clone(&self) -> Result<Self, Error> {
+        let inner = unsafe { ffi_try!(mupdf_clone_pixmap(context(), self.inner)) };
+        Ok(Self { inner })
+    }
 }
 
 impl Drop for Pixmap {
@@ -282,6 +287,12 @@ impl Drop for Pixmap {
         if !self.inner.is_null() {
             unsafe { fz_drop_pixmap(context(), self.inner) };
         }
+    }
+}
+
+impl Clone for Pixmap {
+    fn clone(&self) -> Pixmap {
+        self.try_clone().unwrap()
     }
 }
 

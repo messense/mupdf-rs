@@ -164,6 +164,20 @@ fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, in
     return pixmap;
 }
 
+fz_pixmap *mupdf_clone_pixmap(fz_context *ctx, fz_pixmap *self, mupdf_error_t **errptr)
+{
+    fz_pixmap *pixmap = NULL;
+    fz_try(ctx)
+    {
+        pixmap = fz_clone_pixmap(ctx, self);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return pixmap;
+}
+
 void mupdf_clear_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     fz_try(ctx)
