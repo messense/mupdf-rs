@@ -81,6 +81,10 @@ impl DisplayList {
         }
         Ok(())
     }
+
+    pub fn is_empty(&self) -> bool {
+        unsafe { fz_display_list_is_empty(context(), self.inner) > 0 }
+    }
 }
 
 impl Drop for DisplayList {
