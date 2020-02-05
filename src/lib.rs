@@ -37,7 +37,7 @@ pub use context::Context;
 pub use cookie::Cookie;
 pub use device::{BlendMode, Device};
 pub use display_list::DisplayList;
-pub use document::{Document, PageIter};
+pub use document::{Document, MetadataName, PageIter};
 pub use document_writer::DocumentWriter;
 pub(crate) use error::ffi_error;
 pub use error::Error;
