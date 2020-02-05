@@ -670,6 +670,7 @@ mod test {
         let obj = pdf.new_null();
         assert!(obj.is_null().unwrap());
         assert_eq!(obj.to_string(), "null");
+        assert!(obj.document().is_none());
 
         let obj = pdf.new_bool(true);
         assert!(obj.is_bool().unwrap());
@@ -702,10 +703,12 @@ mod test {
         let obj = pdf.new_array().unwrap();
         assert!(obj.is_array().unwrap());
         assert_eq!(obj.to_string(), "[]");
+        assert!(obj.document().is_some());
 
         let obj = pdf.new_dict().unwrap();
         assert!(obj.is_dict().unwrap());
         assert_eq!(obj.to_string(), "<<>>");
+        assert!(obj.document().is_some());
 
         let obj = pdf.new_object_from_str(r#"<</Author<FEFF004500760061006E00670065006C006F007300200056006C006100630068006F006700690061006E006E00690073>
         /Creator<FEFF005700720069007400650072>

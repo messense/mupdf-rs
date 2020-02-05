@@ -1092,6 +1092,20 @@ pdf_obj *mupdf_pdf_clone_obj(fz_context *ctx, pdf_obj *self, mupdf_error_t **err
     return obj;
 }
 
+pdf_document *mupdf_pdf_get_bound_document(fz_context *ctx, pdf_obj *obj)
+{
+    pdf_document *pdf = NULL;
+    fz_try(ctx)
+    {
+        pdf = pdf_get_bound_document(ctx, obj);
+        pdf_keep_document(ctx, pdf);
+    }
+    fz_catch(ctx)
+    {
+    }
+    return pdf;
+}
+
 bool mupdf_pdf_is_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     int b = 0;

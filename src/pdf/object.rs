@@ -6,7 +6,7 @@ use std::slice;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Error};
+use crate::{context, Buffer, Error, PdfDocument};
 
 pub trait IntoPdfDictKey {
     fn into_pdf_dict_key(self) -> Result<PdfObject, Error>;
@@ -352,6 +352,16 @@ impl PdfObject {
             let s = c_str.to_string_lossy().into_owned();
             fz_free(context(), ptr as _);
             Ok(s)
+        }
+    }
+
+    pub fn document(&self) -> Option<PdfDocument> {
+        unsafe {
+            let ptr = mupdf_pdf_get_bound_document(context(), self.inner);
+            if ptr.is_null() {
+                return None;
+            }
+            Some(PdfDocument::from_raw(ptr))
         }
     }
 }
