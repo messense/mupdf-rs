@@ -41,6 +41,11 @@ impl PdfObject {
         Self { inner: ptr, owned }
     }
 
+    pub fn try_clone(&self) -> Result<Self, Error> {
+        let inner = unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) };
+        Ok(Self { inner, owned: true })
+    }
+
     pub fn new_null() -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_null();
@@ -373,6 +378,12 @@ impl Drop for PdfObject {
                 pdf_drop_obj(context(), self.inner);
             }
         }
+    }
+}
+
+impl Clone for PdfObject {
+    fn clone(&self) -> PdfObject {
+        self.try_clone().unwrap()
     }
 }
 

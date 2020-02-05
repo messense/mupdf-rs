@@ -1078,6 +1078,20 @@ void mupdf_display_list_run(fz_context *ctx, fz_display_list *list, fz_device *d
 }
 
 /* PDFObject */
+pdf_obj *mupdf_pdf_clone_obj(fz_context *ctx, pdf_obj *self, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_deep_copy_obj(ctx, self);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
 bool mupdf_pdf_is_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     int b = 0;
