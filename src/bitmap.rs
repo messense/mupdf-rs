@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::slice;
 
 use mupdf_sys::*;
 
@@ -40,6 +41,16 @@ impl Bitmap {
             let y_res = (*self.inner).yres;
             (x_res, y_res)
         }
+    }
+
+    pub fn samples(&self) -> &[u8] {
+        let len = (self.width() * self.height()) as usize;
+        unsafe { slice::from_raw_parts((*self.inner).samples, len) }
+    }
+
+    pub fn samples_mut(&mut self) -> &mut [u8] {
+        let len = (self.width() * self.height()) as usize;
+        unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
     }
 }
 

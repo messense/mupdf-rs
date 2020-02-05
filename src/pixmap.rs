@@ -152,6 +152,11 @@ impl Pixmap {
         unsafe { slice::from_raw_parts((*self.inner).samples, len) }
     }
 
+    pub fn samples_mut(&mut self) -> &mut [u8] {
+        let len = (self.width() * self.height()) as usize;
+        unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
+    }
+
     /// Initialize the samples area with 0x00
     pub fn clear(&mut self) -> Result<(), Error> {
         unsafe {
