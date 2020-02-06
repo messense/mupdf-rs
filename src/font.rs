@@ -89,6 +89,30 @@ impl Font {
         c_name.to_str().unwrap()
     }
 
+    pub fn is_bold(&self) -> bool {
+        unsafe { fz_font_is_bold(context(), self.inner) > 0 }
+    }
+
+    pub fn is_italic(&self) -> bool {
+        unsafe { fz_font_is_italic(context(), self.inner) > 0 }
+    }
+
+    pub fn is_monospaced(&self) -> bool {
+        unsafe { fz_font_is_monospaced(context(), self.inner) > 0 }
+    }
+
+    pub fn is_serif(&self) -> bool {
+        unsafe { fz_font_is_serif(context(), self.inner) > 0 }
+    }
+
+    pub fn ascender(&self) -> f32 {
+        unsafe { fz_font_ascender(context(), self.inner) }
+    }
+
+    pub fn descender(&self) -> f32 {
+        unsafe { fz_font_descender(context(), self.inner) }
+    }
+
     pub fn encode_character(&self, unicode: i32) -> Result<i32, Error> {
         let glyph = unsafe { ffi_try!(mupdf_encode_character(context(), self.inner, unicode)) };
         Ok(glyph)
