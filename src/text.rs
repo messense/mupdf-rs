@@ -1,3 +1,5 @@
+use std::slice;
+
 use mupdf_sys::*;
 
 use crate::{context, Error, Font, Matrix, Rect, StrokeState};
@@ -48,14 +50,23 @@ pub struct TextSpan {
 }
 
 impl TextSpan {
-    pub fn font(&self) -> Option<Font> {
+    pub fn font(&self) -> Font {
         unsafe {
             let ptr = (*self.inner).font;
-            if ptr.is_null() {
-                return None;
-            }
             fz_keep_font(context(), ptr);
-            Some(Font::from_raw(ptr))
+            Font::from_raw(ptr)
+        }
+    }
+
+    pub fn items(&self) -> TextItemIter {
+        unsafe {
+            let len = (*self.inner).len as usize;
+            let items = slice::from_raw_parts((*self.inner).items, len);
+            TextItemIter {
+                items,
+                index: 0,
+                total: len,
+            }
         }
     }
 }
@@ -75,5 +86,52 @@ impl Iterator for TextSpanIter {
         let node = self.next;
         self.next = unsafe { (*node).next };
         Some(TextSpan { inner: node })
+    }
+}
+
+#[derive(Debug)]
+pub struct TextItem {
+    inner: fz_text_item,
+}
+
+impl TextItem {
+    #[inline]
+    pub fn x(&self) -> f32 {
+        self.inner.x
+    }
+
+    #[inline]
+    pub fn y(&self) -> f32 {
+        self.inner.y
+    }
+
+    #[inline]
+    pub fn gid(&self) -> i32 {
+        self.inner.gid
+    }
+
+    #[inline]
+    pub fn ucs(&self) -> i32 {
+        self.inner.ucs
+    }
+}
+
+#[derive(Debug)]
+pub struct TextItemIter<'a> {
+    items: &'a [fz_text_item],
+    index: usize,
+    total: usize,
+}
+
+impl<'a> Iterator for TextItemIter<'a> {
+    type Item = TextItem;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.total {
+            return None;
+        }
+        let item = self.items[self.index];
+        self.index += 1;
+        Some(TextItem { inner: item })
     }
 }
