@@ -48,7 +48,7 @@ pub use link::Link;
 pub use matrix::Matrix;
 pub use outline::Outline;
 pub use page::Page;
-pub use path::Path;
+pub use path::{Path, PathWalker};
 pub use pdf::*;
 pub use pixmap::{ImageFormat, Pixmap};
 pub use point::Point;

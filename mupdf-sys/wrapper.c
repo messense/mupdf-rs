@@ -713,6 +713,18 @@ fz_rect mupdf_bound_path(fz_context *ctx, fz_path *path, fz_stroke_state *stroke
     return rect;
 }
 
+void mupdf_walk_path(fz_context *ctx, const fz_path *path, const fz_path_walker *walker, void *arg, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_walk_path(ctx, path, walker, arg);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* Page */
 fz_rect mupdf_bound_page(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
 {
