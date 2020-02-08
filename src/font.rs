@@ -54,6 +54,10 @@ pub struct Font {
 }
 
 impl Font {
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_font) -> Self {
+        Self { inner: ptr }
+    }
+
     pub fn new(name: &str) -> Result<Self, Error> {
         Self::new_with_index(name, 0)
     }

@@ -57,5 +57,5 @@ pub use rect::{IRect, Rect};
 pub use shade::Shade;
 pub use size::Size;
 pub use stroke_state::{LineCap, LineJoin, StrokeState};
-pub use text::Text;
+pub use text::{Text, TextSpan};
 pub use text_page::{TextPage, TextPageOptions};
