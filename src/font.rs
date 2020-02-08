@@ -4,6 +4,7 @@ use std::os::raw::c_int;
 use std::str::FromStr;
 
 use mupdf_sys::*;
+use num_enum::TryFromPrimitive;
 
 use crate::{context, Error, Matrix, Path};
 
@@ -15,8 +16,8 @@ pub enum SimpleFontEncoding {
     Cyrillic,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(u32)]
 pub enum WriteMode {
     Horizontal = 0,
     Vertical = 1,
