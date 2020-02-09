@@ -1,9 +1,11 @@
+use std::ffi::CStr;
 use std::io::Read;
+use std::ptr;
 
 use mupdf_sys::*;
 
 use crate::{
-    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Matrix, Pixmap, Rect,
+    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Rect,
     TextPage, TextPageOptions,
 };
 
@@ -257,6 +259,11 @@ impl Page {
         buf.read_to_string(&mut out)?;
         Ok(out)
     }
+
+    pub fn links(&self) -> Result<LinkIter, Error> {
+        let next = unsafe { ffi_try!(mupdf_load_links(context(), self.inner)) };
+        Ok(LinkIter { next })
+    }
 }
 
 impl Drop for Page {
@@ -265,6 +272,42 @@ impl Drop for Page {
             unsafe {
                 fz_drop_page(context(), self.inner);
             }
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct LinkIter {
+    next: *mut fz_link,
+}
+
+impl Iterator for LinkIter {
+    type Item = Link;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next.is_null() {
+            return None;
+        }
+        let node = self.next;
+        unsafe {
+            self.next = (*node).next;
+            let bounds = (*node).rect.into();
+            let uri = CStr::from_ptr((*node).uri).to_string_lossy().into_owned();
+            let mut page = 0;
+            if fz_is_external_link(context(), (*node).uri) == 0 {
+                page = fz_resolve_link(
+                    context(),
+                    (*node).doc as _,
+                    (*node).uri,
+                    ptr::null_mut(),
+                    ptr::null_mut(),
+                );
+            }
+            Some(Link {
+                bounds,
+                page: page as u32,
+                uri,
+            })
         }
     }
 }
@@ -330,5 +373,16 @@ mod test {
         let _tp = page0
             .to_text_page(TextPageOptions::PRESERVE_IMAGES)
             .unwrap();
+    }
+
+    #[test]
+    fn test_page_links() {
+        use crate::Link;
+
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let links_iter = page0.links().unwrap();
+        let links: Vec<Link> = links_iter.collect();
+        assert_eq!(links.len(), 0);
     }
 }

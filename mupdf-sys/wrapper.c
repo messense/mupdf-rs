@@ -993,6 +993,20 @@ fz_buffer *mupdf_page_to_text(fz_context *ctx, fz_page *page, mupdf_error_t **er
     return buf;
 }
 
+fz_link *mupdf_load_links(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_link *link = NULL;
+    fz_try(ctx)
+    {
+        link = fz_load_links(ctx, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return link;
+}
+
 fz_buffer *mupdf_stext_page_to_text(fz_context *ctx, fz_stext_page *page, mupdf_error_t **errptr)
 {
     fz_buffer *buf = NULL;
