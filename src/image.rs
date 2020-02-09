@@ -10,7 +10,7 @@ pub struct Image {
 }
 
 impl Image {
-    unsafe fn from_raw(image: *mut fz_image) -> Self {
+    pub(crate) unsafe fn from_raw(image: *mut fz_image) -> Self {
         Self { inner: image }
     }
 
