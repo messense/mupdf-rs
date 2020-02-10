@@ -1,7 +1,8 @@
-use mupdf_sys::*;
-
-use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
+use std::ffi::{CStr, CString};
+
+use mupdf_sys::*;
+use num_enum::TryFromPrimitive;
 
 use crate::{context, Error};
 
@@ -74,6 +75,29 @@ impl PdfAnnotation {
 
     pub fn is_active(&self) -> bool {
         unsafe { (*self.inner).is_active > 0 }
+    }
+
+    pub fn author(&self) -> Result<Option<&str>, Error> {
+        unsafe {
+            let ptr = ffi_try!(mupdf_pdf_annot_author(context(), self.inner));
+            if ptr.is_null() {
+                return Ok(None);
+            }
+            let c_str = CStr::from_ptr(ptr);
+            Ok(Some(c_str.to_str().unwrap()))
+        }
+    }
+
+    pub fn set_author(&mut self, author: &str) -> Result<(), Error> {
+        let c_author = CString::new(author)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_author(
+                context(),
+                self.inner,
+                c_author.as_ptr()
+            ));
+        }
+        Ok(())
     }
 }
 

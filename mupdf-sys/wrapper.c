@@ -2898,6 +2898,32 @@ int mupdf_pdf_annot_type(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errp
     return subtype;
 }
 
+const char *mupdf_pdf_annot_author(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    const char *author = NULL;
+    fz_try(ctx)
+    {
+        author = pdf_annot_author(ctx, annot);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return author;
+}
+
+void mupdf_pdf_set_annot_author(fz_context *ctx, pdf_annot *annot, const char *author, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_set_annot_author(ctx, annot, author);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* DocumentWriter */
 fz_document_writer *mupdf_new_document_writer(fz_context *ctx, const char *filename, const char *format, const char *options, mupdf_error_t **errptr)
 {
