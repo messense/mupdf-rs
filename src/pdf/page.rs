@@ -48,7 +48,7 @@ impl PdfPage {
     }
 
     pub fn object(&self) -> PdfObject {
-        unsafe { PdfObject::from_raw((*self.inner).obj, false) }
+        unsafe { PdfObject::from_raw_keep_ref((*self.inner).obj) }
     }
 
     pub fn rotation(&self) -> Result<i32, Error> {

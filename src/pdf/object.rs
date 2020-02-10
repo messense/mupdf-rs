@@ -33,44 +33,48 @@ impl IntoPdfDictKey for PdfObject {
 #[derive(Debug)]
 pub struct PdfObject {
     pub(crate) inner: *mut pdf_obj,
-    owned: bool,
 }
 
 impl PdfObject {
-    pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj, owned: bool) -> Self {
-        Self { inner: ptr, owned }
+    pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj) -> Self {
+        Self { inner: ptr }
+    }
+
+    pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_obj) -> Self {
+        pdf_keep_obj(context(), ptr);
+        Self { inner: ptr }
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
         let inner = unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) };
-        Ok(Self { inner, owned: true })
+        Ok(Self { inner })
     }
 
     pub fn new_null() -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_null();
-            PdfObject::from_raw(inner, true)
+            PdfObject::from_raw(inner)
         }
     }
 
     pub fn new_bool(b: bool) -> PdfObject {
         unsafe {
             let inner = mupdf_pdf_new_bool(b);
-            PdfObject::from_raw(inner, true)
+            PdfObject::from_raw(inner)
         }
     }
 
     pub fn new_int(i: i32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_int(context(), i));
-            Ok(PdfObject::from_raw(inner, true))
+            Ok(PdfObject::from_raw(inner))
         }
     }
 
     pub fn new_real(f: f32) -> Result<PdfObject, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_real(context(), f));
-            Ok(PdfObject::from_raw(inner, true))
+            Ok(PdfObject::from_raw(inner))
         }
     }
 
@@ -78,7 +82,7 @@ impl PdfObject {
         let c_str = CString::new(s)?;
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr()));
-            Ok(PdfObject::from_raw(inner, true))
+            Ok(PdfObject::from_raw(inner))
         }
     }
 
@@ -86,7 +90,7 @@ impl PdfObject {
         let c_name = CString::new(name)?;
         unsafe {
             let inner = ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr()));
-            Ok(PdfObject::from_raw(inner, true))
+            Ok(PdfObject::from_raw(inner))
         }
     }
 
@@ -197,7 +201,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner, owned: true }))
+        Ok(Some(Self { inner }))
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
@@ -266,7 +270,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner, owned: true }))
+        Ok(Some(Self { inner }))
     }
 
     pub fn get_dict<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
@@ -275,7 +279,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner, owned: true }))
+        Ok(Some(Self { inner }))
     }
 
     pub fn get_dict_inheritable<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
@@ -290,7 +294,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner, owned: true }))
+        Ok(Some(Self { inner }))
     }
 
     pub fn len(&self) -> Result<usize, Error> {
@@ -383,7 +387,7 @@ impl Write for PdfObject {
 
 impl Drop for PdfObject {
     fn drop(&mut self) {
-        if self.owned && !self.inner.is_null() {
+        if !self.inner.is_null() {
             unsafe {
                 pdf_drop_obj(context(), self.inner);
             }
