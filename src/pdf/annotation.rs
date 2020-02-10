@@ -67,6 +67,14 @@ impl PdfAnnotation {
         let typ = PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown);
         Ok(typ)
     }
+
+    pub fn is_hot(&self) -> bool {
+        unsafe { (*self.inner).is_hot > 0 }
+    }
+
+    pub fn is_active(&self) -> bool {
+        unsafe { (*self.inner).is_active > 0 }
+    }
 }
 
 impl Drop for PdfAnnotation {

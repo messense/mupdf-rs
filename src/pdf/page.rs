@@ -32,6 +32,11 @@ impl PdfPage {
         Ok(())
     }
 
+    pub fn annotations(&self) -> AnnotationIter {
+        let next = unsafe { pdf_first_annot(context(), self.inner) };
+        AnnotationIter { next }
+    }
+
     pub fn update(&mut self) -> Result<bool, Error> {
         let ret = unsafe { ffi_try!(mupdf_pdf_update_page(context(), self.inner)) };
         Ok(ret)
@@ -120,9 +125,29 @@ impl From<Page> for PdfPage {
     }
 }
 
+#[derive(Debug)]
+pub struct AnnotationIter {
+    next: *mut pdf_annot,
+}
+
+impl Iterator for AnnotationIter {
+    type Item = PdfAnnotation;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next.is_null() {
+            return None;
+        }
+        let node = self.next;
+        unsafe {
+            self.next = (*node).next;
+            Some(PdfAnnotation::from_raw(node))
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
-    use crate::{Matrix, PdfDocument, PdfPage, Rect};
+    use crate::{Matrix, PdfAnnotation, PdfDocument, PdfPage, Rect};
 
     #[test]
     fn test_page_properties() {
@@ -154,5 +179,13 @@ mod test {
             .unwrap();
         let crop_box = page0.crop_box().unwrap();
         assert_eq!(crop_box, Rect::new(100.0, 100.0, 400.0, 400.0));
+    }
+
+    #[test]
+    fn test_page_annotations() {
+        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let page0 = PdfPage::from(doc.load_page(0).unwrap());
+        let annots: Vec<PdfAnnotation> = page0.annotations().collect();
+        assert_eq!(annots.len(), 0);
     }
 }
