@@ -4,7 +4,7 @@ use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Colorspace, Cookie, Error, Page, PdfDocument};
+use crate::{context, Buffer, Colorspace, Cookie, Error, Outline, Page, PdfDocument};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {
@@ -227,6 +227,56 @@ impl Document {
             Ok(Some(Colorspace::from_raw(inner)))
         }
     }
+
+    unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Vec<Outline> {
+        let mut outlines = Vec::new();
+        let mut next = outline;
+        while !next.is_null() {
+            let mut x = 0.0;
+            let mut y = 0.0;
+            let mut page = None;
+            let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
+            let uri = if !(*next).uri.is_null() {
+                if fz_is_external_link(context(), (*next).uri) > 0 {
+                    Some(CStr::from_ptr((*next).uri).to_string_lossy().into_owned())
+                } else {
+                    page = Some(
+                        fz_resolve_link(context(), self.inner, (*next).uri, &mut x, &mut y) as u32,
+                    );
+                    None
+                }
+            } else {
+                None
+            };
+            let down = if !(*next).down.is_null() {
+                self.walk_outlines((*next).down)
+            } else {
+                Vec::new()
+            };
+            outlines.push(Outline {
+                title,
+                uri,
+                page,
+                down,
+                x,
+                y,
+            });
+            next = (*next).next;
+        }
+        outlines
+    }
+
+    pub fn outlines(&self) -> Result<Vec<Outline>, Error> {
+        let outline = unsafe { ffi_try!(mupdf_load_outline(context(), self.inner)) };
+        if outline.is_null() {
+            return Ok(Vec::new());
+        }
+        unsafe {
+            let toc = self.walk_outlines(outline);
+            fz_drop_outline(context(), outline);
+            Ok(toc)
+        }
+    }
 }
 
 impl Drop for Document {
@@ -346,5 +396,19 @@ mod test {
         assert!(subject.is_empty());
         let keywords = doc.metadata(MetadataName::Keywords).unwrap();
         assert!(keywords.is_empty());
+    }
+
+    #[test]
+    fn test_document_outlines() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let outlines = doc.outlines().unwrap();
+        assert_eq!(outlines.len(), 1);
+
+        let out1 = &outlines[0];
+        assert_eq!(out1.page, Some(0));
+        assert_eq!(out1.title, "Dummy PDF file");
+        assert!(out1.uri.is_none());
+        assert_eq!(out1.x, 57.0);
+        assert_eq!(out1.y, 69.0);
     }
 }

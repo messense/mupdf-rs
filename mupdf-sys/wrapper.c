@@ -2057,6 +2057,20 @@ fz_colorspace *mupdf_document_output_intent(fz_context *ctx, fz_document *doc, m
     return cs;
 }
 
+fz_outline *mupdf_load_outline(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
+{
+    fz_outline *outline = NULL;
+    fz_try(ctx)
+    {
+        outline = fz_load_outline(ctx, doc);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return outline;
+}
+
 /* PdfDocument */
 pdf_document *mupdf_pdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, mupdf_error_t **errptr)
 {
