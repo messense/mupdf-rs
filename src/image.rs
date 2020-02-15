@@ -80,6 +80,26 @@ impl Image {
             Ok(Pixmap::from_raw(inner))
         }
     }
+
+    pub fn interpolate(&self) -> bool {
+        unsafe { (*self.inner).interpolate() > 0 }
+    }
+
+    pub fn set_interpolate(&mut self, interpolate: bool) {
+        unsafe {
+            (*self.inner).set_interpolate(interpolate as _);
+        }
+    }
+
+    pub fn scalable(&self) -> bool {
+        unsafe { (*self.inner).scalable() > 0 }
+    }
+
+    pub fn set_scalable(&mut self, scalable: bool) {
+        unsafe {
+            (*self.inner).set_scalable(scalable as _);
+        }
+    }
 }
 
 impl Drop for Image {
