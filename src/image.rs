@@ -45,7 +45,7 @@ impl Image {
         unsafe { (*self.inner).h as u32 }
     }
 
-    pub fn number_of_components(&self) -> u8 {
+    pub fn n(&self) -> u8 {
         unsafe { (*self.inner).n }
     }
 
