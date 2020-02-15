@@ -157,6 +157,20 @@ impl Pixmap {
         unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
     }
 
+    /// Only valid for RGBA or BGRA pixmaps
+    pub fn pixels(&self) -> Option<&[u32]> {
+        if self.n() != 4 || !self.alpha() {
+            // invalid colorspace
+            return None;
+        }
+        let size = (self.width() * self.height()) as usize;
+        if size * 4 != (self.height() as usize * self.stride() as usize) {
+            // invalid stride
+            return None;
+        }
+        Some(unsafe { slice::from_raw_parts((*self.inner).samples as _, size) })
+    }
+
     /// Initialize the samples area with 0x00
     pub fn clear(&mut self) -> Result<(), Error> {
         unsafe {
@@ -372,5 +386,22 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.scale(0.0, 0.0, 50.0, 50.0).unwrap();
+    }
+
+    #[test]
+    fn test_pixmap_pixels() {
+        let cs = Colorspace::device_rgb();
+
+        // alpha: false
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        let pixels = pixmap.pixels();
+        assert!(pixels.is_none());
+
+        // alpha: true
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, true).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        let pixels = pixmap.pixels();
+        assert!(pixels.is_some());
     }
 }
