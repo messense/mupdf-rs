@@ -6,7 +6,7 @@ use mupdf_sys::*;
 
 use crate::{
     context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Rect,
-    TextPage, TextPageOptions,
+    Separations, TextPage, TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -264,6 +264,13 @@ impl Page {
         let next = unsafe { ffi_try!(mupdf_load_links(context(), self.inner)) };
         Ok(LinkIter { next })
     }
+
+    pub fn separations(&self) -> Result<Separations, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_page_separations(context(), self.inner));
+            Ok(Separations::from_raw(inner))
+        }
+    }
 }
 
 impl Drop for Page {
@@ -384,5 +391,13 @@ mod test {
         let links_iter = page0.links().unwrap();
         let links: Vec<Link> = links_iter.collect();
         assert_eq!(links.len(), 0);
+    }
+
+    #[test]
+    fn test_page_separations() {
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let seps = page0.separations().unwrap();
+        assert_eq!(seps.len(), 0);
     }
 }

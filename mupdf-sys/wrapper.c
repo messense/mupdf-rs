@@ -1031,6 +1031,20 @@ fz_buffer *mupdf_stext_page_to_text(fz_context *ctx, fz_stext_page *page, mupdf_
     return buf;
 }
 
+fz_separations *mupdf_page_separations(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    fz_separations *seps = NULL;
+    fz_try(ctx)
+    {
+        seps = fz_page_separations(ctx, page);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return seps;
+}
+
 /* Cookie */
 fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
 {
