@@ -1,7 +1,10 @@
+use std::ffi::CString;
+use std::slice;
+
 use mupdf_sys::*;
 
 use crate::{
-    context, Colorspace, Cookie, Device, Error, Image, Matrix, Pixmap, Rect, TextPage,
+    context, Colorspace, Cookie, Device, Error, Image, Matrix, Pixmap, Quad, Rect, TextPage,
     TextPageOptions,
 };
 
@@ -90,6 +93,36 @@ impl DisplayList {
     pub fn is_empty(&self) -> bool {
         unsafe { fz_display_list_is_empty(context(), self.inner) > 0 }
     }
+
+    pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
+        struct Quads(*mut fz_quad);
+
+        impl Drop for Quads {
+            fn drop(&mut self) {
+                if !self.0.is_null() {
+                    unsafe { fz_free(context(), self.0 as _) };
+                }
+            }
+        }
+
+        let c_needle = CString::new(needle)?;
+        let hit_max = if hit_max < 1 { 16 } else { hit_max };
+        let mut hit_count = 0;
+        unsafe {
+            let quads = Quads(ffi_try!(mupdf_search_display_list(
+                context(),
+                self.inner,
+                c_needle.as_ptr(),
+                hit_max as _,
+                &mut hit_count
+            )));
+            if hit_count == 0 {
+                return Ok(Vec::new());
+            }
+            let items = slice::from_raw_parts(quads.0, hit_count as usize);
+            Ok(items.iter().map(|quad| (*quad).into()).collect())
+        }
+    }
 }
 
 impl Drop for DisplayList {
@@ -99,5 +132,45 @@ impl Drop for DisplayList {
                 fz_drop_display_list(context(), self.inner);
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use crate::Document;
+
+    #[test]
+    fn test_display_list_search() {
+        use crate::{Point, Quad};
+
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let list = page0.to_display_list(false).unwrap();
+        let hits = list.search("Dummy", 1).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            hits,
+            [Quad {
+                ul: Point {
+                    x: 56.8,
+                    y: 69.32512
+                },
+                ur: Point {
+                    x: 115.85405,
+                    y: 69.32512
+                },
+                ll: Point {
+                    x: 56.8,
+                    y: 87.311844
+                },
+                lr: Point {
+                    x: 115.85405,
+                    y: 87.311844
+                }
+            }]
+        );
+
+        let hits = list.search("Not Found", 1).unwrap();
+        assert_eq!(hits.len(), 0);
     }
 }

@@ -1171,6 +1171,33 @@ void mupdf_display_list_run(fz_context *ctx, fz_display_list *list, fz_device *d
     }
 }
 
+fz_quad *mupdf_search_display_list(fz_context *ctx, fz_display_list *list, const char *needle, const int hit_max, int *hit_count, mupdf_error_t **errptr)
+{
+    fz_quad *result = NULL;
+    fz_var(result);
+    fz_try(ctx)
+    {
+        result = fz_calloc(ctx, hit_max, sizeof(fz_quad));
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    if (result == NULL) {
+        return NULL;
+    }
+    fz_try(ctx)
+    {
+        *hit_count = fz_search_display_list(ctx, list, needle, result, hit_max);
+    }
+    fz_catch(ctx)
+    {
+        fz_free(ctx, result);
+        mupdf_save_error(ctx, errptr);
+    }
+    return result;
+}
+
 /* PDFObject */
 pdf_obj *mupdf_pdf_clone_obj(fz_context *ctx, pdf_obj *self, mupdf_error_t **errptr)
 {
