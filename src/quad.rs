@@ -1,35 +1,28 @@
+use mupdf_sys::*;
+
+use crate::Point;
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quad {
-    pub ul_x: f32,
-    pub ul_y: f32,
-    pub ur_x: f32,
-    pub ur_y: f32,
-    pub ll_x: f32,
-    pub ll_y: f32,
-    pub lr_x: f32,
-    pub lr_y: f32,
+    pub ul: Point,
+    pub ur: Point,
+    pub ll: Point,
+    pub lr: Point,
 }
 
 impl Quad {
-    pub fn new(
-        ul_x: f32,
-        ul_y: f32,
-        ur_x: f32,
-        ur_y: f32,
-        ll_x: f32,
-        ll_y: f32,
-        lr_x: f32,
-        lr_y: f32,
-    ) -> Self {
+    pub fn new(ul: Point, ur: Point, ll: Point, lr: Point) -> Self {
+        Self { ul, ur, ll, lr }
+    }
+}
+
+impl From<fz_quad> for Quad {
+    fn from(quad: fz_quad) -> Self {
         Self {
-            ul_x,
-            ul_y,
-            ur_x,
-            ur_y,
-            ll_x,
-            ll_y,
-            lr_x,
-            lr_y,
+            ul: quad.ul.into(),
+            ur: quad.ur.into(),
+            ll: quad.ll.into(),
+            lr: quad.lr.into(),
         }
     }
 }

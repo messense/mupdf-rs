@@ -200,20 +200,11 @@ impl From<IRect> for Rect {
 
 impl From<Quad> for Rect {
     fn from(q: Quad) -> Rect {
-        let Quad {
-            ul_x,
-            ul_y,
-            ur_x,
-            ur_y,
-            ll_x,
-            ll_y,
-            lr_x,
-            lr_y,
-        } = q;
-        let x0 = ul_x.min(ur_x).min(ll_x).min(lr_x);
-        let y0 = ul_y.min(ur_y).min(ll_y).min(lr_y);
-        let x1 = ul_x.max(ur_x).max(ll_x).max(lr_x);
-        let y1 = ul_y.max(ur_y).max(ll_y).max(lr_y);
+        let Quad { ul, ur, ll, lr } = q;
+        let x0 = ul.x.min(ur.x).min(ll.x).min(lr.x);
+        let y0 = ul.y.min(ur.y).min(ll.y).min(lr.y);
+        let x1 = ul.x.max(ur.x).max(ll.x).max(lr.x);
+        let y1 = ul.y.max(ur.y).max(ll.y).max(lr.y);
         Rect { x0, y0, x1, y1 }
     }
 }
