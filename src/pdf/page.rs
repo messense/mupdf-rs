@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Matrix, Page, PdfAnnotation, PdfObject, Rect};
+use crate::{context, Error, Matrix, Page, PdfAnnotation, PdfAnnotationType, PdfObject, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -18,9 +18,16 @@ impl PdfPage {
         }
     }
 
-    pub fn create_annotation(&mut self, subtype: i32) -> Result<PdfAnnotation, Error> {
+    pub fn create_annotation(
+        &mut self,
+        subtype: PdfAnnotationType,
+    ) -> Result<PdfAnnotation, Error> {
         unsafe {
-            let annot = ffi_try!(mupdf_pdf_create_annot(context(), self.inner, subtype));
+            let annot = ffi_try!(mupdf_pdf_create_annot(
+                context(),
+                self.inner,
+                subtype as i32
+            ));
             Ok(PdfAnnotation::from_raw(annot))
         }
     }
