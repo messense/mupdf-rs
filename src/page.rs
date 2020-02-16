@@ -288,7 +288,6 @@ impl Page {
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
         unsafe {
-            // FIXME: memory leak if fz_search_page failed
             let quads = Quads(ffi_try!(mupdf_search_page(
                 context(),
                 self.inner,
