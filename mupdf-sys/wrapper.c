@@ -1045,6 +1045,22 @@ fz_separations *mupdf_page_separations(fz_context *ctx, fz_page *page, mupdf_err
     return seps;
 }
 
+fz_quad *mupdf_search_page(fz_context *ctx, fz_page *page, const char *needle, const int hit_max, int *hit_count, mupdf_error_t **errptr)
+{
+    fz_quad *result = NULL;
+    fz_var(result);
+    fz_try(ctx)
+    {
+        result = fz_calloc(ctx, hit_max, sizeof(fz_quad));
+        *hit_count = fz_search_page(ctx, page, needle, result, hit_max);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return result;
+}
+
 /* Cookie */
 fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
 {

@@ -1,12 +1,13 @@
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::io::Read;
 use std::ptr;
+use std::slice;
 
 use mupdf_sys::*;
 
 use crate::{
-    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Rect,
-    Separations, TextPage, TextPageOptions,
+    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Quad,
+    Rect, Separations, TextPage, TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -271,6 +272,37 @@ impl Page {
             Ok(Separations::from_raw(inner))
         }
     }
+
+    pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
+        struct Quads(*mut fz_quad);
+
+        impl Drop for Quads {
+            fn drop(&mut self) {
+                if !self.0.is_null() {
+                    unsafe { fz_free(context(), self.0 as _) };
+                }
+            }
+        }
+
+        let c_needle = CString::new(needle)?;
+        let hit_max = if hit_max < 1 { 16 } else { hit_max };
+        let mut hit_count = 0;
+        unsafe {
+            // FIXME: memory leak if fz_search_page failed
+            let quads = Quads(ffi_try!(mupdf_search_page(
+                context(),
+                self.inner,
+                c_needle.as_ptr(),
+                hit_max as _,
+                &mut hit_count
+            )));
+            if hit_count == 0 {
+                return Ok(Vec::new());
+            }
+            let items = slice::from_raw_parts(quads.0, hit_count as usize);
+            Ok(items.iter().map(|quad| (*quad).into()).collect())
+        }
+    }
 }
 
 impl Drop for Page {
@@ -399,5 +431,39 @@ mod test {
         let page0 = doc.load_page(0).unwrap();
         let seps = page0.separations().unwrap();
         assert_eq!(seps.len(), 0);
+    }
+
+    #[test]
+    fn test_page_search() {
+        use crate::{Point, Quad};
+
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let hits = page0.search("Dummy", 1).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            hits,
+            [Quad {
+                ul: Point {
+                    x: 56.8,
+                    y: 69.32512
+                },
+                ur: Point {
+                    x: 115.85405,
+                    y: 69.32512
+                },
+                ll: Point {
+                    x: 56.8,
+                    y: 87.311844
+                },
+                lr: Point {
+                    x: 115.85405,
+                    y: 87.311844
+                }
+            }]
+        );
+
+        let hits = page0.search("Not Found", 1).unwrap();
+        assert_eq!(hits.len(), 0);
     }
 }
