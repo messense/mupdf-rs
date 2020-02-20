@@ -148,12 +148,12 @@ impl Pixmap {
     }
 
     pub fn samples(&self) -> &[u8] {
-        let len = (self.width() * self.height()) as usize;
+        let len = (self.width() * self.height() * self.n() as u32) as usize;
         unsafe { slice::from_raw_parts((*self.inner).samples, len) }
     }
 
     pub fn samples_mut(&mut self) -> &mut [u8] {
-        let len = (self.width() * self.height()) as usize;
+        let len = (self.width() * self.height() * self.n() as u32) as usize;
         unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
     }
 
@@ -346,6 +346,7 @@ mod test {
 
         let samples = pixmap.samples();
         assert!(samples.iter().all(|x| *x == 0));
+        assert_eq!(samples.len(), 100 * 100 * pixmap_cs.n() as usize);
     }
 
     #[test]
