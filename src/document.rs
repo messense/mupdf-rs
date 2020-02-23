@@ -358,6 +358,28 @@ mod test {
     }
 
     #[test]
+    fn test_encrypted_document_load_page() {
+        let mut doc = Document::open("tests/files/dummy-encrypted.pdf").unwrap();
+        assert!(doc.is_pdf());
+        assert!(doc.needs_password().unwrap());
+        // Before authentication, no outlines
+        let outlines = doc.outlines().unwrap();
+        assert_eq!(outlines.len(), 0);
+        doc.authenticate("123456").unwrap();
+        // After authentication, can read outlines
+        let outlines = doc.outlines().unwrap();
+        assert_eq!(outlines.len(), 0);
+
+        assert_eq!(doc.page_count().unwrap(), 1);
+        let page0 = doc.load_page(0).unwrap();
+        let bounds = page0.bounds().unwrap();
+        assert_eq!(bounds.x0, 0.0);
+        assert_eq!(bounds.y0, 0.0);
+        assert_eq!(bounds.x1, 595.0);
+        assert_eq!(bounds.y1, 842.0);
+    }
+
+    #[test]
     fn test_document_page_iterator() {
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         let pages: Result<Vec<Page>, _> = doc.into_iter().collect();
