@@ -135,6 +135,10 @@ impl Drop for DisplayList {
     }
 }
 
+// `DisplayList`s may be used by multiple threads simultaneously
+unsafe impl Send for DisplayList {}
+unsafe impl Sync for DisplayList {}
+
 #[cfg(test)]
 mod test {
     use crate::Document;
