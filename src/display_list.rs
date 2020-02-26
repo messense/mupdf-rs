@@ -180,28 +180,22 @@ mod test {
 
     #[test]
     fn test_multi_threaded_display_list_search() {
-        use std::sync::Arc;
-        use std::thread;
+        use crossbeam_utils::thread;
 
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
-        let list = Arc::new(page0.to_display_list(false).unwrap());
+        let list = page0.to_display_list(false).unwrap();
 
-        let list1 = Arc::clone(&list);
-        let thread1 = thread::spawn(move || {
-            let hits = list1.search("Dummy", 1).unwrap();
-            assert_eq!(hits.len(), 1);
-            let hits = list1.search("Not Found", 1).unwrap();
-            assert_eq!(hits.len(), 0);
-        });
-        let list2 = Arc::clone(&list);
-        let thread2 = thread::spawn(move || {
-            let hits = list2.search("Dummy", 1).unwrap();
-            assert_eq!(hits.len(), 1);
-            let hits = list2.search("Not Found", 1).unwrap();
-            assert_eq!(hits.len(), 0);
-        });
-        thread1.join().unwrap();
-        thread2.join().unwrap();
+        thread::scope(|scope| {
+            for _ in 0..5 {
+                scope.spawn(|_| {
+                    let hits = list.search("Dummy", 1).unwrap();
+                    assert_eq!(hits.len(), 1);
+                    let hits = list.search("Not Found", 1).unwrap();
+                    assert_eq!(hits.len(), 0);
+                });
+            }
+        })
+        .unwrap();
     }
 }

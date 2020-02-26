@@ -20,3 +20,6 @@ members = [
     ".",
     "mupdf-sys"
 ]
+
+[dev-dependencies]
+crossbeam-utils = "0.7.2"
