@@ -35,7 +35,7 @@ links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 
 [build-dependencies]
-bindgen = "0.52"
+bindgen = "0.53"
 cc = "1.0.50"
 
 [dependencies]

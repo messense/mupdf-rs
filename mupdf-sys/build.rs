@@ -73,6 +73,7 @@ fn main() {
         .whitelist_var("PDF_.*")
         .whitelist_var("UCDN_.*")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .size_t_is_usize(true)
         .generate()
         .expect("Unable to generate bindings");
 
