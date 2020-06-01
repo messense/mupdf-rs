@@ -23,7 +23,7 @@ impl Cookie {
         unsafe { (*self.inner).progress }
     }
 
-    pub fn max_progress(&self) -> i32 {
+    pub fn max_progress(&self) -> usize {
         unsafe { (*self.inner).progress_max }
     }
 

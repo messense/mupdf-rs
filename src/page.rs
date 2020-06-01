@@ -339,7 +339,8 @@ impl Iterator for LinkIter {
                     (*node).uri,
                     ptr::null_mut(),
                     ptr::null_mut(),
-                );
+                )
+                .page;
             }
             Some(Link {
                 bounds,

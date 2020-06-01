@@ -39,6 +39,12 @@ impl MetadataName {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Location {
+    pub chapter: i32,
+    pub page: i32,
+}
+
 #[derive(Debug)]
 pub struct Document {
     pub(crate) inner: *mut fz_document,
@@ -113,11 +119,14 @@ impl Document {
         Ok(info)
     }
 
-    pub fn resolve_link(&self, uri: &str) -> Result<Option<i32>, Error> {
+    pub fn resolve_link(&self, uri: &str) -> Result<Option<Location>, Error> {
         let c_uri = CString::new(uri)?;
-        let n = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) };
-        if n >= 0 {
-            return Ok(Some(n));
+        let loc = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) };
+        if loc.page >= 0 {
+            return Ok(Some(Location {
+                chapter: loc.chapter,
+                page: loc.page,
+            }));
         }
         Ok(None)
     }
@@ -241,7 +250,8 @@ impl Document {
                     Some(CStr::from_ptr((*next).uri).to_string_lossy().into_owned())
                 } else {
                     page = Some(
-                        fz_resolve_link(context(), self.inner, (*next).uri, &mut x, &mut y) as u32,
+                        fz_resolve_link(context(), self.inner, (*next).uri, &mut x, &mut y).page
+                            as u32,
                     );
                     None
                 }

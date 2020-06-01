@@ -138,11 +138,6 @@ impl Pixmap {
         }
     }
 
-    /// Size of pixmap
-    pub fn size(&self) -> usize {
-        unsafe { fz_pixmap_size(context(), self.inner) }
-    }
-
     pub fn rect(&self) -> IRect {
         unsafe { fz_pixmap_bbox(context(), self.inner).into() }
     }
@@ -233,28 +228,6 @@ impl Pixmap {
         Ok(())
     }
 
-    /// Shrink the pixmap by dividing both its width and height by `2^n`.
-    pub fn shrink(&mut self, n: i32) -> Result<(), Error> {
-        if n >= 1 {
-            unsafe {
-                fz_subsample_pixmap(context(), self.inner, n);
-            }
-        }
-        Ok(())
-    }
-
-    pub fn copy_from(&mut self, src: &Pixmap, bbox: IRect) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_copy_pixmap_rect(
-                context(),
-                self.inner,
-                src.inner,
-                bbox.into()
-            ));
-        }
-        Ok(())
-    }
-
     fn get_image_data(&self, format: ImageFormat) -> Result<Buffer, Error> {
         let buf = unsafe {
             let inner = ffi_try!(mupdf_pixmap_get_image_data(
@@ -270,35 +243,6 @@ impl Pixmap {
     pub fn write_to<W: Write>(&self, w: &mut W, format: ImageFormat) -> Result<u64, Error> {
         let mut buf = self.get_image_data(format)?;
         Ok(io::copy(&mut buf, w)?)
-    }
-
-    pub fn scale_with_clip(
-        &self,
-        x: f32,
-        y: f32,
-        w: f32,
-        h: f32,
-        clip: IRect,
-    ) -> Result<Self, Error> {
-        let clip = clip.into();
-        let inner =
-            unsafe { ffi_try!(mupdf_scale_pixmap(context(), self.inner, x, y, w, h, &clip)) };
-        Ok(Self { inner })
-    }
-
-    pub fn scale(&self, x: f32, y: f32, w: f32, h: f32) -> Result<Self, Error> {
-        let inner = unsafe {
-            ffi_try!(mupdf_scale_pixmap(
-                context(),
-                self.inner,
-                x,
-                y,
-                w,
-                h,
-                std::ptr::null()
-            ))
-        };
-        Ok(Self { inner })
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
@@ -335,9 +279,6 @@ mod test {
 
         let resolution = pixmap.resolution();
         assert_eq!(resolution, (96, 96));
-
-        let size = pixmap.size();
-        assert!(size > 0);
 
         let rect = pixmap.rect();
         assert_eq!(rect, IRect::new(0, 0, 100, 100));
@@ -379,14 +320,6 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         pixmap.tint(0, 255).unwrap();
-    }
-
-    #[test]
-    fn test_pixmap_scale() {
-        let cs = Colorspace::device_rgb();
-        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
-        pixmap.clear().unwrap();
-        pixmap.scale(0.0, 0.0, 50.0, 50.0).unwrap();
     }
 
     #[test]

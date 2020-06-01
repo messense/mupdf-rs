@@ -1,8 +1,6 @@
-use std::convert::TryFrom;
-
 use mupdf_sys::*;
 
-use crate::{context, Error, IRect, Pixmap};
+use crate::{context, IRect};
 
 #[derive(Debug)]
 pub struct Glyph {
@@ -10,21 +8,12 @@ pub struct Glyph {
 }
 
 impl Glyph {
-    pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_glyph_from_pixmap(context(), pixmap.inner)) };
-        Ok(Self { inner })
-    }
-
     pub fn width(&self) -> i32 {
         unsafe { fz_glyph_width(context(), self.inner) }
     }
 
     pub fn height(&self) -> i32 {
         unsafe { fz_glyph_height(context(), self.inner) }
-    }
-
-    pub fn size(&self) -> usize {
-        unsafe { (*self.inner).size }
     }
 
     pub fn bounds(&self) -> IRect {
@@ -40,13 +29,5 @@ impl Drop for Glyph {
                 fz_drop_glyph(context(), self.inner);
             }
         }
-    }
-}
-
-impl TryFrom<Pixmap> for Glyph {
-    type Error = Error;
-
-    fn try_from(pixmap: Pixmap) -> Result<Self, Self::Error> {
-        Self::from_pixmap(&pixmap)
     }
 }

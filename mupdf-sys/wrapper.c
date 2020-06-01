@@ -249,28 +249,6 @@ void mupdf_tint_pixmap(fz_context *ctx, fz_pixmap *pixmap, int black, int white,
     }
 }
 
-void mupdf_copy_pixmap_rect(fz_context *ctx, fz_pixmap *self, fz_pixmap *src, fz_irect bbox, mupdf_error_t **errptr)
-{
-    if (!fz_pixmap_colorspace(ctx, src))
-    {
-        *errptr = mupdf_new_error_from_str("cannot copy pixmap with NULL colorspace");
-        return;
-    }
-    if (self->alpha != src->alpha)
-    {
-        *errptr = mupdf_new_error_from_str("source and target alpha must be equal");
-        return;
-    }
-    fz_try(ctx)
-    {
-        fz_copy_pixmap_rect(ctx, self, src, bbox, NULL);
-    }
-    fz_catch(ctx)
-    {
-        mupdf_save_error(ctx, errptr);
-    }
-}
-
 void mupdf_save_pixmap_as(fz_context *ctx, fz_pixmap *pixmap, const char *filename, int format, mupdf_error_t **errptr)
 {
     fz_try(ctx)
@@ -345,20 +323,6 @@ fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int f
         mupdf_save_error(ctx, errptr);
     }
     return buf;
-}
-
-fz_pixmap *mupdf_scale_pixmap(fz_context *ctx, fz_pixmap *pixmap, float x, float y, float w, float h, const fz_irect *clip, mupdf_error_t **errptr)
-{
-    fz_pixmap *scaled = NULL;
-    fz_try(ctx)
-    {
-        scaled = fz_scale_pixmap(ctx, pixmap, x, y, w, h, clip);
-    }
-    fz_catch(ctx)
-    {
-        mupdf_save_error(ctx, errptr);
-    }
-    return scaled;
 }
 
 /* Font */
@@ -1811,7 +1775,7 @@ void mupdf_pdf_dict_delete(fz_context *ctx, pdf_obj *self, pdf_obj *key, mupdf_e
 char *mupdf_pdf_obj_to_string(fz_context *ctx, pdf_obj *obj, bool tight, bool ascii, mupdf_error_t **errptr)
 {
     char *s = NULL;
-    int n = 0;
+    size_t n = 0;
     fz_var(s);
     fz_try(ctx)
     {
@@ -2123,19 +2087,19 @@ pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, in
     return pdf;
 }
 
-int mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, mupdf_error_t **errptr)
+fz_location mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, mupdf_error_t **errptr)
 {
-    int page_no = -1;
+    fz_location loc = { -1, -1 };
     float xp = 0.0f, yp = 0.0f;
     fz_try(ctx)
     {
-        page_no = fz_resolve_link(ctx, doc, uri, &xp, &yp);
+        loc = fz_resolve_link(ctx, doc, uri, &xp, &yp);
     }
     fz_catch(ctx)
     {
         mupdf_save_error(ctx, errptr);
     }
-    return page_no;
+    return loc;
 }
 
 fz_colorspace *mupdf_document_output_intent(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
@@ -3072,21 +3036,6 @@ void mupdf_document_writer_end_page(fz_context *ctx, fz_document_writer *writer,
     {
         mupdf_save_error(ctx, errptr);
     }
-}
-
-/* Glyphs */
-fz_glyph *mupdf_new_glyph_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
-{
-    fz_glyph *glyph = NULL;
-    fz_try(ctx)
-    {
-        glyph = fz_new_glyph_from_pixmap(ctx, pixmap);
-    }
-    fz_catch(ctx)
-    {
-        mupdf_save_error(ctx, errptr);
-    }
-    return glyph;
 }
 
 /* Bitmap */
