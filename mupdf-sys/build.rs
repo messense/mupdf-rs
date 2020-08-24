@@ -26,6 +26,38 @@ fn main() {
     let out_dir = env::var("OUT_DIR").unwrap();
     let current_dir = env::current_dir().unwrap();
     let mupdf_dir = current_dir.join("mupdf");
+    // see https://github.com/ArtifexSoftware/mupdf/blob/master/include/mupdf/fitz/config.h
+    // and https://github.com/ArtifexSoftware/mupdf/blob/master/source/fitz/noto.c
+    let xcflags = vec![
+        #[cfg(feature = "noto-small")]
+        "NOTO_SMALL",
+        #[cfg(feature = "no-cjk")]
+        "NO_CJK",
+        #[cfg(feature = "tofu")]
+        "TOFU",
+        #[cfg(feature = "no-xps")]
+        "FZ_ENABLE_XPS=0",
+        #[cfg(feature = "no-svg")]
+        "FZ_ENABLE_SVG=0",
+        #[cfg(feature = "no-cbz")]
+        "FZ_ENABLE_CBZ=0",
+        #[cfg(feature = "no-img")]
+        "FZ_ENABLE_IMG=0",
+        #[cfg(feature = "no-html")]
+        "FZ_ENABLE_HTML=0",
+        #[cfg(feature = "no-epub")]
+        "FZ_ENABLE_EPUB=0",
+        #[cfg(feature = "no-js")]
+        "FZ_ENABLE_JS=0",
+    ]
+    .into_iter()
+    .map(|s| {
+        let mut s = s.to_owned();
+        s.insert_str(0, "-D");
+        s
+    })
+    .collect::<Vec<String>>()
+    .join(" ");
     let output = Command::new("make")
         .arg("libs")
         .arg(format!("build={}", profile))
@@ -35,7 +67,7 @@ fn main() {
         .arg("HAVE_GLUT=no")
         .arg("HAVE_CURL=no")
         .arg("verbose=yes")
-        .arg("XCFLAGS=-DNOTO_SMALL -DNO_CJK")
+        .arg(format!("XCFLAGS={}", xcflags))
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
