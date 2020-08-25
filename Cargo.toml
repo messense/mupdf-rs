@@ -9,6 +9,19 @@ license = "GPL-3.0"
 readme = "README.md"
 repository = "https://github.com/messense/mupdf-rs"
 
+[features]
+default = ["noto-small", "no-cjk", "js", "xps", "svg", "cbz", "img", "html", "epub"]
+noto-small = ["mupdf-sys/noto-small"]
+no-cjk = ["mupdf-sys/no-cjk"]
+tofu = ["mupdf-sys/tofu"]
+js = ["mupdf-sys/js"]
+xps = ["mupdf-sys/xps"]
+svg = ["mupdf-sys/svg"]
+cbz = ["mupdf-sys/cbz"]
+img = ["mupdf-sys/img"]
+html = ["mupdf-sys/html"]
+epub = ["mupdf-sys/epub"]
+
 [dependencies]
 mupdf-sys = { version = "0.0.3", path = "mupdf-sys" }
 once_cell = "1.3.1"

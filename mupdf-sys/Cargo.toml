@@ -34,6 +34,18 @@ license = "GPL-3.0"
 links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 
+[features]
+noto-small = []
+no-cjk = []
+tofu = []
+js = []
+xps = []
+svg = []
+cbz = []
+img = []
+html = []
+epub = []
+
 [build-dependencies]
 bindgen = "0.54"
 cc = "1.0.50"
