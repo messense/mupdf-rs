@@ -58,16 +58,23 @@ fn main() {
     })
     .collect::<Vec<String>>()
     .join(" ");
+    let make_flags = vec![
+        "libs".to_owned(),
+        format!("build={}", profile),
+        format!("OUT={}", out_dir),
+        #[cfg(feature = "sys-lib")]
+        "USE_SYSTEM_LIBS=yes".to_owned(),
+        #[cfg(feature = "x11")]
+        "HAVE_X11=yes".to_owned(),
+        #[cfg(feature = "opengl")]
+        "HAVE_GLUT=yes".to_owned(),
+        #[cfg(feature = "curl")]
+        "HAVE_CURL=yes".to_owned(),
+        "verbose=yes".to_owned(),
+        format!("XCFLAGS={}", xcflags),
+    ];
     let output = Command::new("make")
-        .arg("libs")
-        .arg(format!("build={}", profile))
-        .arg(format!("OUT={}", out_dir))
-        .arg("USE_SYSTEM_LIBS=no")
-        .arg("HAVE_X11=no")
-        .arg("HAVE_GLUT=no")
-        .arg("HAVE_CURL=no")
-        .arg("verbose=yes")
-        .arg(format!("XCFLAGS={}", xcflags))
+        .args(&make_flags)
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
@@ -75,6 +82,14 @@ fn main() {
         .expect("make failed");
     if output.status.code() != Some(0) {
         panic!("{:?}", String::from_utf8(output.stdout).unwrap());
+    }
+    #[cfg(feature = "sys-lib")]
+    {
+        println!("cargo:rustc-link-lib=freetype");
+        println!("cargo:rustc-link-lib=z");
+        println!("cargo:rustc-link-lib=jbig2dec");
+        println!("cargo:rustc-link-lib=jpeg");
+        println!("cargo:rustc-link-lib=openjp2");
     }
     println!("cargo:rustc-link-search=native={}", out_dir);
     println!("cargo:rustc-link-lib=static=mupdf");

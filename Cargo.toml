@@ -11,6 +11,10 @@ repository = "https://github.com/messense/mupdf-rs"
 
 [features]
 default = ["noto-small", "no-cjk", "js", "xps", "svg", "cbz", "img", "html", "epub"]
+sys-lib = ["mupdf-sys/sys-lib"]
+x11 = ["mupdf-sys/x11"]
+opengl = ["mupdf-sys/opengl"]
+curl = ["mupdf-sys/curl"]
 noto-small = ["mupdf-sys/noto-small"]
 no-cjk = ["mupdf-sys/no-cjk"]
 tofu = ["mupdf-sys/tofu"]
