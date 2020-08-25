@@ -35,17 +35,16 @@ links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 
 [features]
-default = ["noto-small", "no-cjk"]
 noto-small = []
 no-cjk = []
 tofu = []
-no-js = []
-no-xps = []
-no-svg = []
-no-cbz = []
-no-img = []
-no-html = []
-no-epub = []
+js = []
+xps = []
+svg = []
+cbz = []
+img = []
+html = []
+epub = []
 
 [build-dependencies]
 bindgen = "0.54"

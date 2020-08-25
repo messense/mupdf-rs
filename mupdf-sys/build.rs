@@ -35,19 +35,19 @@ fn main() {
         "NO_CJK",
         #[cfg(feature = "tofu")]
         "TOFU",
-        #[cfg(feature = "no-xps")]
+        #[cfg(not(feature = "xps"))]
         "FZ_ENABLE_XPS=0",
-        #[cfg(feature = "no-svg")]
+        #[cfg(not(feature = "svg"))]
         "FZ_ENABLE_SVG=0",
-        #[cfg(feature = "no-cbz")]
+        #[cfg(not(feature = "cbz"))]
         "FZ_ENABLE_CBZ=0",
-        #[cfg(feature = "no-img")]
+        #[cfg(not(feature = "img"))]
         "FZ_ENABLE_IMG=0",
-        #[cfg(feature = "no-html")]
+        #[cfg(not(feature = "html"))]
         "FZ_ENABLE_HTML=0",
-        #[cfg(feature = "no-epub")]
+        #[cfg(not(feature = "epub"))]
         "FZ_ENABLE_EPUB=0",
-        #[cfg(feature = "no-js")]
+        #[cfg(not(feature = "js"))]
         "FZ_ENABLE_JS=0",
     ]
     .into_iter()
