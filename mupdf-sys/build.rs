@@ -58,16 +58,29 @@ fn main() {
     })
     .collect::<Vec<String>>()
     .join(" ");
+    let make_flags = vec![
+        "libs".to_owned(),
+        format!("build={}", profile),
+        format!("OUT={}", out_dir),
+        #[cfg(feature = "sys-lib")]
+        "USE_SYSTEM_LIBS=yes".to_owned(),
+        "HAVE_X11=no".to_owned(),
+        "HAVE_GLUT=no".to_owned(),
+        "HAVE_CURL=no".to_owned(),
+        "verbose=yes".to_owned(),
+        format!("XCFLAGS={}", xcflags),
+    ];
+
+    #[cfg(feature = "sys-lib")]
+    for lib in &["freetype2", "zlib", "jbig2dec", "libjpeg", "libopenjp2"] {
+        let _ = pkg_config::probe_library(lib).unwrap_or_else(|e| {
+            eprintln!("{}", e);
+            panic!();
+        });
+    }
+
     let output = Command::new("make")
-        .arg("libs")
-        .arg(format!("build={}", profile))
-        .arg(format!("OUT={}", out_dir))
-        .arg("USE_SYSTEM_LIBS=no")
-        .arg("HAVE_X11=no")
-        .arg("HAVE_GLUT=no")
-        .arg("HAVE_CURL=no")
-        .arg("verbose=yes")
-        .arg(format!("XCFLAGS={}", xcflags))
+        .args(&make_flags)
         .current_dir(mupdf_dir)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
