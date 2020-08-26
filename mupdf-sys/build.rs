@@ -64,12 +64,12 @@ fn main() {
         format!("OUT={}", out_dir),
         #[cfg(feature = "sys-lib")]
         "USE_SYSTEM_LIBS=yes".to_owned(),
-        #[cfg(feature = "x11")]
-        "HAVE_X11=yes".to_owned(),
-        #[cfg(feature = "opengl")]
-        "HAVE_GLUT=yes".to_owned(),
-        #[cfg(feature = "curl")]
-        "HAVE_CURL=yes".to_owned(),
+        #[cfg(not(feature = "x11"))]
+        "HAVE_X11=no".to_owned(),
+        #[cfg(not(feature = "opengl"))]
+        "HAVE_GLUT=no".to_owned(),
+        #[cfg(not(feature = "curl"))]
+        "HAVE_CURL=no".to_owned(),
         "verbose=yes".to_owned(),
         format!("XCFLAGS={}", xcflags),
     ];
