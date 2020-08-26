@@ -53,5 +53,6 @@ epub = []
 [build-dependencies]
 bindgen = "0.55"
 cc = "1.0.50"
+pkg-config = "0.3"
 
 [dependencies]

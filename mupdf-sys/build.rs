@@ -73,6 +73,15 @@ fn main() {
         "verbose=yes".to_owned(),
         format!("XCFLAGS={}", xcflags),
     ];
+
+    #[cfg(feature = "sys-lib")]
+    for lib in &["freetype2", "zlib", "jbig2dec", "libjpeg", "libopenjp2"] {
+        let _ = pkg_config::probe_library(lib).unwrap_or_else(|e| {
+            eprintln!("{}", e);
+            panic!();
+        });
+    }
+
     let output = Command::new("make")
         .args(&make_flags)
         .current_dir(mupdf_dir)
@@ -82,14 +91,6 @@ fn main() {
         .expect("make failed");
     if output.status.code() != Some(0) {
         panic!("{:?}", String::from_utf8(output.stdout).unwrap());
-    }
-    #[cfg(feature = "sys-lib")]
-    {
-        println!("cargo:rustc-link-lib=freetype");
-        println!("cargo:rustc-link-lib=z");
-        println!("cargo:rustc-link-lib=jbig2dec");
-        println!("cargo:rustc-link-lib=jpeg");
-        println!("cargo:rustc-link-lib=openjp2");
     }
     println!("cargo:rustc-link-search=native={}", out_dir);
     println!("cargo:rustc-link-lib=static=mupdf");
