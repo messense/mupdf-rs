@@ -36,9 +36,6 @@ repository = "https://github.com/messense/mupdf-rs"
 
 [features]
 sys-lib = []
-x11 = []
-opengl = []
-curl = []
 noto-small = []
 no-cjk = []
 tofu = []
