@@ -72,7 +72,14 @@ fn main() {
     ];
 
     #[cfg(feature = "sys-lib")]
-    for lib in &["freetype2", "zlib", "jbig2dec", "libjpeg", "libopenjp2", "gumbo"] {
+    for lib in &[
+        "freetype2",
+        "zlib",
+        "jbig2dec",
+        "libjpeg",
+        "libopenjp2",
+        "gumbo",
+    ] {
         let _ = pkg_config::probe_library(lib).unwrap_or_else(|e| {
             eprintln!("{}", e);
             panic!();
