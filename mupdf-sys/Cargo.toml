@@ -19,14 +19,20 @@ exclude = [
     "mupdf/thirdparty/freeglut/*",
     "mupdf/thirdparty/lcms2/doc/*",
     "mupdf/thirdparty/lcms2/testbed/*",
+    "mupdf/thirdparty/lcms2/plugins/*",
     "mupdf/thirdparty/freetype/docs/*",
+    "mupdf/thirdparty/libjpeg/testimg*",
     "mupdf/thirdparty/openjpeg/doc/*",
     "mupdf/thirdparty/harfbuzz/docs/*",
     "mupdf/thirdparty/harfbuzz/test/*",
     "mupdf/thirdparty/mujs/docs/*",
     "mupdf/thirdparty/zlib/doc/*",
     "mupdf/thirdparty/zlib/test/*",
-    "mupdf/thirdparty/zlib/contrib/*"
+    "mupdf/thirdparty/zlib/contrib/*",
+    "mupdf/thirdparty/zlib/examples/*",
+    "mupdf/thirdparty/gumbo-parser/test/*",
+    "mupdf/thirdparty/gumbo-parser/python/*",
+    "mupdf/thirdparty/gumbo-parser/benchmarks/*",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
