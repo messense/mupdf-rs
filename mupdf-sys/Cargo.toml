@@ -8,7 +8,7 @@ exclude = [
     "mupdf/resources/fonts/han/*",
     "mupdf/resources/fonts/noto/*",
     "mupdf/resources/fonts/sil/*",
-    "mupdf/resources/fonts/urw/input/*",
+    "mupdf/resources/fonts/urw/*",
     "mupdf/docs/*",
     "mupdf/generated/*",
     "mupdf/platform/gl/*",
