@@ -345,9 +345,9 @@ mod test {
     fn test_recognize_document() {
         assert!(Document::recognize("test.pdf").unwrap());
         assert!(Document::recognize("application/pdf").unwrap());
+        assert!(Document::recognize("text/html").unwrap());
 
         assert!(!Document::recognize("test.doc").unwrap());
-        assert!(!Document::recognize("text/html").unwrap());
     }
 
     #[test]
