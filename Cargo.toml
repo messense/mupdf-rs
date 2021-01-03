@@ -1,6 +1,6 @@
 [package]
 name = "mupdf"
-version = "0.0.5"
+version = "0.0.6"
 authors = ["messense <messense@icloud.com>"]
 edition = "2018"
 description = "Safe Rust wrapper to MuPDF"
@@ -21,7 +21,7 @@ html = ["mupdf-sys/html"]
 epub = ["mupdf-sys/epub"]
 
 [dependencies]
-mupdf-sys = { version = "0.0.5", path = "mupdf-sys" }
+mupdf-sys = { version = "0", path = "mupdf-sys" }
 once_cell = "1.3.1"
 num_enum = "0.5.1"
 bitflags = "1.2.1"
