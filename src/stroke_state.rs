@@ -6,7 +6,8 @@ use num_enum::TryFromPrimitive;
 use crate::{context, Error};
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum LineCap {
     Butt = 0,
     Round = 1,
@@ -21,7 +22,8 @@ impl Default for LineCap {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum LineJoin {
     Miter = 0,
     Round = 1,

@@ -89,7 +89,8 @@ impl Drop for TextPage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum TextBlockType {
     Text = FZ_STEXT_BLOCK_TEXT,
     Image = FZ_STEXT_BLOCK_IMAGE,
@@ -101,6 +102,12 @@ pub struct TextBlock {
 }
 
 impl TextBlock {
+    #[cfg(target_env = "msvc")]
+    pub fn r#type(&self) -> TextBlockType {
+        unsafe { ((*self.inner).type_).try_into().unwrap() }
+    }
+
+    #[cfg(not(target_env = "msvc"))]
     pub fn r#type(&self) -> TextBlockType {
         unsafe { ((*self.inner).type_ as u32).try_into().unwrap() }
     }
@@ -111,7 +118,7 @@ impl TextBlock {
 
     pub fn lines(&self) -> TextLineIter {
         unsafe {
-            if (*self.inner).type_ as u32 == FZ_STEXT_BLOCK_TEXT {
+            if (*self.inner).type_ == FZ_STEXT_BLOCK_TEXT as _ {
                 return TextLineIter {
                     next: (*self.inner).u.t.first_line,
                 };
@@ -124,7 +131,7 @@ impl TextBlock {
 
     pub fn ctm(&self) -> Option<Matrix> {
         unsafe {
-            if (*self.inner).type_ as u32 == FZ_STEXT_BLOCK_IMAGE {
+            if (*self.inner).type_ == FZ_STEXT_BLOCK_IMAGE as _ {
                 return Some((*self.inner).u.i.transform.into());
             }
         }
@@ -133,7 +140,7 @@ impl TextBlock {
 
     pub fn image(&self) -> Option<Image> {
         unsafe {
-            if (*self.inner).type_ as u32 == FZ_STEXT_BLOCK_IMAGE {
+            if (*self.inner).type_ == FZ_STEXT_BLOCK_IMAGE as _ {
                 let inner = (*self.inner).u.i.image;
                 fz_keep_image(context(), inner);
                 return Some(Image::from_raw(inner));

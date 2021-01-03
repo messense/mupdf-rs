@@ -47,7 +47,8 @@ impl Drop for Text {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum BidiDirection {
     Ltr = fz_bidi_direction_FZ_BIDI_LTR,
     Neutral = fz_bidi_direction_FZ_BIDI_NEUTRAL,
@@ -55,7 +56,8 @@ pub enum BidiDirection {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum Language {
     Unset = fz_text_language_FZ_LANG_UNSET,
     Ja = fz_text_language_FZ_LANG_ja,
@@ -103,6 +105,12 @@ impl TextSpan {
         unsafe { (*self.inner).set_bidi_level(bidi_level) }
     }
 
+    #[cfg(target_env = "msvc")]
+    pub fn markup_dir(&self) -> BidiDirection {
+        unsafe { ((*self.inner).markup_dir() as i32).try_into().unwrap() }
+    }
+
+    #[cfg(not(target_env = "msvc"))]
     pub fn markup_dir(&self) -> BidiDirection {
         unsafe { (*self.inner).markup_dir().try_into().unwrap() }
     }
@@ -111,6 +119,12 @@ impl TextSpan {
         unsafe { (*self.inner).set_markup_dir(dir as _) }
     }
 
+    #[cfg(target_env = "msvc")]
+    pub fn language(&self) -> Language {
+        unsafe { ((*self.inner).language() as i32).try_into().unwrap() }
+    }
+
+    #[cfg(not(target_env = "msvc"))]
     pub fn language(&self) -> Language {
         unsafe { (*self.inner).language().try_into().unwrap() }
     }

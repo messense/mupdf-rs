@@ -27,7 +27,8 @@ bitflags! {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
+#[cfg_attr(target_env = "msvc", repr(i32))]
+#[cfg_attr(not(target_env = "msvc"), repr(u32))]
 pub enum Encryption {
     Aes128 = PDF_ENCRYPT_AES_128,
     Aes256 = PDF_ENCRYPT_AES_256,
@@ -168,6 +169,12 @@ impl PdfWriteOptions {
         self
     }
 
+    #[cfg(target_env = "msvc")]
+    pub fn encryption(&self) -> Encryption {
+        Encryption::try_from(self.inner.do_encrypt).unwrap()
+    }
+
+    #[cfg(not(target_env = "msvc"))]
     pub fn encryption(&self) -> Encryption {
         Encryption::try_from(self.inner.do_encrypt as u32).unwrap()
     }
