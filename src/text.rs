@@ -49,22 +49,22 @@ impl Drop for Text {
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
 #[repr(u32)]
 pub enum BidiDirection {
-    Ltr = fz_bidi_direction_FZ_BIDI_LTR,
-    Neutral = fz_bidi_direction_FZ_BIDI_NEUTRAL,
-    Rtl = fz_bidi_direction_FZ_BIDI_RTL,
+    Ltr = fz_bidi_direction_FZ_BIDI_LTR as u32,
+    Neutral = fz_bidi_direction_FZ_BIDI_NEUTRAL as u32,
+    Rtl = fz_bidi_direction_FZ_BIDI_RTL as u32,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
 #[repr(u32)]
 pub enum Language {
-    Unset = fz_text_language_FZ_LANG_UNSET,
-    Ja = fz_text_language_FZ_LANG_ja,
-    Ko = fz_text_language_FZ_LANG_ko,
-    Ur = fz_text_language_FZ_LANG_ur,
-    Urd = fz_text_language_FZ_LANG_urd,
-    Zh = fz_text_language_FZ_LANG_zh,
-    ZhHans = fz_text_language_FZ_LANG_zh_Hans,
-    ZhHant = fz_text_language_FZ_LANG_zh_Hant,
+    Unset = fz_text_language_FZ_LANG_UNSET as u32,
+    Ja = fz_text_language_FZ_LANG_ja as u32,
+    Ko = fz_text_language_FZ_LANG_ko as u32,
+    Ur = fz_text_language_FZ_LANG_ur as u32,
+    Urd = fz_text_language_FZ_LANG_urd as u32,
+    Zh = fz_text_language_FZ_LANG_zh as u32,
+    ZhHans = fz_text_language_FZ_LANG_zh_Hans as u32,
+    ZhHant = fz_text_language_FZ_LANG_zh_Hant as u32,
 }
 
 #[derive(Debug)]

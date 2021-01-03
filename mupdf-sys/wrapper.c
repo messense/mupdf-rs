@@ -488,7 +488,7 @@ fz_stroke_state *mupdf_default_stroke_state(fz_context *ctx)
 }
 
 fz_stroke_state *mupdf_new_stroke_state(
-    fz_context *ctx, uint32_t start_cap, uint32_t dash_cap, uint32_t end_cap, uint32_t line_join, float line_width,
+    fz_context *ctx, fz_linecap start_cap, fz_linecap dash_cap, fz_linecap end_cap, fz_linejoin line_join, float line_width,
     float miter_limit, float dash_phase, const float dash[], int dash_len, mupdf_error_t **errptr)
 {
     fz_stroke_state *stroke = NULL;

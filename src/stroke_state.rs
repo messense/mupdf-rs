@@ -91,19 +91,19 @@ impl StrokeState {
     }
 
     pub fn start_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).start_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).start_cap as u32 }).unwrap()
     }
 
     pub fn dash_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).dash_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).dash_cap as u32 }).unwrap()
     }
 
     pub fn end_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).end_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).end_cap as u32 }).unwrap()
     }
 
     pub fn line_join(&self) -> LineJoin {
-        LineJoin::try_from(unsafe { (*self.inner).linejoin }).unwrap()
+        LineJoin::try_from(unsafe { (*self.inner).linejoin as u32 }).unwrap()
     }
 
     pub fn line_width(&self) -> f32 {
