@@ -8,7 +8,7 @@ exclude = [
     "mupdf/resources/fonts/han/*",
     "mupdf/resources/fonts/noto/*",
     "mupdf/resources/fonts/sil/*",
-    "mupdf/resources/fonts/urw/*",
+    "mupdf/resources/fonts/urw/input/*",
     "mupdf/docs/*",
     "mupdf/generated/*",
     "mupdf/platform/gl/*",
@@ -42,9 +42,6 @@ repository = "https://github.com/messense/mupdf-rs"
 
 [features]
 sys-lib = []
-noto-small = []
-no-cjk = []
-tofu = []
 js = []
 xps = []
 svg = []

@@ -3,6 +3,16 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 
+// see https://github.com/ArtifexSoftware/mupdf/blob/master/source/fitz/noto.c
+const SKIP_FONTS: [&str; 6] = [
+    "TOFU",
+    "TOFU_CJK",
+    "TOFU_NOTO",
+    "TOFU_SYMBOL",
+    "TOFU_EMOJI",
+    "TOFU_SIL",
+];
+
 fn fail_on_empty_directory(name: &str) {
     if fs::read_dir(name).unwrap().count() == 0 {
         println!(
@@ -27,14 +37,7 @@ fn main() {
     let current_dir = env::current_dir().unwrap();
     let mupdf_dir = current_dir.join("mupdf");
     // see https://github.com/ArtifexSoftware/mupdf/blob/master/include/mupdf/fitz/config.h
-    // and https://github.com/ArtifexSoftware/mupdf/blob/master/source/fitz/noto.c
     let xcflags = vec![
-        #[cfg(feature = "noto-small")]
-        "NOTO_SMALL",
-        #[cfg(feature = "no-cjk")]
-        "NO_CJK",
-        #[cfg(feature = "tofu")]
-        "TOFU",
         #[cfg(not(feature = "xps"))]
         "FZ_ENABLE_XPS=0",
         #[cfg(not(feature = "svg"))]
@@ -51,11 +54,8 @@ fn main() {
         "FZ_ENABLE_JS=0",
     ]
     .into_iter()
-    .map(|s| {
-        let mut s = s.to_owned();
-        s.insert_str(0, "-D");
-        s
-    })
+    .chain(SKIP_FONTS.iter().cloned())
+    .map(|s| format!("-D{}", s))
     .collect::<Vec<String>>()
     .join(" ");
     let make_flags = vec![
