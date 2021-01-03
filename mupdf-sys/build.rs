@@ -166,6 +166,31 @@ fn build_libmupdf() {
             let out = String::from_utf8_lossy(&d.stdout);
             eprintln!("Upgrade error:\nSTDERR:{}\nSTDOUT:{}", err, out);
         }
+        let mut cl_env = Vec::new();
+        for font in &SKIP_FONTS {
+            cl_env.push(format!("/D{}", font));
+        }
+        if cfg!(not(feature = "xps")) {
+            cl_env.push("/DFZ_ENABLE_XPS#0".to_string());
+        }
+        if cfg!(not(feature = "svg")) {
+            cl_env.push("/DFZ_ENABLE_SVG#0".to_string());
+        }
+        if cfg!(not(feature = "cbz")) {
+            cl_env.push("/DFZ_ENABLE_CBZ#0".to_string());
+        }
+        if cfg!(not(feature = "img")) {
+            cl_env.push("/DFZ_ENABLE_IMG#0".to_string());
+        }
+        if cfg!(not(feature = "html")) {
+            cl_env.push("/DFZ_ENABLE_HTML#0".to_string());
+        }
+        if cfg!(not(feature = "epub")) {
+            cl_env.push("/DFZ_ENABLE_EPUB#0".to_string());
+        }
+        if cfg!(not(feature = "js")) {
+            cl_env.push("/DFZ_ENABLE_JS#0".to_string());
+        }
         let d = cc::windows_registry::find(target.as_str(), "devenv.exe")
             .unwrap()
             .args(&[
@@ -176,6 +201,7 @@ fn build_libmupdf() {
                 "libmupdf",
             ])
             .current_dir(&build_dir)
+            .env("CL", cl_env.join(" "))
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
