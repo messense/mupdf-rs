@@ -119,12 +119,12 @@ dependencies = [
 
 [[package]]
 name = "crossbeam-utils"
-version = "0.7.2"
+version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c3c7c73a2d1e9fc0886a08b93e98eb643461230d5f1925e4036204d5f2e261a8"
+checksum = "02d96d1e189ef58269ebe5b97953da3274d83a93af647c2ddd6f9dab28cedb8d"
 dependencies = [
  "autocfg",
- "cfg-if 0.1.10",
+ "cfg-if 1.0.0",
  "lazy_static",
 ]
 
@@ -218,7 +218,7 @@ checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
 
 [[package]]
 name = "mupdf"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "bitflags",
  "crossbeam-utils",
@@ -229,7 +229,7 @@ dependencies = [
 
 [[package]]
 name = "mupdf-sys"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "bindgen",
  "cc",
