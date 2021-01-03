@@ -6,8 +6,7 @@ use num_enum::TryFromPrimitive;
 use crate::{context, Error};
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[cfg_attr(target_env = "msvc", repr(i32))]
-#[cfg_attr(not(target_env = "msvc"), repr(u32))]
+#[repr(u32)]
 pub enum LineCap {
     Butt = 0,
     Round = 1,
@@ -22,8 +21,7 @@ impl Default for LineCap {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[cfg_attr(target_env = "msvc", repr(i32))]
-#[cfg_attr(not(target_env = "msvc"), repr(u32))]
+#[repr(u32)]
 pub enum LineJoin {
     Miter = 0,
     Round = 1,
@@ -93,19 +91,19 @@ impl StrokeState {
     }
 
     pub fn start_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).start_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).start_cap as u32 }).unwrap()
     }
 
     pub fn dash_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).dash_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).dash_cap as u32 }).unwrap()
     }
 
     pub fn end_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).end_cap }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).end_cap as u32 }).unwrap()
     }
 
     pub fn line_join(&self) -> LineJoin {
-        LineJoin::try_from(unsafe { (*self.inner).linejoin }).unwrap()
+        LineJoin::try_from(unsafe { (*self.inner).linejoin as u32 }).unwrap()
     }
 
     pub fn line_width(&self) -> f32 {

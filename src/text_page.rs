@@ -89,11 +89,10 @@ impl Drop for TextPage {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[cfg_attr(target_env = "msvc", repr(i32))]
-#[cfg_attr(not(target_env = "msvc"), repr(u32))]
+#[repr(u32)]
 pub enum TextBlockType {
-    Text = FZ_STEXT_BLOCK_TEXT,
-    Image = FZ_STEXT_BLOCK_IMAGE,
+    Text = FZ_STEXT_BLOCK_TEXT as u32,
+    Image = FZ_STEXT_BLOCK_IMAGE as u32,
 }
 
 #[derive(Debug)]
@@ -102,12 +101,6 @@ pub struct TextBlock {
 }
 
 impl TextBlock {
-    #[cfg(target_env = "msvc")]
-    pub fn r#type(&self) -> TextBlockType {
-        unsafe { ((*self.inner).type_).try_into().unwrap() }
-    }
-
-    #[cfg(not(target_env = "msvc"))]
     pub fn r#type(&self) -> TextBlockType {
         unsafe { ((*self.inner).type_ as u32).try_into().unwrap() }
     }

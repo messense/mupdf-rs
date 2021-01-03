@@ -27,16 +27,15 @@ bitflags! {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, TryFromPrimitive)]
-#[cfg_attr(target_env = "msvc", repr(i32))]
-#[cfg_attr(not(target_env = "msvc"), repr(u32))]
+#[repr(u32)]
 pub enum Encryption {
-    Aes128 = PDF_ENCRYPT_AES_128,
-    Aes256 = PDF_ENCRYPT_AES_256,
-    Rc4_40 = PDF_ENCRYPT_RC4_40,
-    Rc4_128 = PDF_ENCRYPT_RC4_128,
-    Keep = PDF_ENCRYPT_KEEP,
-    None = PDF_ENCRYPT_NONE,
-    Unknown = PDF_ENCRYPT_UNKNOWN,
+    Aes128 = PDF_ENCRYPT_AES_128 as u32,
+    Aes256 = PDF_ENCRYPT_AES_256 as u32,
+    Rc4_40 = PDF_ENCRYPT_RC4_40 as u32,
+    Rc4_128 = PDF_ENCRYPT_RC4_128 as u32,
+    Keep = PDF_ENCRYPT_KEEP as u32,
+    None = PDF_ENCRYPT_NONE as u32,
+    Unknown = PDF_ENCRYPT_UNKNOWN as u32,
 }
 
 impl Default for Encryption {
@@ -169,12 +168,6 @@ impl PdfWriteOptions {
         self
     }
 
-    #[cfg(target_env = "msvc")]
-    pub fn encryption(&self) -> Encryption {
-        Encryption::try_from(self.inner.do_encrypt).unwrap()
-    }
-
-    #[cfg(not(target_env = "msvc"))]
     pub fn encryption(&self) -> Encryption {
         Encryption::try_from(self.inner.do_encrypt as u32).unwrap()
     }
@@ -438,7 +431,7 @@ impl PdfDocument {
         Ok(())
     }
 
-    pub fn is_js_supported(&mut self) -> Result<bool, Error> {
+    pub fn is_js_supported(&self) -> Result<bool, Error> {
         let supported = unsafe { ffi_try!(mupdf_pdf_js_supported(context(), self.inner)) };
         Ok(supported)
     }
