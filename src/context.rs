@@ -6,10 +6,20 @@ use std::sync::Mutex;
 use mupdf_sys::*;
 use once_cell::sync::Lazy;
 
+use crate::system_font;
 use crate::Error;
 
 static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
-    let ctx = unsafe { mupdf_new_base_context() };
+    let ctx = unsafe {
+        let base_ctx = mupdf_new_base_context();
+        fz_install_load_system_font_funcs(
+            base_ctx,
+            Some(system_font::load_system_font),
+            Some(system_font::load_system_cjk_font),
+            Some(system_font::load_system_fallback_font),
+        );
+        base_ctx
+    };
     Mutex::new(BaseContext(ctx))
 });
 
