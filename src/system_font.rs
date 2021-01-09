@@ -19,22 +19,31 @@ pub unsafe extern "C" fn load_system_font(
     italic: c_int,
     needs_exact_metrics: c_int,
 ) -> *mut fz_font {
-    if let Ok(name) = CStr::from_ptr(name).to_str() {
-        let name = if name == "SimSun" { "SimSong" } else { name };
-        let mut properties = Properties::new();
-        let properties = properties
-            .weight(if bold == 1 {
-                Weight::BOLD
-            } else {
-                Weight::NORMAL
-            })
-            .style(if italic == 1 {
-                Style::Italic
-            } else {
-                Style::Normal
-            });
-        let handle = SystemSource::new()
-            .select_best_match(&[FamilyName::Title(name.to_string())], &properties);
+    if let Ok(mut name) = CStr::from_ptr(name).to_str() {
+        let font_source = SystemSource::new();
+        let handle = match font_source.select_by_postscript_name(name) {
+            Ok(handle) => Ok(handle),
+            Err(_) => {
+                for suffix in &["MT", "PS", "IdentityH"] {
+                    if name.ends_with(suffix) {
+                        name = name.strip_suffix(suffix).unwrap_or(name);
+                    }
+                }
+                let mut properties = Properties::new();
+                let properties = properties
+                    .weight(if bold == 1 {
+                        Weight::BOLD
+                    } else {
+                        Weight::NORMAL
+                    })
+                    .style(if italic == 1 {
+                        Style::Italic
+                    } else {
+                        Style::Normal
+                    });
+                font_source.select_best_match(&[FamilyName::Title(name.to_string())], &properties)
+            }
+        };
         if let Ok(handle) = handle {
             let font_index = match handle {
                 Handle::Path { font_index, .. } => font_index,
@@ -50,8 +59,10 @@ pub unsafe extern "C" fn load_system_font(
             };
             match font {
                 Ok(font) => {
-                    if needs_exact_metrics == 1 && font.name() != name {
-                        return ptr::null_mut();
+                    if needs_exact_metrics == 1 {
+                        if (bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()) {
+                            return ptr::null_mut();
+                        }
                     }
                     fz_keep_font(ctx, font.inner);
                     return font.inner;
