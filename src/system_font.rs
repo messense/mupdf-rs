@@ -1,6 +1,5 @@
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
-use std::fs;
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 
@@ -37,14 +36,17 @@ pub unsafe extern "C" fn load_system_font(
         let handle = SystemSource::new()
             .select_best_match(&[FamilyName::Title(name.to_string())], &properties);
         if let Ok(handle) = handle {
-            let font = match handle {
-                Handle::Path { path, font_index } => match fs::read(path) {
-                    Ok(bytes) => Font::from_bytes_with_index(name, font_index as _, &bytes),
-                    Err(_) => return ptr::null_mut(),
-                },
-                Handle::Memory { bytes, font_index } => {
-                    Font::from_bytes_with_index(name, font_index as _, &bytes)
-                }
+            let font_index = match handle {
+                Handle::Path { font_index, .. } => font_index,
+                Handle::Memory { font_index, .. } => font_index,
+            };
+            let font = match handle.load() {
+                Ok(f) => Font::from_bytes_with_index(
+                    &f.family_name(),
+                    font_index as _,
+                    &f.copy_font_data().unwrap(),
+                ),
+                Err(_) => return ptr::null_mut(),
             };
             match font {
                 Ok(font) => {
@@ -70,7 +72,10 @@ enum Ordering {
     AdobeKorea = FZ_ADOBE_KOREA as u32,
 }
 
+#[cfg(windows)]
 unsafe fn load_font_by_names(ctx: *mut fz_context, names: &[&str]) -> *mut fz_font {
+    use std::ffi::CString;
+
     for name in names {
         let c_name = CString::new(*name).unwrap();
         let font = load_system_font(ctx, c_name.as_ptr(), 0, 0, 0);
@@ -81,6 +86,7 @@ unsafe fn load_font_by_names(ctx: *mut fz_context, names: &[&str]) -> *mut fz_fo
     ptr::null_mut()
 }
 
+#[cfg(windows)]
 pub unsafe extern "C" fn load_system_cjk_font(
     ctx: *mut fz_context,
     name: *const c_char,
@@ -95,97 +101,65 @@ pub unsafe extern "C" fn load_system_cjk_font(
     if serif == 1 {
         match Ordering::try_from(ordering as u32) {
             Ok(Ordering::AdobeCns) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["MingLiU"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["MingLiU"]);
             }
             Ok(Ordering::AdobeGb) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["SimSun"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["SimSun"]);
             }
             Ok(Ordering::AdobeJapan) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["MS-Mincho"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["MS-Mincho"]);
             }
             Ok(Ordering::AdobeKorea) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["Batang"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["Batang"]);
             }
             Err(_) => {}
         }
     } else {
         match Ordering::try_from(ordering as u32) {
             Ok(Ordering::AdobeCns) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["DFKaiShu-SB-Estd-BF"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["DFKaiShu-SB-Estd-BF"]);
             }
             Ok(Ordering::AdobeGb) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["KaiTi", "KaiTi_GB2312"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["KaiTi", "KaiTi_GB2312"]);
             }
             Ok(Ordering::AdobeJapan) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["MS-Gothic"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["MS-Gothic"]);
             }
             Ok(Ordering::AdobeKorea) => {
-                return if cfg!(target_os = "linux") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "macos") {
-                    load_font_by_names(ctx, &[])
-                } else if cfg!(target_os = "windows") {
-                    load_font_by_names(ctx, &["Gulim"])
-                } else {
-                    load_font_by_names(ctx, &[])
-                }
+                return load_font_by_names(ctx, &["Gulim"]);
             }
+            Err(_) => {}
+        }
+    }
+    ptr::null_mut()
+}
+
+#[cfg(not(windows))]
+pub unsafe extern "C" fn load_system_cjk_font(
+    ctx: *mut fz_context,
+    name: *const c_char,
+    ordering: c_int,
+    serif: c_int,
+) -> *mut fz_font {
+    // Try name first
+    let font = load_system_font(ctx, name, 0, 0, 0);
+    if !font.is_null() {
+        return font;
+    }
+    if serif == 1 {
+        match Ordering::try_from(ordering as u32) {
+            Ok(Ordering::AdobeCns) => {}
+            Ok(Ordering::AdobeGb) => {}
+            Ok(Ordering::AdobeJapan) => {}
+            Ok(Ordering::AdobeKorea) => {}
+            Err(_) => {}
+        }
+    } else {
+        match Ordering::try_from(ordering as u32) {
+            Ok(Ordering::AdobeCns) => {}
+            Ok(Ordering::AdobeGb) => {}
+            Ok(Ordering::AdobeJapan) => {}
+            Ok(Ordering::AdobeKorea) => {}
             Err(_) => {}
         }
     }
