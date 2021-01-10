@@ -240,10 +240,11 @@ fn main() {
     build_libmupdf();
 
     let mut build = cc::Build::new();
-    build.file("wrapper.c");
-    build.include("./mupdf/include");
+    build.file("wrapper.c").include("./mupdf/include");
+    if cfg!(target_os = "android") {
+        build.flag("-DHAVE_ANDROID").flag_if_supported("-std=c99");
+    }
     build.compile("libmupdf-wrapper.a");
-    println!("cargo:rustc-link-lib=static=mupdf-wrapper");
 
     let bindings = bindgen::Builder::default()
         .clang_arg("-I./mupdf/include")

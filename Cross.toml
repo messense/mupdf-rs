@@ -1,0 +1,2 @@
+[target.aarch64-linux-android]
+image = "mupdf-cross:aarch64-linux-android"

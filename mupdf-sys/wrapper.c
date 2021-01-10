@@ -10,6 +10,10 @@
 
 #include "wrapper.h"
 
+#ifdef HAVE_ANDROID
+#include "androidfonts.c"
+#endif
+
 /* Put the fz_context in thread-local storage */
 
 #ifdef _WIN32
@@ -95,31 +99,10 @@ void mupdf_drop_str(char *s)
 }
 
 /* Context */
-fz_context *mupdf_new_base_context()
-{
-    for (int i = 0; i < FZ_LOCK_MAX; i++)
-    {
-#ifdef _WIN32
-        InitializeCriticalSection(&mutexes[i]);
-#else
-        (void)pthread_mutex_init(&mutexes[i], NULL);
-#endif
-    }
-    fz_context *ctx = fz_new_context(NULL, &locks, FZ_STORE_DEFAULT);
-    if (!ctx)
-    {
-        return NULL;
-    }
-    fz_register_document_handlers(ctx);
-    // Disable default warning & error printing
-    fz_set_warning_callback(ctx, NULL, NULL);
-    fz_set_error_callback(ctx, NULL, NULL);
-    return ctx;
-}
-
 void mupdf_drop_base_context(fz_context *ctx)
 {
-    for (int i = 0; i < FZ_LOCK_MAX; i++)
+    int i;
+    for (i = 0; i < FZ_LOCK_MAX; i++)
     {
 #ifdef _WIN32
         DeleteCriticalSection(&mutexes[i]);
@@ -130,6 +113,41 @@ void mupdf_drop_base_context(fz_context *ctx)
 
     fz_drop_context(ctx);
     ctx = NULL;
+}
+
+fz_context *mupdf_new_base_context()
+{
+    int i;
+    for (i = 0; i < FZ_LOCK_MAX; i++)
+    {
+#ifdef _WIN32
+        InitializeCriticalSection(&mutexes[i]);
+#else
+        (void)pthread_mutex_init(&mutexes[i], NULL);
+#endif
+    }
+    fz_context *ctx = fz_new_context(NULL, &locks, FZ_STORE_DEFAULT);
+    if (!ctx)
+    {
+        mupdf_drop_base_context(ctx);
+        return NULL;
+    }
+    fz_try(ctx) {
+        fz_register_document_handlers(ctx);
+    }
+    fz_catch(ctx) {
+        mupdf_drop_base_context(ctx);
+    }
+    // Disable default warning & error printing
+    fz_set_warning_callback(ctx, NULL, NULL);
+    fz_set_error_callback(ctx, NULL, NULL);
+#ifdef HAVE_ANDROID
+    fz_install_load_system_font_funcs(ctx,
+		load_droid_font,
+		load_droid_cjk_font,
+		load_droid_fallback_font);
+#endif
+    return ctx;
 }
 
 /* Rect */
