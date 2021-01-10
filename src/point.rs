@@ -1,5 +1,6 @@
 use mupdf_sys::fz_point;
 
+/// A point in a two-dimensional space.
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point {
     pub x: f32,

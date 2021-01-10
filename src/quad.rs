@@ -2,6 +2,7 @@ use mupdf_sys::*;
 
 use crate::Point;
 
+/// A representation for a region defined by 4 points
 #[derive(Debug, Clone, PartialEq)]
 pub struct Quad {
     pub ul: Point,

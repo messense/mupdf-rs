@@ -11,6 +11,7 @@ use num_enum::TryFromPrimitive;
 use crate::{context, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode};
 
 bitflags! {
+    /// Options for creating a pixmap and draw device.
     pub struct TextPageOptions: u32 {
         const BLOCK_IMAGE = FZ_STEXT_BLOCK_IMAGE as _;
         const BLOCK_TEXT = FZ_STEXT_BLOCK_TEXT as _;
@@ -21,6 +22,7 @@ bitflags! {
     }
 }
 
+/// A text page is a list of blocks, together with an overall bounding box
 #[derive(Debug)]
 pub struct TextPage {
     pub(crate) inner: *mut fz_stext_page,
@@ -95,6 +97,7 @@ pub enum TextBlockType {
     Image = FZ_STEXT_BLOCK_IMAGE as u32,
 }
 
+/// A text block is a list of lines of text (typically a paragraph), or an image.
 #[derive(Debug)]
 pub struct TextBlock {
     inner: *mut fz_stext_block,
@@ -161,6 +164,7 @@ impl Iterator for TextBlockIter {
     }
 }
 
+/// A text line is a list of characters that share a common baseline.
 #[derive(Debug)]
 pub struct TextLine {
     inner: *mut fz_stext_line,
@@ -200,6 +204,8 @@ impl Iterator for TextLineIter {
     }
 }
 
+/// A text char is a unicode character, the style in which is appears,
+/// and the point at which it is positioned.
 #[derive(Debug)]
 pub struct TextChar {
     inner: *mut fz_stext_char,

@@ -5,6 +5,9 @@ use mupdf_sys::*;
 
 use crate::{context, Error, Pixmap};
 
+/// Bitmaps have 1 bit per component.
+/// Only used for creating halftoned versions of contone buffers, and saving out.
+/// Samples are stored msb first, akin to pbms.
 #[derive(Debug)]
 pub struct Bitmap {
     pub(crate) inner: *mut fz_bitmap,

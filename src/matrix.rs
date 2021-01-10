@@ -2,6 +2,7 @@ use std::f32::consts::PI;
 
 use mupdf_sys::*;
 
+/// A row-major 3x3 matrix used for representing transformations of coordinates
 #[derive(Debug, Clone, PartialEq)]
 pub struct Matrix {
     pub a: f32,

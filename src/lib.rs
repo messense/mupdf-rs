@@ -42,7 +42,7 @@ pub mod pdf;
 pub mod pixmap;
 /// Point type
 pub mod point;
-/// Quadratic Beziers
+/// A representation for a region defined by 4 points
 pub mod quad;
 /// Rectangle types
 pub mod rect;

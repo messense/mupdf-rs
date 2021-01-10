@@ -4,6 +4,7 @@ use mupdf_sys::*;
 
 use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
 
+/// A rectangle using integers instead of floats
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IRect {
     pub x0: i32,
@@ -96,6 +97,7 @@ impl Into<fz_irect> for IRect {
     }
 }
 
+/// A rectangle represented by two diagonally opposite corners at arbitrary coordinates
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Rect {
     pub x0: f32,

@@ -1,3 +1,4 @@
+/// a tree of the outline of a document (also known as table of contents).
 #[derive(Debug)]
 pub struct Outline {
     pub title: String,

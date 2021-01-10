@@ -2,6 +2,7 @@ use std::fmt;
 
 use crate::Rect;
 
+/// A list of interactive links on a page.
 #[derive(Debug, Clone)]
 pub struct Link {
     pub bounds: Rect,

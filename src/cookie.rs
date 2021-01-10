@@ -2,6 +2,10 @@ use mupdf_sys::*;
 
 use crate::{context, Error};
 
+/// Provide two-way communication between application and library.
+/// Intended for multi-threaded applications where one thread is rendering pages and
+/// another thread wants to read progress feedback or abort a job that takes a long time to finish.
+/// The communication is unsynchronized without locking.
 #[derive(Debug)]
 pub struct Cookie {
     pub(crate) inner: *mut fz_cookie,
@@ -13,24 +17,31 @@ impl Cookie {
         Ok(Self { inner })
     }
 
+    /// Abort rendering
     pub fn abort(&mut self) {
         unsafe {
             (*self.inner).abort = 1;
         }
     }
 
+    /// Communicates rendering progress back to the application.
+    /// Increments as a page is being rendered.
     pub fn progress(&self) -> i32 {
         unsafe { (*self.inner).progress }
     }
 
+    /// Communicates the known upper bound of rendering back to the application
     pub fn max_progress(&self) -> usize {
         unsafe { (*self.inner).progress_max }
     }
 
+    /// count of errors during current rendering
     pub fn errors(&self) -> i32 {
         unsafe { (*self.inner).errors }
     }
 
+    /// Initially should be set to 0.
+    /// Will be set to non-zero if a TRYLATER error is thrown during rendering
     pub fn incomplete(&self) -> bool {
         unsafe { (*self.inner).incomplete > 0 }
     }

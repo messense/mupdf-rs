@@ -150,6 +150,7 @@ impl Iterator for TextSpanIter {
     }
 }
 
+/// Text buffer
 #[derive(Debug)]
 pub struct TextItem {
     inner: fz_text_item,

@@ -7,6 +7,8 @@ use mupdf_sys::*;
 
 use crate::{context, Error};
 
+/// A wrapper around a dynamically allocated array of bytes.
+/// Buffers have a capacity (the number of bytes storage immediately available) and a current size.
 #[derive(Debug)]
 pub struct Buffer {
     pub(crate) inner: *mut fz_buffer,
