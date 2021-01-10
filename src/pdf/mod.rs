@@ -1,13 +1,13 @@
-mod annotation;
-mod document;
-mod graft_map;
-mod object;
-mod page;
-mod widget;
+pub mod annotation;
+pub mod document;
+pub mod graft_map;
+pub mod object;
+pub mod page;
+pub mod widget;
 
 pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
 pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
 pub use graft_map::PdfGraftMap;
 pub use object::PdfObject;
 pub use page::PdfPage;
-pub use widget::{PdfWidget, PdfWidgetInner};
+pub use widget::PdfWidget;

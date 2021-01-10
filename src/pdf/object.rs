@@ -6,7 +6,8 @@ use std::slice;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Error, PdfDocument};
+use crate::pdf::PdfDocument;
+use crate::{context, Buffer, Error};
 
 pub trait IntoPdfDictKey {
     fn into_pdf_dict_key(self) -> Result<PdfObject, Error>;

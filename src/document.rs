@@ -4,7 +4,8 @@ use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Colorspace, Cookie, Error, Outline, Page, PdfDocument};
+use crate::pdf::PdfDocument;
+use crate::{context, Buffer, Colorspace, Cookie, Error, Outline, Page};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {

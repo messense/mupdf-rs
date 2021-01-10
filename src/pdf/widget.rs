@@ -1,4 +1,4 @@
-use crate::PdfAnnotation;
+use crate::pdf::PdfAnnotation;
 
 #[derive(Debug)]
 pub enum PdfWidget {

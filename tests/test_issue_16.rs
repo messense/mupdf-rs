@@ -1,4 +1,5 @@
-use mupdf::{Colorspace, ImageFormat, Matrix, PdfDocument};
+use mupdf::pdf::PdfDocument;
+use mupdf::{Colorspace, ImageFormat, Matrix};
 
 #[test]
 fn test_pixmap_to_png() {

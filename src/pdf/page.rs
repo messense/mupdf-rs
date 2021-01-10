@@ -2,7 +2,8 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Matrix, Page, PdfAnnotation, PdfAnnotationType, PdfObject, Rect};
+use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfObject};
+use crate::{context, Error, Matrix, Page, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -154,7 +155,8 @@ impl Iterator for AnnotationIter {
 
 #[cfg(test)]
 mod test {
-    use crate::{Matrix, PdfAnnotation, PdfDocument, PdfPage, Rect};
+    use crate::pdf::{PdfAnnotation, PdfDocument, PdfPage};
+    use crate::{Matrix, Rect};
 
     #[test]
     fn test_page_properties() {

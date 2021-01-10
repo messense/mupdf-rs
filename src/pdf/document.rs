@@ -8,9 +8,10 @@ use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
+use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, Buffer, CjkFontOrdering, Document, Error, Font, Image, PdfGraftMap, PdfObject,
-    PdfPage, SimpleFontEncoding, Size, WriteMode,
+    context, Buffer, CjkFontOrdering, Document, Error, Font, Image, SimpleFontEncoding, Size,
+    WriteMode,
 };
 
 bitflags! {
@@ -600,7 +601,7 @@ impl TryFrom<Document> for PdfDocument {
 
 impl<'a> IntoIterator for &'a PdfDocument {
     type Item = Result<crate::Page, Error>;
-    type IntoIter = crate::PageIter<'a>;
+    type IntoIter = crate::document::PageIter<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.doc.into_iter()
