@@ -89,6 +89,24 @@ fn build_libmupdf() {
         "libs".to_owned(),
         format!("build={}", profile),
         format!("OUT={}", build_dir.display()),
+        #[cfg(feature = "sys-lib-freetype")]
+        "USE_SYSTEM_FREETYPE=yes".to_owned(),
+        #[cfg(feature = "sys-lib-gumbo")]
+        "USE_SYSTEM_GUMBO=yes".to_owned(),
+        #[cfg(feature = "sys-lib-harfbuzz")]
+        "USE_SYSTEM_HARFBUZZ=yes".to_owned(),
+        #[cfg(feature = "sys-lib-jbig2dec")]
+        "USE_SYSTEM_JBIG2DEC=yes".to_owned(),
+        #[cfg(feature = "sys-lib-libjpeg")]
+        "USE_SYSTEM_LIBJPEG=yes".to_owned(),
+        #[cfg(feature = "sys-lib-openjpeg")]
+        "USE_SYSTEM_OPENJPEG=yes".to_owned(),
+        #[cfg(feature = "sys-lib-zlib")]
+        "USE_SYSTEM_ZLIB=yes".to_owned(),
+        #[cfg(feature = "sys-lib-leptonica")]
+        "USE_SYSTEM_LEPTONICA=yes".to_owned(),
+        #[cfg(feature = "sys-lib-tesseract")]
+        "USE_SYSTEM_TESSERACT=yes".to_owned(),
         #[cfg(feature = "sys-lib")]
         "USE_SYSTEM_LIBS=yes".to_owned(),
         "HAVE_X11=no".to_owned(),

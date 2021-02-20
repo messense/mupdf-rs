@@ -11,7 +11,26 @@ repository = "https://github.com/messense/mupdf-rs"
 
 [features]
 default = ["js", "xps", "svg", "cbz", "img", "html", "epub"]
+# Use system libs for all thirdparty libs
 sys-lib = ["mupdf-sys/sys-lib"]
+# Use system freetype
+sys-lib-freetype = ["mupdf-sys/sys-lib-freetype"]
+# Use system gumbo parser
+sys-lib-gumbo = ["mupdf-sys/sys-lib-gumbo"]
+# Use system harfbuzz
+sys-lib-harfbuzz = ["mupdf-sys/sys-lib-harfbuzz"]
+# Use system jbig2dec
+sys-lib-jbig2dec = ["mupdf-sys/sys-lib-jbig2dec"]
+# Use system libjpeg
+sys-lib-libjpeg = ["mupdf-sys/sys-lib-libjpeg"]
+# Use system openjpeg
+sys-lib-openjpeg = ["mupdf-sys/sys-lib-openjpeg"]
+# Use system zlib
+sys-lib-zlib = ["mupdf-sys/sys-lib-zlib"]
+# Use system leptonica
+sys-lib-leptonica = ["mupdf-sys/sys-lib-leptonica"]
+# Use system tesseract
+sys-lib-tesseract = ["mupdf-sys/sys-lib-tesseract"]
 js = ["mupdf-sys/js"]
 xps = ["mupdf-sys/xps"]
 svg = ["mupdf-sys/svg"]

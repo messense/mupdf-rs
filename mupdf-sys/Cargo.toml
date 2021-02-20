@@ -41,7 +41,26 @@ links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 
 [features]
+# Use system libs for all thirdparty libs
 sys-lib = []
+# Use system freetype
+sys-lib-freetype = []
+# Use system gumbo parser
+sys-lib-gumbo = []
+# Use system harfbuzz
+sys-lib-harfbuzz = []
+# Use system jbig2dec
+sys-lib-jbig2dec = []
+# Use system libjpeg
+sys-lib-libjpeg = []
+# Use system openjpeg
+sys-lib-openjpeg = []
+# Use system zlib
+sys-lib-zlib = []
+# Use system leptonica
+sys-lib-leptonica = []
+# Use system tesseract
+sys-lib-tesseract = []
 js = []
 xps = []
 svg = []
