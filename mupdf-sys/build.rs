@@ -125,11 +125,30 @@ fn build_libmupdf() {
         "libopenjp2",
         "gumbo",
     ] {
-        let _ = pkg_config::probe_library(lib).unwrap_or_else(|e| {
-            eprintln!("{}", e);
-            panic!();
-        });
+        pkg_config::probe_library(lib).unwrap();
     }
+
+    #[cfg(not(feature = "sys-lib"))]
+    {
+        #[cfg(feature = "sys-lib-freetype")]
+        pkg_config::probe_library("freetype2").unwrap();
+        #[cfg(feature = "sys-lib-gumbo")]
+        pkg_config::probe_library("gumbo").unwrap();
+        #[cfg(feature = "sys-lib-harfbuzz")]
+        pkg_config::probe_library("harfbuzz").unwrap();
+        #[cfg(feature = "sys-lib-jbig2dec")]
+        pkg_config::probe_library("jbig2dec").unwrap();
+        #[cfg(feature = "sys-lib-libjpeg")]
+        pkg_config::probe_library("libjpeg").unwrap();
+        #[cfg(feature = "sys-lib-openjpeg")]
+        pkg_config::probe_library("libopenjp2").unwrap();
+        #[cfg(feature = "sys-lib-zlib")]
+        pkg_config::probe_library("zlib").unwrap();
+    }
+    #[cfg(feature = "sys-lib-leptonica")]
+    pkg_config::probe_library("lept").unwrap();
+    #[cfg(feature = "sys-lib-tesseract")]
+    pkg_config::probe_library("tesseract").unwrap();
 
     let output = Command::new("make")
         .args(&make_flags)
