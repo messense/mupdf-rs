@@ -85,7 +85,7 @@ fn build_libmupdf() {
     .map(|s| format!("-D{}", s))
     .collect::<Vec<String>>()
     .join(" ");
-    let make_flags = vec![
+    let mut make_flags = vec![
         "libs".to_owned(),
         format!("build={}", profile),
         format!("OUT={}", build_dir.display()),
@@ -116,39 +116,107 @@ fn build_libmupdf() {
         format!("XCFLAGS={}", xcflags),
     ];
 
-    #[cfg(feature = "sys-lib")]
-    for lib in &[
-        "freetype2",
-        "zlib",
-        "jbig2dec",
-        "libjpeg",
-        "libopenjp2",
-        "gumbo",
-    ] {
-        pkg_config::probe_library(lib).unwrap();
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-freetype") {
+        let lib = pkg_config::probe_library("freetype2").unwrap();
+        make_flags.push(format!(
+            "SYS_FREETYPE_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-gumbo") {
+        let lib = pkg_config::probe_library("gumbo").unwrap();
+        make_flags.push(format!(
+            "SYS_GUMBO_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-harfbuzz") {
+        let lib = pkg_config::probe_library("harfbuzz").unwrap();
+        make_flags.push(format!(
+            "SYS_HARFBUZZ_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-jbig2dec") {
+        let lib = pkg_config::probe_library("jbig2dec").unwrap();
+        make_flags.push(format!(
+            "SYS_JBIG2DEC_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-libjpeg") {
+        let lib = pkg_config::probe_library("libjpeg").unwrap();
+        make_flags.push(format!(
+            "SYS_LIBJPEG_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-openjpeg") {
+        let lib = pkg_config::probe_library("libopenjp2").unwrap();
+        make_flags.push(format!(
+            "SYS_OPENJPEG_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
+    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-zlib") {
+        let lib = pkg_config::probe_library("zlib").unwrap();
+        make_flags.push(format!(
+            "SYS_ZLIB_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
     }
 
-    #[cfg(not(feature = "sys-lib"))]
-    {
-        #[cfg(feature = "sys-lib-freetype")]
-        pkg_config::probe_library("freetype2").unwrap();
-        #[cfg(feature = "sys-lib-gumbo")]
-        pkg_config::probe_library("gumbo").unwrap();
-        #[cfg(feature = "sys-lib-harfbuzz")]
-        pkg_config::probe_library("harfbuzz").unwrap();
-        #[cfg(feature = "sys-lib-jbig2dec")]
-        pkg_config::probe_library("jbig2dec").unwrap();
-        #[cfg(feature = "sys-lib-libjpeg")]
-        pkg_config::probe_library("libjpeg").unwrap();
-        #[cfg(feature = "sys-lib-openjpeg")]
-        pkg_config::probe_library("libopenjp2").unwrap();
-        #[cfg(feature = "sys-lib-zlib")]
-        pkg_config::probe_library("zlib").unwrap();
+    // leptonica and tesseract excluded from sys-lib feature
+    if cfg!(feature = "sys-lib-leptonica") {
+        let lib = pkg_config::probe_library("lept").unwrap();
+        make_flags.push(format!(
+            "SYS_LEPTONICA_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
     }
-    #[cfg(feature = "sys-lib-leptonica")]
-    pkg_config::probe_library("lept").unwrap();
-    #[cfg(feature = "sys-lib-tesseract")]
-    pkg_config::probe_library("tesseract").unwrap();
+    if cfg!(feature = "sys-lib-tesseract") {
+        let lib = pkg_config::probe_library("tesseract").unwrap();
+        make_flags.push(format!(
+            "SYS_TESSERACT_CFLAGS={}",
+            lib.include_paths
+                .iter()
+                .map(|p| format!("-I{}", p.display()))
+                .collect::<Vec<_>>()
+                .join(" ")
+        ));
+    }
 
     let output = Command::new("make")
         .args(&make_flags)
