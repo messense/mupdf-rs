@@ -2427,6 +2427,20 @@ pdf_obj *mupdf_pdf_graft_object(fz_context *ctx, pdf_document *doc, pdf_obj *obj
     return graft_obj;
 }
 
+pdf_obj *mupdf_pdf_graft_mapped_object(fz_context *ctx, pdf_graft_map *map, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    pdf_obj *graft_obj = NULL;
+    fz_try(ctx)
+    {
+        graft_obj = pdf_graft_mapped_object(ctx, map, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return graft_obj;
+}
+
 pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, float width, float height, mupdf_error_t **errptr)
 {
     fz_rect mediabox = fz_unit_rect;
