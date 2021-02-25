@@ -2497,7 +2497,7 @@ pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_
 
 void mupdf_pdf_insert_page(fz_context *ctx, pdf_document *pdf, int page_no, pdf_obj *page, mupdf_error_t **errptr)
 {
-    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf))
+    if (page_no < 0 || page_no > pdf_count_pages(ctx, pdf))
     {
         *errptr = mupdf_new_error_from_str("page_no is not a valid page");
         return;
