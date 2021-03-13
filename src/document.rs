@@ -29,7 +29,7 @@ impl MetadataName {
             Format => "format",
             Encryption => "encryption",
             Author => "info:Author",
-            Title => "info::Title",
+            Title => "info:Title",
             Producer => "info:Producer",
             Creator => "info:Creator",
             CreationDate => "info:CreationDate",
