@@ -218,7 +218,16 @@ fn build_libmupdf() {
         ));
     }
 
-    let output = Command::new("make")
+    let make = if cfg!(any(
+        target_os = "freebsd",
+        target_os = "openbsd",
+        target_os = "netbsd"
+    )) {
+        "gmake"
+    } else {
+        "make"
+    };
+    let output = Command::new(make)
         .args(&make_flags)
         .current_dir(&build_dir)
         .stdout(Stdio::inherit())
