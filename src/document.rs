@@ -352,6 +352,12 @@ mod test {
     }
 
     #[test]
+    fn test_document_open_html() {
+        let doc = Document::open("tests/files/dummy.html").unwrap();
+        assert!(!doc.is_pdf());
+    }
+
+    #[test]
     fn test_document_load_page() {
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         assert!(doc.is_pdf());
