@@ -1,6 +1,6 @@
 use mupdf_sys::*;
 
-use crate::context;
+use crate::{context, pdf::PdfObject, Error};
 
 #[derive(Debug)]
 pub struct PdfGraftMap {
@@ -10,6 +10,17 @@ pub struct PdfGraftMap {
 impl PdfGraftMap {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_graft_map) -> Self {
         Self { inner: ptr }
+    }
+
+    pub fn graft_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
+        unsafe {
+            let inner = ffi_try!(mupdf_pdf_graft_mapped_object(
+                context(),
+                self.inner,
+                obj.inner
+            ));
+            Ok(PdfObject::from_raw(inner))
+        }
     }
 }
 
