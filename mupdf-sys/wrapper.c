@@ -1622,6 +1622,36 @@ pdf_obj *mupdf_pdf_array_get(fz_context *ctx, pdf_obj *obj, int index, mupdf_err
     return val;
 }
 
+pdf_obj *mupdf_pdf_dict_get_val(fz_context *ctx, pdf_obj *obj, int idx, mupdf_error_t **errptr)
+{
+    pdf_obj *val = NULL;
+    fz_try(ctx)
+    {
+        val = pdf_dict_get_val(ctx, obj, idx);
+        pdf_keep_obj(ctx, val);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return val;
+}
+
+pdf_obj *mupdf_pdf_dict_get_key(fz_context *ctx, pdf_obj *obj, int idx, mupdf_error_t **errptr)
+{
+    pdf_obj *val = NULL;
+    fz_try(ctx)
+    {
+        val = pdf_dict_get_key(ctx, obj, idx);
+        pdf_keep_obj(ctx, val);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return val;
+}
+
 pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, pdf_obj *key, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
@@ -1764,6 +1794,20 @@ void mupdf_pdf_array_delete(fz_context *ctx, pdf_obj *self, int i, mupdf_error_t
     {
         mupdf_save_error(ctx, errptr);
     }
+}
+
+int mupdf_pdf_dict_len(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    int len = 0;
+    fz_try(ctx)
+    {
+        len = pdf_dict_len(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return len;
 }
 
 void mupdf_pdf_dict_put(fz_context *ctx, pdf_obj *self, pdf_obj *key, pdf_obj *value, mupdf_error_t **errptr)

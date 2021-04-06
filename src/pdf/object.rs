@@ -274,6 +274,26 @@ impl PdfObject {
         Ok(Some(Self { inner }))
     }
 
+    pub fn dict_len(&self) -> Result<usize, Error> {
+        let size = unsafe { ffi_try!(mupdf_pdf_dict_len(context(), self.inner)) };
+        Ok(size as usize)
+    }
+
+    pub fn get_dict_val(&self, idx: i32) -> Result<Option<Self>, Error> {
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_val(context(), self.inner, idx)) };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner }))
+    }
+    pub fn get_dict_key(&self, idx: i32) -> Result<Option<Self>, Error> {
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_key(context(), self.inner, idx)) };
+        if inner.is_null() {
+            return Ok(None);
+        }
+        Ok(Some(Self { inner }))
+    }
+
     pub fn get_dict<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
         let key = key.into_pdf_dict_key()?;
         let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, key.inner)) };
