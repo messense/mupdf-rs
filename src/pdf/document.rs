@@ -133,6 +133,15 @@ impl PdfWriteOptions {
         self
     }
 
+    pub fn garbage_level(&self) -> i32 {
+        self.inner.do_garbage
+    }
+
+    pub fn set_garbage_level(&mut self, value: i32) -> &mut Self {
+        self.inner.do_garbage = value.clamp(0, 4);
+        self
+    }
+
     pub fn linear(self) -> bool {
         self.inner.do_linear != 0
     }
