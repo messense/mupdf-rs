@@ -2076,10 +2076,10 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
             pdf_drop_obj(ctx, resources);
             fz_drop_buffer(ctx, contents);
             fz_drop_device(ctx, dev);
+            fz_drop_page(ctx, page);
         }
         fz_catch(ctx)
         {
-            fz_drop_page(ctx, page);
             fz_rethrow(ctx);
         }
     }
