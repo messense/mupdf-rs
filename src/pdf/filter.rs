@@ -86,11 +86,34 @@ impl PdfFilterOptions {
         }
     }
 
-    pub fn set_image_filter(&mut self, wrapper: ImageFilter) -> &mut Self {
+    pub fn set_image_filter(
+        &mut self,
+        wrapper: impl Fn(&Matrix, &str, &Image) -> Image,
+    ) -> &mut Self {
         // TODO: not sure how to set the wrapper so that the user can pass high
         // level objects instead of C structs and pointers. I apparently can't
         // assign `image_filter` to a closure, so not sure how I would wrap
         // that.
+        let image_filter_callback = move |ctx: *mut fz_context,
+                                          opaque: *mut c_void,
+                                          ctm: fz_matrix,
+                                          name: *const c_char,
+                                          image: *mut fz_image|
+              -> *mut mupdf_sys::fz_image {
+            // TODO: what to do with panics?
+            let ret = std::panic::catch_unwind(|| unsafe {
+                wrapper(
+                    &Matrix::from(ctm),
+                    CStr::from_ptr(name).to_str().unwrap(),
+                    &Image::from_raw(image),
+                )
+            });
+
+            ret.unwrap().inner
+        };
+
+        // This won't work either because I can't access `wrapper`
+        /*
         unsafe extern "C" fn image_filter_callback(
             ctx: *mut fz_context,
             opaque: *mut c_void,
@@ -108,6 +131,7 @@ impl PdfFilterOptions {
 
             ret.inner
         }
+        */
 
         unsafe {
             (*self.inner).image_filter = Some(image_filter_callback);
