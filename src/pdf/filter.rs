@@ -13,6 +13,7 @@ pub struct PdfFilterOptions {
 }
 
 // Callback types
+// TODO: I don't think this is necessary for anything.
 pub type ImageFilter = fn(ctm: &Matrix, name: &str, image: &Image) -> Image;
 pub type TextFilter = fn(ucsbuf: i32, ucslen: i32, trm: &Matrix, ctm: &Matrix, bbox: &Rect) -> i32;
 pub type AfterTextObject = fn(doc: &PdfDocument, chain: &pdf_processor, ctm: &Matrix);
@@ -67,17 +68,19 @@ impl PdfFilterOptions {
         self
     }
 
-    pub fn image_filter(&self) -> Option<ImageFilter> {
+    pub fn image_filter(&self) -> Option<impl Fn(&Matrix, &str, &Image) -> Image> {
         unsafe {
-            (*self.inner).image_filter.map(|filter| {
-                |ctm: &Matrix, name: &str, image: &Image| {
-                    filter(
+            (*self.inner).image_filter.map(|c_filter| {
+                move |ctm: &Matrix, name: &str, image: &Image| -> Image {
+                    let img = c_filter(
                         context(),
                         ptr::null_mut(),
                         ctm.into(),
                         CString::new(name).unwrap().as_ptr(),
                         image.inner,
-                    )
+                    );
+
+                    Image::from_raw(img)
                 }
             })
         }
