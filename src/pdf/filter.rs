@@ -1,7 +1,8 @@
 use mupdf_sys::*;
 
-use std::ffi::CStr;
+use std::ffi::{CStr, CString};
 use std::os::raw::{c_char, c_void};
+use std::ptr;
 
 use crate::pdf::PdfDocument;
 use crate::{context, Image, Matrix, Rect};
@@ -23,12 +24,16 @@ unsafe extern "C" fn image_filter_callback(
     ctm: fz_matrix,
     name: *const c_char,
     image: *mut fz_image,
-) {
-    value(
-        &Matrix::from(ctm),
-        CStr::from_ptr(name).to_str().unwrap(),
-        &Image::from_raw(image),
-    )
+) -> *mut mupdf_sys::fz_image {
+    let ret = std::panic::catch_unwind(|| {
+        wrapper(
+            &Matrix::from(ctm),
+            CStr::from_ptr(name),
+            &Image::from_raw(image),
+        )
+    });
+
+    ret.inner
 }
 
 impl PdfFilterOptions {
@@ -84,23 +89,26 @@ impl PdfFilterOptions {
     // TODO: should be Option
     pub fn image_filter(&self) -> Option<ImageFilter> {
         unsafe {
-            |ctm: &Matrix, name: &str, image: &Image| {
-                let filter = (*self.inner).image_filter;
-                filter(
-                    context(),
-                    self.inner,
-                    ctm.into(),
-                    CStr::new(*name).as_ptr(),
-                    image.inner,
-                )
-            }
+            (*self.inner).image_filter.map(|filter| {
+                |ctm: &Matrix, name: &str, image: &Image| {
+                    filter(
+                        context(),
+                        ptr::null_mut(),
+                        ctm.into(),
+                        CString::new(name).unwrap().as_ptr(),
+                        image.inner,
+                    )
+                }
+            })
         }
     }
 
     // TODO: same for the setter
     // TODO: how to pass params?
     pub fn set_image_filter(&mut self, value: ImageFilter) -> &mut Self {
-        unsafe { (*self.inner).image_filter = Some(image_filter_callback) }
+        unsafe {
+            (*self.inner).image_filter = Some(image_filter_callback);
+        }
         self
     }
 }
