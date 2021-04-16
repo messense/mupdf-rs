@@ -2951,6 +2951,18 @@ bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errp
     return redacted;
 }
 
+void mupdf_pdf_filter_page_contents(fz_context *ctx, pdf_page *page, pdf_filter_options *filter, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_filter_page_contents(ctx, page->doc, page, filter);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 void mupdf_pdf_page_set_rotation(fz_context *ctx, pdf_page *page, int rotation, mupdf_error_t **errptr)
 {
     if (rotation % 90)
@@ -3066,6 +3078,18 @@ void mupdf_pdf_set_annot_author(fz_context *ctx, pdf_annot *annot, const char *a
     fz_try(ctx)
     {
         pdf_set_annot_author(ctx, annot, author);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_pdf_filter_annot_contents(fz_context *ctx, pdf_annot *annot, pdf_filter_options *filter, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        pdf_filter_annot_contents(ctx, annot->page->doc, annot, filter);
     }
     fz_catch(ctx)
     {
