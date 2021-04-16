@@ -18,6 +18,9 @@ pub type TextFilter = fn(ucsbuf: i32, ucslen: i32, trm: &Matrix, ctm: &Matrix, b
 pub type AfterTextObject = fn(doc: &PdfDocument, chain: &pdf_processor, ctm: &Matrix);
 pub type EndPage = fn();
 
+// TODO: not sure how to set the wrapper so that the user can pass high level
+// objects instead of C structs and pointers. I apparently can't assign
+// `image_filter` to a closure, so not sure how I would wrap that.
 unsafe extern "C" fn image_filter_callback(
     ctx: *mut fz_context,
     opaque: *mut c_void,
@@ -85,8 +88,6 @@ impl PdfFilterOptions {
         self
     }
 
-    // TODO: not sure how to handle functions. These should most likely not be closures.
-    // TODO: should be Option
     pub fn image_filter(&self) -> Option<ImageFilter> {
         unsafe {
             (*self.inner).image_filter.map(|filter| {
@@ -103,8 +104,6 @@ impl PdfFilterOptions {
         }
     }
 
-    // TODO: same for the setter
-    // TODO: how to pass params?
     pub fn set_image_filter(&mut self, value: ImageFilter) -> &mut Self {
         unsafe {
             (*self.inner).image_filter = Some(image_filter_callback);
