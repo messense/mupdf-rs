@@ -2,7 +2,7 @@ use std::ops::{Deref, DerefMut};
 
 use mupdf_sys::*;
 
-use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfObject, PdfFilterOptions};
+use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfFilterOptions, PdfObject};
 use crate::{context, Error, Matrix, Page, Rect};
 
 #[derive(Debug)]
@@ -110,7 +110,11 @@ impl PdfPage {
 
     pub fn filter(&mut self, opt: PdfFilterOptions) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_pdf_filter_page_contents(context(), self.inner, opt.inner))
+            ffi_try!(mupdf_pdf_filter_page_contents(
+                context(),
+                self.inner,
+                opt.inner
+            ))
         }
 
         Ok(())

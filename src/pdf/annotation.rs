@@ -4,8 +4,8 @@ use std::ffi::{CStr, CString};
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
-use crate::{context, Error};
 use crate::pdf::PdfFilterOptions;
+use crate::{context, Error};
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
 #[repr(i32)]
@@ -103,7 +103,11 @@ impl PdfAnnotation {
 
     pub fn filter(&mut self, opt: PdfFilterOptions) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_pdf_filter_annot_contents(context(), self.inner, opt.inner))
+            ffi_try!(mupdf_pdf_filter_annot_contents(
+                context(),
+                self.inner,
+                opt.inner
+            ))
         }
 
         Ok(())
