@@ -92,8 +92,8 @@ impl PdfFilterOptions {
     ) -> &mut Self {
         // TODO: not sure how to set the wrapper so that the user can pass high
         // level objects instead of C structs and pointers. I apparently can't
-        // assign `image_filter` to a closure, so not sure how I would wrap
-        // that.
+        // assign a closure, so not sure how that could be possible without
+        // access to the wrapper.
         let image_filter_callback = move |ctx: *mut fz_context,
                                           opaque: *mut c_void,
                                           ctm: fz_matrix,
