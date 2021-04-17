@@ -68,24 +68,6 @@ impl PdfFilterOptions {
         self
     }
 
-    pub fn image_filter(&self) -> Option<impl Fn(&Matrix, &str, &Image) -> Image> {
-        unsafe {
-            (*self.inner).image_filter.map(|c_filter| {
-                move |ctm: &Matrix, name: &str, image: &Image| -> Image {
-                    let img = c_filter(
-                        context(),
-                        ptr::null_mut(),
-                        ctm.into(),
-                        CString::new(name).unwrap().as_ptr(),
-                        image.inner,
-                    );
-
-                    Image::from_raw(img)
-                }
-            })
-        }
-    }
-
     pub fn set_image_filter(
         &mut self,
         wrapper: impl Fn(&Matrix, &str, &Image) -> Image,
