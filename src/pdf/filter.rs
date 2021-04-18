@@ -1,11 +1,11 @@
 use mupdf_sys::*;
 
-use std::ffi::{CStr, CString};
+use std::ffi::CStr;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 
 use crate::pdf::PdfDocument;
-use crate::{context, Image, Matrix, Rect};
+use crate::{Image, Matrix, Rect};
 
 #[derive(Clone, Copy)]
 pub struct PdfFilterOptions {
@@ -70,50 +70,36 @@ impl PdfFilterOptions {
 
     pub fn set_image_filter(
         &mut self,
-        wrapper: impl Fn(&Matrix, &str, &Image) -> Image,
+        wrapper: fn(&Matrix, &str, &Image) -> Option<Image>,
     ) -> &mut Self {
-        // TODO: not sure how to set the wrapper so that the user can pass high
-        // level objects instead of C structs and pointers. I apparently can't
-        // assign a closure, so not sure how that could be possible without
-        // access to the wrapper.
-        let image_filter_callback = move |ctx: *mut fz_context,
-                                          opaque: *mut c_void,
-                                          ctm: fz_matrix,
-                                          name: *const c_char,
-                                          image: *mut fz_image|
-              -> *mut mupdf_sys::fz_image {
-            // TODO: what to do with panics?
-            let ret = std::panic::catch_unwind(|| unsafe {
-                wrapper(
-                    &Matrix::from(ctm),
-                    CStr::from_ptr(name).to_str().unwrap(),
-                    &Image::from_raw(image),
-                )
-            });
+        use once_cell::sync::OnceCell;
 
-            ret.unwrap().inner
-        };
+        static WRAPPER: OnceCell<fn(&Matrix, &str, &Image) -> Option<Image>> = OnceCell::new();
+        // TODO: for some reason I can't use unwrap here??
+        let _ = WRAPPER.set(wrapper);
 
-        // This won't work either because I can't access `wrapper`
-        /*
         unsafe extern "C" fn image_filter_callback(
-            ctx: *mut fz_context,
-            opaque: *mut c_void,
+            _ctx: *mut fz_context,
+            _opaque: *mut c_void,
             ctm: fz_matrix,
             name: *const c_char,
             image: *mut fz_image,
         ) -> *mut mupdf_sys::fz_image {
-            let ret = std::panic::catch_unwind(|| {
-                wrapper(
+            let ret = std::panic::catch_unwind(|| match WRAPPER.get() {
+                Some(wrapper) => wrapper(
                     &Matrix::from(ctm),
-                    CStr::from_ptr(name),
+                    CStr::from_ptr(name).to_str().unwrap(),
                     &Image::from_raw(image),
-                )
+                ),
+                None => None,
             });
 
-            ret.inner
+            if let Ok(Some(ret)) = ret {
+                ret.inner
+            } else {
+                ptr::null_mut()
+            }
         }
-        */
 
         unsafe {
             (*self.inner).image_filter = Some(image_filter_callback);
