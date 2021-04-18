@@ -1,6 +1,7 @@
 use mupdf_sys::*;
 
 use std::ffi::CStr;
+use std::mem;
 use std::os::raw::{c_char, c_void};
 use std::ptr;
 
@@ -9,7 +10,7 @@ use crate::{Image, Matrix, Rect};
 
 #[derive(Clone, Copy)]
 pub struct PdfFilterOptions {
-    pub(crate) inner: *mut pdf_filter_options,
+    pub(crate) inner: pdf_filter_options,
 }
 
 // Callback types
@@ -18,61 +19,55 @@ pub type TextFilter = fn(ucsbuf: i32, ucslen: i32, trm: &Matrix, ctm: &Matrix, b
 pub type AfterTextObject = fn(doc: &PdfDocument, chain: &pdf_processor, ctm: &Matrix);
 pub type EndPage = fn();
 
-impl PdfFilterOptions {
-    pub(crate) unsafe fn from_raw(ptr: *mut pdf_filter_options) -> Self {
-        Self { inner: ptr }
+impl Default for PdfFilterOptions {
+    fn default() -> Self {
+        Self {
+            inner: unsafe { mem::zeroed() },
+        }
     }
+}
 
+impl PdfFilterOptions {
     pub fn ascii(&self) -> bool {
-        unsafe { (*self.inner).ascii != 0 }
+        self.inner.ascii != 0
     }
 
     pub fn set_ascii(&mut self, value: bool) -> &mut Self {
-        unsafe {
-            (*self.inner).ascii = if value { 1 } else { 0 };
-        }
+        self.inner.ascii = if value { 1 } else { 0 };
         self
     }
 
     pub fn recurse(&self) -> bool {
-        unsafe { (*self.inner).recurse != 0 }
+        self.inner.recurse != 0
     }
 
     pub fn set_recurse(&mut self, value: bool) -> &mut Self {
-        unsafe {
-            (*self.inner).recurse = if value { 1 } else { 0 };
-        }
+        self.inner.recurse = if value { 1 } else { 0 };
         self
     }
 
     pub fn sanitize(&self) -> bool {
-        unsafe { (*self.inner).sanitize != 0 }
+        self.inner.sanitize != 0
     }
 
     pub fn set_sanitize(&mut self, value: bool) -> &mut Self {
-        unsafe {
-            (*self.inner).sanitize = if value { 1 } else { 0 };
-        }
+        self.inner.sanitize = if value { 1 } else { 0 };
         self
     }
 
     pub fn instance_forms(&self) -> bool {
-        unsafe { (*self.inner).instance_forms != 0 }
+        self.inner.instance_forms != 0
     }
 
     pub fn set_instance_forms(&mut self, value: bool) -> &mut Self {
-        unsafe {
-            (*self.inner).instance_forms = if value { 1 } else { 0 };
-        }
+        self.inner.instance_forms = if value { 1 } else { 0 };
         self
     }
 
     pub fn set_image_filter(&mut self, mut wrapper: ImageFilter) -> &mut Self {
         // The opaque field can be used to have data easily accessible in the
         // callback, in this case the user's closure.
-        unsafe {
-            (*self.inner).opaque = &mut wrapper as *mut _ as *mut c_void;
-        }
+        self.inner.opaque = &mut wrapper as *mut _ as *mut c_void;
 
         unsafe extern "C" fn image_filter_callback(
             // TODO: `context()` inside this function should probably use the
@@ -101,9 +96,7 @@ impl PdfFilterOptions {
             }
         }
 
-        unsafe {
-            (*self.inner).image_filter = Some(image_filter_callback);
-        }
+        self.inner.image_filter = Some(image_filter_callback);
         self
     }
 }

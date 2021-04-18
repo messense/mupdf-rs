@@ -108,12 +108,12 @@ impl PdfPage {
         Ok(m.into())
     }
 
-    pub fn filter(&mut self, opt: PdfFilterOptions) -> Result<(), Error> {
+    pub fn filter(&mut self, mut opt: PdfFilterOptions) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_filter_page_contents(
                 context(),
                 self.inner,
-                opt.inner
+                &mut opt.inner as *mut _
             ))
         }
 
