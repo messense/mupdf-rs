@@ -13,8 +13,7 @@ pub struct PdfFilterOptions {
 }
 
 // Callback types
-// TODO: I don't think this is necessary for anything.
-pub type ImageFilter = fn(ctm: &Matrix, name: &str, image: &Image) -> Image;
+pub type ImageFilter = fn(ctm: &Matrix, name: &str, image: &Image) -> Option<Image>;
 pub type TextFilter = fn(ucsbuf: i32, ucslen: i32, trm: &Matrix, ctm: &Matrix, bbox: &Rect) -> i32;
 pub type AfterTextObject = fn(doc: &PdfDocument, chain: &pdf_processor, ctm: &Matrix);
 pub type EndPage = fn();
@@ -68,30 +67,31 @@ impl PdfFilterOptions {
         self
     }
 
-    pub fn set_image_filter(
-        &mut self,
-        wrapper: fn(&Matrix, &str, &Image) -> Option<Image>,
-    ) -> &mut Self {
-        use once_cell::sync::OnceCell;
-
-        static WRAPPER: OnceCell<fn(&Matrix, &str, &Image) -> Option<Image>> = OnceCell::new();
-        // TODO: for some reason I can't use unwrap here??
-        let _ = WRAPPER.set(wrapper);
+    pub fn set_image_filter(&mut self, mut wrapper: ImageFilter) -> &mut Self {
+        // The opaque field can be used to have data easily accessible in the
+        // callback, in this case the user's closure.
+        unsafe {
+            (*self.inner).opaque = &mut wrapper as *mut _ as *mut c_void;
+        }
 
         unsafe extern "C" fn image_filter_callback(
+            // TODO: `context()` inside this function should probably use the
+            // parameter's value instead of the global value, right?
             _ctx: *mut fz_context,
-            _opaque: *mut c_void,
+            opaque: *mut c_void,
             ctm: fz_matrix,
             name: *const c_char,
             image: *mut fz_image,
         ) -> *mut mupdf_sys::fz_image {
-            let ret = std::panic::catch_unwind(|| match WRAPPER.get() {
-                Some(wrapper) => wrapper(
+            let ret = std::panic::catch_unwind(|| {
+                // Reading the closure again
+                let wrapper = &mut *(opaque as *mut ImageFilter);
+
+                wrapper(
                     &Matrix::from(ctm),
                     CStr::from_ptr(name).to_str().unwrap(),
                     &Image::from_raw(image),
-                ),
-                None => None,
+                )
             });
 
             if let Ok(Some(ret)) = ret {
