@@ -107,5 +107,3 @@ impl PdfFilterOptions {
         self
     }
 }
-
-impl PdfFilterOptions {}
