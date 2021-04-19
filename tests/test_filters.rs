@@ -4,7 +4,8 @@ use mupdf::Error;
 fn count_images(doc: &PdfDocument, page_num: i32) -> Result<i32, Error> {
     let page = doc.find_page(page_num).unwrap();
 
-    let objs = page.get_dict("Resources")?
+    let objs = page
+        .get_dict("Resources")?
         .unwrap()
         .get_dict("XObject")?
         .unwrap();
@@ -34,14 +35,14 @@ fn test_filter_page() {
     // The first three images will be removed.
     let mut count = 0;
     opts.set_image_filter(|_ctm, name, image| {
-            println!("name: {:?}", name);
-            if count < 3 {
-                count += 1;
-                None
-            } else {
-                Some(image)
-            }
-        });
+        println!("name: {:?}", name);
+        if count < 3 {
+            count += 1;
+            None
+        } else {
+            Some(image)
+        }
+    });
 
     page.filter(opts).unwrap();
 

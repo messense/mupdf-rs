@@ -67,7 +67,7 @@ impl PdfFilterOptions {
     /// transformation matrix, the image name (or "<inline>") and the image.
     pub fn set_image_filter<Cb>(&mut self, mut wrapper: Cb) -> &mut Self
     where
-        Cb: FnMut(Matrix, &str, Image) -> Option<Image>
+        Cb: FnMut(Matrix, &str, Image) -> Option<Image>,
     {
         // The opaque field can be used to have data easily accessible in the
         // callback, in this case the user's closure.
@@ -83,7 +83,7 @@ impl PdfFilterOptions {
             image: *mut fz_image,
         ) -> *mut mupdf_sys::fz_image
         where
-            Cb: FnMut(Matrix, &str, Image) -> Option<Image>
+            Cb: FnMut(Matrix, &str, Image) -> Option<Image>,
         {
             let ret = std::panic::catch_unwind(move || {
                 // Reading the closure again
