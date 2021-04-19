@@ -65,9 +65,12 @@ impl PdfFilterOptions {
 
     /// Sets a callback for the filter, which will be given the initial
     /// transformation matrix, the image name (or "<inline>") and the image.
+    ///
+    /// The returned image has to be a new one, so `image.clone()` can be used
+    /// to keep the same.
     pub fn set_image_filter<Cb>(&mut self, mut wrapper: Cb) -> &mut Self
     where
-        Cb: FnMut(Matrix, &str, Image) -> Option<Image>,
+        Cb: FnMut(Matrix, &str, &Image) -> Option<Image>,
     {
         // The opaque field can be used to have data easily accessible in the
         // callback, in this case the user's closure.
@@ -80,10 +83,10 @@ impl PdfFilterOptions {
             opaque: *mut c_void,
             ctm: fz_matrix,
             name: *const c_char,
-            image: *mut fz_image,
+            image: *mut fz_image, // Will be dropped after this callback is done
         ) -> *mut mupdf_sys::fz_image
         where
-            Cb: FnMut(Matrix, &str, Image) -> Option<Image>,
+            Cb: FnMut(Matrix, &str, &Image) -> Option<Image>,
         {
             let ret = std::panic::catch_unwind(move || {
                 // Reading the closure again
@@ -92,7 +95,7 @@ impl PdfFilterOptions {
                 wrapper(
                     Matrix::from(ctm),
                     CStr::from_ptr(name).to_str().unwrap(),
-                    Image::from_raw(image),
+                    &Image::from_raw(image),
                 )
             });
 

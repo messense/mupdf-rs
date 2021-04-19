@@ -40,7 +40,7 @@ fn test_filter_page() {
             count += 1;
             None
         } else {
-            Some(image)
+            Some(image.clone())
         }
     });
 
