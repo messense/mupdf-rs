@@ -32,6 +32,8 @@ fn test_filter_page() {
     assert_eq!(count_images(&doc, page_num).unwrap(), 5);
 
     let mut opts = PdfFilterOptions::default();
+    // Otherwise filtering is disabled.
+    opts.set_sanitize(true);
     // The first three images will be removed.
     let mut count = 0;
     opts.set_image_filter(|_ctm, name, image| {
