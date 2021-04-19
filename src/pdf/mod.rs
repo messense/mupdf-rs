@@ -8,7 +8,7 @@ pub mod widget;
 
 pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
 pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
-pub use filter::{AfterTextObject, EndPage, ImageFilter, PdfFilterOptions, TextFilter};
+pub use filter::PdfFilterOptions;
 pub use graft_map::PdfGraftMap;
 pub use object::PdfObject;
 pub use page::PdfPage;

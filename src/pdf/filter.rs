@@ -14,7 +14,6 @@ pub struct PdfFilterOptions {
 }
 
 // Callback types
-pub type ImageFilter = fn(ctm: &Matrix, name: &str, image: &Image) -> Option<Image>;
 pub type TextFilter = fn(ucsbuf: i32, ucslen: i32, trm: &Matrix, ctm: &Matrix, bbox: &Rect) -> i32;
 pub type AfterTextObject = fn(doc: &PdfDocument, chain: &pdf_processor, ctm: &Matrix);
 pub type EndPage = fn();
@@ -64,12 +63,17 @@ impl PdfFilterOptions {
         self
     }
 
-    pub fn set_image_filter(&mut self, mut wrapper: ImageFilter) -> &mut Self {
+    /// Sets a callback for the filter, which will be given the initial
+    /// transformation matrix, the image name (or "<inline>") and the image.
+    pub fn set_image_filter<Cb>(&mut self, mut wrapper: Cb) -> &mut Self
+    where
+        Cb: FnMut(Matrix, &str, Image) -> Option<Image>
+    {
         // The opaque field can be used to have data easily accessible in the
         // callback, in this case the user's closure.
         self.inner.opaque = &mut wrapper as *mut _ as *mut c_void;
 
-        unsafe extern "C" fn image_filter_callback(
+        unsafe extern "C" fn image_filter_callback<Cb>(
             // TODO: `context()` inside this function should probably use the
             // parameter's value instead of the global value, right?
             _ctx: *mut fz_context,
@@ -77,15 +81,18 @@ impl PdfFilterOptions {
             ctm: fz_matrix,
             name: *const c_char,
             image: *mut fz_image,
-        ) -> *mut mupdf_sys::fz_image {
-            let ret = std::panic::catch_unwind(|| {
+        ) -> *mut mupdf_sys::fz_image
+        where
+            Cb: FnMut(Matrix, &str, Image) -> Option<Image>
+        {
+            let ret = std::panic::catch_unwind(move || {
                 // Reading the closure again
-                let wrapper = &mut *(opaque as *mut ImageFilter);
+                let wrapper = &mut *(opaque as *mut Cb);
 
                 wrapper(
-                    &Matrix::from(ctm),
+                    Matrix::from(ctm),
                     CStr::from_ptr(name).to_str().unwrap(),
-                    &Image::from_raw(image),
+                    Image::from_raw(image),
                 )
             });
 
@@ -96,7 +103,7 @@ impl PdfFilterOptions {
             }
         }
 
-        self.inner.image_filter = Some(image_filter_callback);
+        self.inner.image_filter = Some(image_filter_callback::<Cb>);
         self
     }
 }
