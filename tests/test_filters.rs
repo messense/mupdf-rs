@@ -36,8 +36,7 @@ fn test_filter_page() {
     opts.set_sanitize(true);
     // The first three images will be removed.
     let mut count = 0;
-    opts.set_image_filter(|_ctm, name, image| {
-        println!("name: {:?}", name);
+    opts.set_image_filter(|_ctm, _name, image| {
         if count < 3 {
             count += 1;
             None
