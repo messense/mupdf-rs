@@ -114,8 +114,6 @@ impl Drop for Image {
 
 impl Clone for Image {
     fn clone(&self) -> Self {
-        unsafe {
-            Image::from_raw(fz_keep_image(context(), self.inner))
-        }
+        unsafe { Image::from_raw(fz_keep_image(context(), self.inner)) }
     }
 }
