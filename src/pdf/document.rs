@@ -778,4 +778,10 @@ mod test {
         assert_eq!(bounds.x1, 595.0);
         assert_eq!(bounds.y1, 842.0);
     }
+
+    #[test]
+    fn test_pdf_document_find_page() {
+        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let _page = doc.find_page(0).unwrap();
+    }
 }

@@ -2531,6 +2531,7 @@ pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_
     fz_try(ctx)
     {
         obj = pdf_lookup_page_obj(ctx, pdf, page_no);
+        pdf_keep_obj(ctx, obj);
     }
     fz_catch(ctx)
     {
