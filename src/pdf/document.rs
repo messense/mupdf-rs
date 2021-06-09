@@ -707,7 +707,7 @@ mod test {
 
         let obj = pdf.new_name("Type").unwrap();
         assert!(obj.is_name().unwrap());
-        assert_eq!(obj.as_name().unwrap(), "Type");
+        assert_eq!(obj.as_name().unwrap(), b"Type");
         assert_eq!(obj.to_string(), "/Type");
 
         let obj = pdf.new_array().unwrap();
