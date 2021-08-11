@@ -266,7 +266,7 @@ fn build_libmupdf() {
     let mupdf_src_dir = current_dir.join("mupdf");
     cp_r(&mupdf_src_dir, &build_dir);
 
-    let devenv = cc::windows_registry::find(target.as_str(), "devenv.exe");
+    let devenv = cc::windows_registry::find(target.as_str(), "devenv.com");
     if let Some(mut devenv) = devenv {
         let d = devenv
             .args(&["/upgrade", "platform\\win32\\mupdf.sln"])
@@ -305,7 +305,7 @@ fn build_libmupdf() {
         if cfg!(not(feature = "js")) {
             cl_env.push("/DFZ_ENABLE_JS#0".to_string());
         }
-        let d = cc::windows_registry::find(target.as_str(), "devenv.exe")
+        let d = cc::windows_registry::find(target.as_str(), "devenv.com")
             .unwrap()
             .args(&[
                 "platform\\win32\\mupdf.sln",
