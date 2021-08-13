@@ -71,11 +71,11 @@ impl PdfAnnotation {
     }
 
     pub fn is_hot(&self) -> bool {
-        unsafe { (*self.inner).is_hot > 0 }
+        unsafe { pdf_annot_hot(context(), self.inner) != 0 }
     }
 
     pub fn is_active(&self) -> bool {
-        unsafe { (*self.inner).is_active > 0 }
+        unsafe { pdf_annot_active(context(), self.inner) != 0 }
     }
 
     pub fn author(&self) -> Result<Option<&str>, Error> {

@@ -178,7 +178,6 @@ mod test {
         assert_eq!(hits.len(), 0);
     }
 
-    #[cfg(not(target_os = "macos"))] // test fails on macOS sometimes
     #[test]
     fn test_multi_threaded_display_list_search() {
         use crossbeam_utils::thread;

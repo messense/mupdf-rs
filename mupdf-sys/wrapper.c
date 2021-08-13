@@ -2502,7 +2502,6 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
         resources = pdf_add_object_drop(ctx, pdf, pdf_new_dict(ctx, pdf, 1));
         page_obj = pdf_add_page(ctx, pdf, mediabox, 0, resources, contents);
         pdf_insert_page(ctx, pdf, page_no, page_obj);
-        pdf->dirty = 1;
         int n = page_no;
         int page_count = pdf_count_pages(ctx, pdf);
         while (n < 0)
@@ -2974,7 +2973,6 @@ void mupdf_pdf_page_set_rotation(fz_context *ctx, pdf_page *page, int rotation, 
     fz_try(ctx)
     {
         pdf_dict_put_int(ctx, page->obj, PDF_NAME(Rotate), (int64_t)rotation);
-        page->doc->dirty = 1;
     }
     fz_catch(ctx)
     {
@@ -3003,7 +3001,6 @@ void mupdf_pdf_page_set_crop_box(fz_context *ctx, pdf_page *page, fz_rect rect, 
     {
         mupdf_save_error(ctx, errptr);
     }
-    page->doc->dirty = 1;
 }
 
 fz_point mupdf_pdf_page_crop_box_position(fz_context *ctx, pdf_page *page)
@@ -3090,7 +3087,7 @@ void mupdf_pdf_filter_annot_contents(fz_context *ctx, pdf_annot *annot, pdf_filt
 {
     fz_try(ctx)
     {
-        pdf_filter_annot_contents(ctx, annot->page->doc, annot, filter);
+        pdf_filter_annot_contents(ctx, pdf_annot_page(ctx, annot)->doc, annot, filter);
     }
     fz_catch(ctx)
     {

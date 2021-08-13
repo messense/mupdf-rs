@@ -33,6 +33,7 @@ exclude = [
     "mupdf/thirdparty/gumbo-parser/test/*",
     "mupdf/thirdparty/gumbo-parser/python/*",
     "mupdf/thirdparty/gumbo-parser/benchmarks/*",
+    "mupdf/thirdparty/extract/test/*",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
