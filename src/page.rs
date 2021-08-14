@@ -13,11 +13,15 @@ use crate::{
 #[derive(Debug)]
 pub struct Page {
     pub(crate) inner: *mut fz_page,
+    pub(crate) doc: *mut fz_document,
 }
 
 impl Page {
     pub(crate) unsafe fn from_raw(raw: *mut fz_page) -> Self {
-        Self { inner: raw }
+        Self {
+            inner: raw,
+            doc: (*raw).doc,
+        }
     }
 
     pub fn bounds(&self) -> Result<Rect, Error> {
@@ -263,7 +267,10 @@ impl Page {
 
     pub fn links(&self) -> Result<LinkIter, Error> {
         let next = unsafe { ffi_try!(mupdf_load_links(context(), self.inner)) };
-        Ok(LinkIter { next })
+        Ok(LinkIter {
+            next,
+            doc: self.doc,
+        })
     }
 
     pub fn separations(&self) -> Result<Separations, Error> {
@@ -317,6 +324,7 @@ impl Drop for Page {
 #[derive(Debug)]
 pub struct LinkIter {
     next: *mut fz_link,
+    doc: *mut fz_document,
 }
 
 impl Iterator for LinkIter {
@@ -335,7 +343,7 @@ impl Iterator for LinkIter {
             if fz_is_external_link(context(), (*node).uri) == 0 {
                 page = fz_resolve_link(
                     context(),
-                    (*node).doc as _,
+                    self.doc,
                     (*node).uri,
                     ptr::null_mut(),
                     ptr::null_mut(),

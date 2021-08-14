@@ -159,7 +159,7 @@ impl Iterator for AnnotationIter {
         }
         let node = self.next;
         unsafe {
-            self.next = (*node).next;
+            self.next = pdf_next_annot(context(), node);
             Some(PdfAnnotation::from_raw(node))
         }
     }
