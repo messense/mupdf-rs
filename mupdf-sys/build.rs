@@ -342,7 +342,7 @@ fn build_libmupdf() {
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
     } else {
-        eprintln!("failed to find devenv. Do you have it installed?");
+        panic!("failed to find devenv. Do you have it installed?");
     }
 }
 
