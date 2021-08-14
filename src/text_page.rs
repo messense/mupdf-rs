@@ -1,6 +1,7 @@
 use std::convert::TryInto;
 use std::ffi::CString;
 use std::io::Read;
+use std::marker::PhantomData;
 use std::ptr;
 use std::slice;
 
@@ -46,6 +47,7 @@ impl TextPage {
     pub fn blocks(&self) -> TextBlockIter {
         TextBlockIter {
             next: unsafe { (*self.inner).first_block },
+            _marker: PhantomData,
         }
     }
 
@@ -98,37 +100,38 @@ pub enum TextBlockType {
 }
 
 /// A text block is a list of lines of text (typically a paragraph), or an image.
-#[derive(Debug)]
-pub struct TextBlock {
-    inner: *mut fz_stext_block,
+pub struct TextBlock<'a> {
+    inner: &'a fz_stext_block,
 }
 
-impl TextBlock {
+impl TextBlock<'_> {
     pub fn r#type(&self) -> TextBlockType {
-        unsafe { ((*self.inner).type_ as u32).try_into().unwrap() }
+        (self.inner.type_ as u32).try_into().unwrap()
     }
 
     pub fn bounds(&self) -> Rect {
-        unsafe { (*self.inner).bbox.into() }
+        self.inner.bbox.into()
     }
 
     pub fn lines(&self) -> TextLineIter {
         unsafe {
-            if (*self.inner).type_ == FZ_STEXT_BLOCK_TEXT as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as _ {
                 return TextLineIter {
-                    next: (*self.inner).u.t.first_line,
+                    next: self.inner.u.t.first_line,
+                    _marker: PhantomData,
                 };
             }
         }
         TextLineIter {
             next: ptr::null_mut(),
+            _marker: PhantomData,
         }
     }
 
     pub fn ctm(&self) -> Option<Matrix> {
         unsafe {
-            if (*self.inner).type_ == FZ_STEXT_BLOCK_IMAGE as _ {
-                return Some((*self.inner).u.i.transform.into());
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+                return Some(self.inner.u.i.transform.into());
             }
         }
         None
@@ -136,8 +139,8 @@ impl TextBlock {
 
     pub fn image(&self) -> Option<Image> {
         unsafe {
-            if (*self.inner).type_ == FZ_STEXT_BLOCK_IMAGE as _ {
-                let inner = (*self.inner).u.i.image;
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+                let inner = self.inner.u.i.image;
                 fz_keep_image(context(), inner);
                 return Some(Image::from_raw(inner));
             }
@@ -147,59 +150,62 @@ impl TextBlock {
 }
 
 #[derive(Debug)]
-pub struct TextBlockIter {
+pub struct TextBlockIter<'a> {
     next: *mut fz_stext_block,
+    _marker: PhantomData<TextBlock<'a>>,
 }
 
-impl Iterator for TextBlockIter {
-    type Item = TextBlock;
+impl<'a> Iterator for TextBlockIter<'a> {
+    type Item = TextBlock<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next.is_null() {
             return None;
         }
-        let node = self.next;
-        self.next = unsafe { (*node).next };
+        let node = unsafe { &*self.next };
+        self.next = node.next;
         Some(TextBlock { inner: node })
     }
 }
 
 /// A text line is a list of characters that share a common baseline.
 #[derive(Debug)]
-pub struct TextLine {
-    inner: *mut fz_stext_line,
+pub struct TextLine<'a> {
+    inner: &'a fz_stext_line,
 }
 
-impl TextLine {
+impl TextLine<'_> {
     pub fn bounds(&self) -> Rect {
-        unsafe { (*self.inner).bbox.into() }
+        self.inner.bbox.into()
     }
 
     pub fn wmode(&self) -> WriteMode {
-        unsafe { ((*self.inner).wmode as u32).try_into().unwrap() }
+        (self.inner.wmode as u32).try_into().unwrap()
     }
 
     pub fn chars(&self) -> TextCharIter {
         TextCharIter {
-            next: unsafe { (*self.inner).first_char },
+            next: self.inner.first_char,
+            _marker: PhantomData,
         }
     }
 }
 
 #[derive(Debug)]
-pub struct TextLineIter {
+pub struct TextLineIter<'a> {
     next: *mut fz_stext_line,
+    _marker: PhantomData<TextLine<'a>>,
 }
 
-impl Iterator for TextLineIter {
-    type Item = TextLine;
+impl<'a> Iterator for TextLineIter<'a> {
+    type Item = TextLine<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next.is_null() {
             return None;
         }
-        let node = self.next;
-        self.next = unsafe { (*node).next };
+        let node = unsafe { &*self.next };
+        self.next = node.next;
         Some(TextLine { inner: node })
     }
 }
@@ -207,38 +213,39 @@ impl Iterator for TextLineIter {
 /// A text char is a unicode character, the style in which is appears,
 /// and the point at which it is positioned.
 #[derive(Debug)]
-pub struct TextChar {
-    inner: *mut fz_stext_char,
+pub struct TextChar<'a> {
+    inner: &'a fz_stext_char,
 }
 
-impl TextChar {
+impl TextChar<'_> {
     pub fn char(&self) -> Option<char> {
-        std::char::from_u32(unsafe { (*self.inner).c as u32 })
+        std::char::from_u32(self.inner.c as u32)
     }
 
     pub fn origin(&self) -> Point {
-        unsafe { (*self.inner).origin.into() }
+        self.inner.origin.into()
     }
 
     pub fn size(&self) -> f32 {
-        unsafe { (*self.inner).size }
+        self.inner.size
     }
 }
 
 #[derive(Debug)]
-pub struct TextCharIter {
+pub struct TextCharIter<'a> {
     next: *mut fz_stext_char,
+    _marker: PhantomData<TextChar<'a>>,
 }
 
-impl Iterator for TextCharIter {
-    type Item = TextChar;
+impl<'a> Iterator for TextCharIter<'a> {
+    type Item = TextChar<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.next.is_null() {
             return None;
         }
-        let node = self.next;
-        self.next = unsafe { (*node).next };
+        let node = unsafe { &*self.next };
+        self.next = node.next;
         Some(TextChar { inner: node })
     }
 }

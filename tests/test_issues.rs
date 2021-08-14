@@ -17,13 +17,16 @@ fn test_issue_16_pixmap_to_png() {
 #[test]
 fn test_issue_27_flatten() {
     let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
-    let blocks = doc
+    let pages = doc
         .pages()
         .unwrap()
         .map(|page| Ok(page?.to_text_page(TextPageOptions::PRESERVE_LIGATURES)?))
         .collect::<Result<Vec<_>, Error>>()
-        .unwrap()
-        .into_iter()
+        .unwrap();
+    // The original code from the issue doesn't compile anymore since `pages` is required to hold
+    // ownership.
+    let blocks = pages
+        .iter()
         .map(|text_page| text_page.blocks())
         .flatten()
         .collect::<Vec<_>>();
