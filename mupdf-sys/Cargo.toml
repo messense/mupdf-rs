@@ -51,7 +51,7 @@ exclude = [
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
-license = "GPL-3.0"
+license = "AGPL-3.0"
 links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 

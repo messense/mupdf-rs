@@ -5,7 +5,7 @@ authors = ["messense <messense@icloud.com>"]
 edition = "2018"
 description = "Safe Rust wrapper to MuPDF"
 keywords = ["pdf", "mupdf"]
-license = "GPL-3.0"
+license = "AGPL-3.0"
 readme = "README.md"
 repository = "https://github.com/messense/mupdf-rs"
 
