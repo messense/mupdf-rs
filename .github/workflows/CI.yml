@@ -49,6 +49,12 @@ jobs:
         if: matrix.os != 'windows-latest'
         with:
           command: test
+      - name: Test package mupdf-sys
+        uses: actions-rs/cargo@v1
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          command: package
+          args: --manifest-path mupdf-sys/Cargo.toml
 
   asan:
     name: Address Sanitizer
