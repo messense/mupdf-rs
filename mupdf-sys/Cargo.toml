@@ -4,6 +4,8 @@ version = "0.1.3"
 authors = ["messense <messense@icloud.com>"]
 edition = "2018"
 exclude = [
+    "mupdf/resources/cmaps/*",
+    "mupdf/resources/icc/*",
     "mupdf/resources/fonts/droid/*",
     "mupdf/resources/fonts/han/*",
     "mupdf/resources/fonts/noto/*",
@@ -21,19 +23,31 @@ exclude = [
     "mupdf/thirdparty/lcms2/testbed/*",
     "mupdf/thirdparty/lcms2/plugins/*",
     "mupdf/thirdparty/freetype/docs/*",
+    "mupdf/thirdparty/freetype/ChangeLog*",
     "mupdf/thirdparty/libjpeg/testimg*",
     "mupdf/thirdparty/openjpeg/doc/*",
     "mupdf/thirdparty/harfbuzz/docs/*",
     "mupdf/thirdparty/harfbuzz/test/*",
+    "mupdf/thirdparty/harfbuzz/meson-cc-tests/*",
+    "mupdf/thirdparty/harfbuzz/perf/*",
     "mupdf/thirdparty/mujs/docs/*",
     "mupdf/thirdparty/zlib/doc/*",
     "mupdf/thirdparty/zlib/test/*",
     "mupdf/thirdparty/zlib/contrib/*",
     "mupdf/thirdparty/zlib/examples/*",
-    "mupdf/thirdparty/gumbo-parser/test/*",
+    "mupdf/thirdparty/gumbo-parser/examples/*",
+    "mupdf/thirdparty/gumbo-parser/tests/*",
     "mupdf/thirdparty/gumbo-parser/python/*",
     "mupdf/thirdparty/gumbo-parser/benchmarks/*",
+    "mupdf/thirdparty/leptonica/prog/*",
+    "mupdf/thirdparty/leptonica/version-notes.html",
     "mupdf/thirdparty/extract/test/*",
+    "mupdf/thirdparty/tesseract/abseil/*",
+    "mupdf/thirdparty/tesseract/unittest/*",
+    "mupdf/thirdparty/tesseract/googletest/*",
+    "mupdf/thirdparty/tesseract/test/*",
+    "mupdf/thirdparty/tesseract/java/*",
+    "mupdf/thirdparty/tesseract/doc/*",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
