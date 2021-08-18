@@ -266,20 +266,8 @@ fn build_libmupdf() {
     let mupdf_src_dir = current_dir.join("mupdf");
     cp_r(&mupdf_src_dir, &build_dir);
 
-    let devenv = cc::windows_registry::find(target.as_str(), "devenv.com");
-    if let Some(mut devenv) = devenv {
-        let d = devenv
-            .args(&["/upgrade", "platform\\win32\\mupdf.sln"])
-            .current_dir(&build_dir)
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .output()
-            .expect("failed to run devenv. Do you have it installed?");
-        if !d.status.success() {
-            let err = String::from_utf8_lossy(&d.stderr);
-            let out = String::from_utf8_lossy(&d.stdout);
-            eprintln!("Upgrade error:\nSTDERR:{}\nSTDOUT:{}", err, out);
-        }
+    let msbuild = cc::windows_registry::find(target.as_str(), "msbuild.exe");
+    if let Some(mut msbuild) = msbuild {
         let mut cl_env = Vec::new();
         for font in &SKIP_FONTS {
             cl_env.push(format!("/D{}", font));
@@ -305,21 +293,19 @@ fn build_libmupdf() {
         if cfg!(not(feature = "js")) {
             cl_env.push("/DFZ_ENABLE_JS#0".to_string());
         }
-        let d = cc::windows_registry::find(target.as_str(), "devenv.com")
-            .unwrap()
+        let d = msbuild
             .args(&[
                 "platform\\win32\\mupdf.sln",
-                "/build",
-                &format!("{}|{}", profile, msvc_platform),
-                "/project",
-                "libmupdf",
+                "/target:libmupdf",
+                &format!("/p:Configuration={}", profile),
+                &format!("/p:Platform={}", msvc_platform),
             ])
             .current_dir(&build_dir)
             .env("CL", cl_env.join(" "))
             .stdout(Stdio::inherit())
             .stderr(Stdio::inherit())
             .output()
-            .expect("failed to run devenv. Do you have it installed?");
+            .expect("failed to run msbuild. Do you have it installed?");
         if !d.status.success() {
             let err = String::from_utf8_lossy(&d.stderr);
             let out = String::from_utf8_lossy(&d.stdout);
@@ -342,7 +328,7 @@ fn build_libmupdf() {
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
     } else {
-        panic!("failed to find devenv. Do you have it installed?");
+        panic!("failed to find msbuild. Do you have it installed?");
     }
 }
 
