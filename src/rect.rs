@@ -4,6 +4,9 @@ use mupdf_sys::*;
 
 use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
 
+const FZ_MIN_INF_RECT: i32 = 0x80000000u32 as i32;
+const FZ_MAX_INF_RECT: i32 = 0x7fffff80u32 as i32;
+
 /// A rectangle using integers instead of floats
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct IRect {
@@ -15,10 +18,10 @@ pub struct IRect {
 
 impl IRect {
     pub const INF: Self = IRect {
-        x0: 1,
-        y0: 1,
-        x1: -1,
-        y1: -1,
+        x0: FZ_MIN_INF_RECT,
+        y0: FZ_MIN_INF_RECT,
+        x1: FZ_MAX_INF_RECT,
+        y1: FZ_MAX_INF_RECT,
     };
 
     pub const fn new(x0: i32, y0: i32, x1: i32, y1: i32) -> Self {
@@ -108,10 +111,10 @@ pub struct Rect {
 
 impl Rect {
     pub const INF: Self = Rect {
-        x0: 1.0,
-        y0: 1.0,
-        x1: -1.0,
-        y1: -1.0,
+        x0: FZ_MIN_INF_RECT as f32,
+        y0: FZ_MIN_INF_RECT as f32,
+        x1: FZ_MAX_INF_RECT as f32,
+        y1: FZ_MAX_INF_RECT as f32,
     };
 
     pub const fn new(x0: f32, y0: f32, x1: f32, y1: f32) -> Self {
