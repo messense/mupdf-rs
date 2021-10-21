@@ -15,7 +15,7 @@ fn count_images(doc: &PdfDocument, page_num: i32) -> Result<i32, Error> {
     for i in 0..len {
         let key = objs.get_dict_key(i)?.unwrap();
         let key_name = key.as_name()?;
-        if key_name.starts_with('I') {
+        if key_name.starts_with(b"I") {
             count += 1;
         }
     }
