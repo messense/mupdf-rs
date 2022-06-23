@@ -32,3 +32,32 @@ fn test_issue_27_flatten() {
         .collect::<Vec<_>>();
     assert!(!blocks.is_empty());
 }
+
+#[test]
+fn test_issue_43_malloc() {
+    const IDENTITY: mupdf::Matrix = mupdf::Matrix {
+        a: 1.0,
+        b: 0.0,
+        c: 0.0,
+        d: 1.0,
+        e: 0.0,
+        f: 0.0,
+    };
+
+    let density = 300;
+    let height = 1500;
+    let options = format!("resolution={},height={}", density, height);
+
+    let mut writer =
+        mupdf::document_writer::DocumentWriter::new("/tmp/out.png", "png", options.as_str())
+            .unwrap();
+    let doc = mupdf::document::Document::open("tests/files/dummy.pdf").unwrap();
+
+    for _ in 0..10 {
+        let page0 = doc.load_page(0).unwrap();
+        let mediabox = page0.bounds().unwrap();
+        let device = writer.begin_page(mediabox).unwrap();
+        page0.run(&device, &IDENTITY).unwrap();
+        writer.end_page().unwrap();
+    }
+}
