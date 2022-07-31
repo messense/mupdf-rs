@@ -229,6 +229,10 @@ impl TextChar<'_> {
     pub fn size(&self) -> f32 {
         self.inner.size
     }
+
+    pub fn quad(&self) -> Quad {
+        self.inner.quad.into()
+    }
 }
 
 #[derive(Debug)]
