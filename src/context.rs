@@ -6,13 +6,14 @@ use std::sync::Mutex;
 use mupdf_sys::*;
 use once_cell::sync::Lazy;
 
-use crate::system_font;
 use crate::Error;
 
 static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
     let ctx = unsafe {
         let base_ctx = mupdf_new_base_context();
-        if cfg!(not(target_os = "android")) {
+        #[cfg(all(not(target_os = "android"), feature = "system-fonts"))]
+        {
+            use crate::system_font;
             // Android version is written in C
             fz_install_load_system_font_funcs(
                 base_ctx,
