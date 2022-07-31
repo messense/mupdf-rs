@@ -54,7 +54,9 @@ pub mod shade;
 pub mod size;
 /// Stroke state
 pub mod stroke_state;
+
 /// System font loading
+#[cfg(feature = "system-fonts")]
 pub mod system_font;
 /// Text objects
 pub mod text;
