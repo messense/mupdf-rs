@@ -447,7 +447,7 @@ mod test {
         assert_eq!(out1.page, Some(0));
         assert_eq!(out1.title, "Dummy PDF file");
         assert!(out1.uri.is_none());
-        assert_eq!(out1.x, 57.0);
-        assert_eq!(out1.y, 69.0);
+        assert_eq!(out1.x, 56.7);
+        assert_eq!(out1.y, 68.70001);
     }
 }
