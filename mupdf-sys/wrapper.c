@@ -1044,7 +1044,7 @@ fz_quad *mupdf_search_page(fz_context *ctx, fz_page *page, const char *needle, c
     }
     fz_try(ctx)
     {
-        *hit_count = fz_search_page(ctx, page, needle, result, hit_max);
+        *hit_count = fz_search_page(ctx, page, needle, NULL, result, hit_max);
     }
     fz_catch(ctx)
     {
@@ -1071,7 +1071,7 @@ fz_quad *mupdf_search_stext_page(fz_context *ctx, fz_stext_page *page, const cha
     }
     fz_try(ctx)
     {
-        *hit_count = fz_search_stext_page(ctx, page, needle, result, hit_max);
+        *hit_count = fz_search_stext_page(ctx, page, needle, NULL, result, hit_max);
     }
     fz_catch(ctx)
     {
@@ -1170,7 +1170,7 @@ fz_quad *mupdf_search_display_list(fz_context *ctx, fz_display_list *list, const
     }
     fz_try(ctx)
     {
-        *hit_count = fz_search_display_list(ctx, list, needle, result, hit_max);
+        *hit_count = fz_search_display_list(ctx, list, needle, NULL, result, hit_max);
     }
     fz_catch(ctx)
     {
