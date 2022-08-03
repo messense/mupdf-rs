@@ -63,28 +63,26 @@ fn build_libmupdf() {
     let mupdf_src_dir = current_dir.join("mupdf");
     cp_r(&mupdf_src_dir, &build_dir);
 
-    // see https://github.com/ArtifexSoftware/mupdf/blob/master/include/mupdf/fitz/config.h
-    let xcflags = vec![
-        #[cfg(not(feature = "xps"))]
-        "FZ_ENABLE_XPS=0",
-        #[cfg(not(feature = "svg"))]
-        "FZ_ENABLE_SVG=0",
-        #[cfg(not(feature = "cbz"))]
-        "FZ_ENABLE_CBZ=0",
-        #[cfg(not(feature = "img"))]
-        "FZ_ENABLE_IMG=0",
-        #[cfg(not(feature = "html"))]
-        "FZ_ENABLE_HTML=0",
-        #[cfg(not(feature = "epub"))]
-        "FZ_ENABLE_EPUB=0",
-        #[cfg(not(feature = "js"))]
-        "FZ_ENABLE_JS=0",
-    ]
-    .into_iter()
-    .chain(SKIP_FONTS.iter().cloned())
-    .map(|s| format!("-D{}", s))
-    .collect::<Vec<String>>()
-    .join(" ");
+    let mut build = cc::Build::new();
+    #[cfg(not(feature = "xps"))]
+    build.define("FZ_ENABLE_XPS", Some("0"));
+    #[cfg(not(feature = "svg"))]
+    build.define("FZ_ENABLE_SVG", Some("0"));
+    #[cfg(not(feature = "cbz"))]
+    build.define("FZ_ENABLE_CBZ", Some("0"));
+    #[cfg(not(feature = "img"))]
+    build.define("FZ_ENABLE_IMG", Some("0"));
+    #[cfg(not(feature = "html"))]
+    build.define("FZ_ENABLE_HTML", Some("0"));
+    #[cfg(not(feature = "epub"))]
+    build.define("FZ_ENABLE_EPUB", Some("0"));
+    #[cfg(not(feature = "js"))]
+    build.define("FZ_ENABLE_JS", Some("0"));
+
+    SKIP_FONTS.iter().for_each(|font| {
+        build.define(font, None);
+    });
+
     let mut make_flags = vec![
         "libs".to_owned(),
         format!("build={}", profile),
@@ -113,7 +111,6 @@ fn build_libmupdf() {
         "HAVE_GLUT=no".to_owned(),
         "HAVE_CURL=no".to_owned(),
         "verbose=yes".to_owned(),
-        format!("XCFLAGS={}", xcflags),
     ];
 
     if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-freetype") {
@@ -217,6 +214,21 @@ fn build_libmupdf() {
                 .join(" ")
         ));
     }
+    //
+    // The mupdf Makefile does not do a very good job of detecting
+    // and acting on cross-compilation, so we'll let the `cc` crate do it.
+    let c_compiler = build.get_compiler();
+    let cc = c_compiler.path().to_string_lossy();
+    let c_flags = c_compiler.cflags_env();
+
+    let cxx_compiler = build.cpp(true).get_compiler();
+    let cxx = cxx_compiler.path().to_string_lossy();
+    let cxx_flags = cxx_compiler.cflags_env();
+
+    make_flags.push(format!("CC={}", cc));
+    make_flags.push(format!("CXX={}", cxx));
+    make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
+    make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
 
     let make = if cfg!(any(
         target_os = "freebsd",
