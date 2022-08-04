@@ -24,6 +24,7 @@ jobs:
     name: Test Suite
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019]
     steps:
@@ -72,13 +73,13 @@ jobs:
         with:
           profile: minimal
           toolchain: nightly
+          components: rust-src
           override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --target x86_64-unknown-linux-gnu
+      - name: cargo test
+        run: |
+          cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
         env:
-          RUSTFLAGS: -Z sanitizer=address
+          RUSTFLAGS: -Zsanitizer=address
 
   fmt:
     name: Rustfmt
