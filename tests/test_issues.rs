@@ -48,9 +48,12 @@ fn test_issue_43_malloc() {
     let height = 1500;
     let options = format!("resolution={},height={}", density, height);
 
-    let mut writer =
-        mupdf::document_writer::DocumentWriter::new("tests/files/out.png", "png", options.as_str())
-            .unwrap();
+    let mut writer = mupdf::document_writer::DocumentWriter::new(
+        "tests/output/issue_43.png",
+        "png",
+        options.as_str(),
+    )
+    .unwrap();
     let doc = mupdf::document::Document::open("tests/files/dummy.pdf").unwrap();
 
     for _ in 0..2 {
