@@ -49,15 +49,15 @@ fn test_issue_43_malloc() {
     let options = format!("resolution={},height={}", density, height);
 
     let mut writer =
-        mupdf::document_writer::DocumentWriter::new("/tmp/out.png", "png", options.as_str())
+        mupdf::document_writer::DocumentWriter::new("tests/files/out.png", "png", options.as_str())
             .unwrap();
     let doc = mupdf::document::Document::open("tests/files/dummy.pdf").unwrap();
 
-    for _ in 0..10 {
+    for _ in 0..2 {
         let page0 = doc.load_page(0).unwrap();
         let mediabox = page0.bounds().unwrap();
         let device = writer.begin_page(mediabox).unwrap();
         page0.run(&device, &IDENTITY).unwrap();
-        writer.end_page().unwrap();
+        writer.end_page(device).unwrap();
     }
 }

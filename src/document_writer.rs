@@ -37,8 +37,13 @@ impl DocumentWriter {
         }
     }
 
-    pub fn end_page(&mut self) -> Result<(), Error> {
+    pub fn end_page(&mut self, mut device: Device) -> Result<(), Error> {
         unsafe {
+            // End page closes and drops the device. Prevent dropping it twice
+            // by setting the inner device to null here. Order is important here,
+            // because the ffi_try! on the end page can return early while already
+            // having dropped the device, causing a double-free anyway.
+            device.dev = ptr::null_mut();
             ffi_try!(mupdf_document_writer_end_page(context(), self.inner));
         }
         Ok(())
