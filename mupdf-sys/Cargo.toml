@@ -76,6 +76,7 @@ sys-lib-zlib = []
 sys-lib-leptonica = []
 # Use system tesseract
 sys-lib-tesseract = []
+all-fonts = []
 js = []
 xps = []
 svg = []

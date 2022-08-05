@@ -79,9 +79,11 @@ fn build_libmupdf() {
     #[cfg(not(feature = "js"))]
     build.define("FZ_ENABLE_JS", Some("0"));
 
-    SKIP_FONTS.iter().for_each(|font| {
-        build.define(font, None);
-    });
+    if !cfg!(feature = "all-fonts") {
+        SKIP_FONTS.iter().for_each(|font| {
+            build.define(font, None);
+        });
+    }
 
     let mut make_flags = vec![
         "libs".to_owned(),
@@ -283,8 +285,10 @@ fn build_libmupdf() {
     let msbuild = cc::windows_registry::find(target.as_str(), "msbuild.exe");
     if let Some(mut msbuild) = msbuild {
         let mut cl_env = Vec::new();
-        for font in &SKIP_FONTS {
-            cl_env.push(format!("/D{}", font));
+        if !cfg!(feature = "all-fonts") {
+            for font in &SKIP_FONTS {
+                cl_env.push(format!("/D{}", font));
+            }
         }
         if cfg!(not(feature = "xps")) {
             cl_env.push("/DFZ_ENABLE_XPS#0".to_string());

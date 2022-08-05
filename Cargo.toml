@@ -39,6 +39,7 @@ cbz = ["mupdf-sys/cbz"]
 img = ["mupdf-sys/img"]
 html = ["mupdf-sys/html"]
 epub = ["mupdf-sys/epub"]
+all-fonts = ["mupdf-sys/all-fonts"]
 system-fonts = ["font-kit"]
 
 [dependencies]
