@@ -83,6 +83,7 @@ cbz = []
 img = []
 html = []
 epub = []
+tesseract = []
 
 [build-dependencies]
 bindgen = { version = "0.60", default-features = false, features = ["runtime"] }

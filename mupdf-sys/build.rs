@@ -103,6 +103,8 @@ fn build_libmupdf() {
         "USE_SYSTEM_ZLIB=yes".to_owned(),
         #[cfg(feature = "sys-lib-leptonica")]
         "USE_SYSTEM_LEPTONICA=yes".to_owned(),
+        #[cfg(not(feature = "tesseract"))]
+        "USE_TESSERACT=no".to_owned(),
         #[cfg(feature = "sys-lib-tesseract")]
         "USE_SYSTEM_TESSERACT=yes".to_owned(),
         #[cfg(feature = "sys-lib")]
