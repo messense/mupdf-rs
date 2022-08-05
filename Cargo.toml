@@ -10,7 +10,7 @@ readme = "README.md"
 repository = "https://github.com/messense/mupdf-rs"
 
 [features]
-default = ["js", "xps", "svg", "cbz", "img", "html", "epub", "system-fonts"]
+default = ["js", "xps", "svg", "cbz", "img", "html", "epub", "system-fonts", "tesseract"]
 # Use system libs for all thirdparty libs
 sys-lib = ["mupdf-sys/sys-lib"]
 # Use system freetype
@@ -31,6 +31,7 @@ sys-lib-zlib = ["mupdf-sys/sys-lib-zlib"]
 sys-lib-leptonica = ["mupdf-sys/sys-lib-leptonica"]
 # Use system tesseract
 sys-lib-tesseract = ["mupdf-sys/sys-lib-tesseract"]
+tesseract = ["mupdf-sys/tesseract"]
 js = ["mupdf-sys/js"]
 xps = ["mupdf-sys/xps"]
 svg = ["mupdf-sys/svg"]
