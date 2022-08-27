@@ -81,6 +81,24 @@ jobs:
         env:
           RUSTFLAGS: -Zsanitizer=address
 
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          fetch-depth: 500
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.61.0
+          override: true
+      - uses: taiki-e/install-action@valgrind
+      - name: Install cargo-valgrind
+        run: cargo install cargo-valgrind
+      - run: cargo valgrind test
+
   fmt:
     name: Rustfmt
     runs-on: ubuntu-latest
