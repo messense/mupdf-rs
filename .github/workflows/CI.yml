@@ -1,6 +1,15 @@
-on: [push, pull_request]
-
 name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
 
 jobs:
   check:
@@ -80,6 +89,24 @@ jobs:
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
         env:
           RUSTFLAGS: -Zsanitizer=address
+
+  valgrind:
+    name: Valgrind
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          fetch-depth: 500
+      - uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: 1.61.0
+          override: true
+      - uses: taiki-e/install-action@valgrind
+      - name: Install cargo-valgrind
+        run: cargo install cargo-valgrind
+      - run: cargo valgrind test
 
   fmt:
     name: Rustfmt
