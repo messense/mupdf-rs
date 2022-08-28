@@ -104,8 +104,7 @@ jobs:
           toolchain: 1.61.0
           override: true
       - uses: taiki-e/install-action@valgrind
-      - name: Install cargo-valgrind
-        run: cargo install cargo-valgrind
+      - uses: taiki-e/install-action@cargo-valgrind
       - run: cargo valgrind test
 
   fmt:
