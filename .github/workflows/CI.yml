@@ -16,18 +16,12 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
           fetch-depth: 500
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo check
 
   test:
     name: Test Suite
@@ -37,53 +31,39 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
           fetch-depth: 500
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
+      - uses: dtolnay/rust-toolchain@stable
       - name: Install LLVM
         if: matrix.os == 'windows-2019'
         run: choco install -y llvm
       - name: Setup msbuild
         if: matrix.os == 'windows-2019'
         uses: microsoft/setup-msbuild@v1.1
-      - uses: actions-rs/cargo@v1
+      - run: cargo test
         timeout-minutes: 20
         if: matrix.os == 'windows-2019'
         env:
           LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
-        with:
-          command: test
-      - uses: actions-rs/cargo@v1
+      - run: cargo test
         if: matrix.os != 'windows-2019'
-        with:
-          command: test
       - name: Test package mupdf-sys
-        uses: actions-rs/cargo@v1
         if: matrix.os == 'ubuntu-latest'
-        with:
-          command: package
-          args: --manifest-path mupdf-sys/Cargo.toml
+        run: cargo package --manifest-path mupdf-sys/Cargo.toml
 
   asan:
     name: Address Sanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
           fetch-depth: 500
-      - uses: actions-rs/toolchain@v1
+      - uses: dtolnay/rust-toolchain@nightly
         with:
-          profile: minimal
-          toolchain: nightly
           components: rust-src
-          override: true
       - name: cargo test
         run: |
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
@@ -94,15 +74,11 @@ jobs:
     name: Valgrind
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
           fetch-depth: 500
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: 1.61.0
-          override: true
+      - uses: dtolnay/rust-toolchain@1.61.0
       - uses: taiki-e/install-action@valgrind
       - uses: taiki-e/install-action@cargo-valgrind
       - run: cargo valgrind test
@@ -111,14 +87,8 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
         with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+          components: rustfmt
+      - run: cargo fmt --all --check
