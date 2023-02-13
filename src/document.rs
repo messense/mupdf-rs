@@ -142,7 +142,7 @@ impl Document {
         if !pdf.is_null() {
             return true;
         }
-        return false;
+        false
     }
 
     pub fn convert_to_pdf(

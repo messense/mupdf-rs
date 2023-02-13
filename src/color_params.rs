@@ -58,9 +58,9 @@ impl ColorParams {
     }
 }
 
-impl Into<fz_color_params> for ColorParams {
-    fn into(self) -> fz_color_params {
-        let flags = self.0;
+impl From<ColorParams> for fz_color_params {
+    fn from(val: ColorParams) -> Self {
+        let flags = val.0;
         let bp = ((flags >> 5) & 1) as u8;
         let op = ((flags >> 6) & 1) as u8;
         let opm = ((flags >> 7) & 1) as u8;

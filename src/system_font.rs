@@ -41,7 +41,7 @@ pub unsafe extern "C" fn load_system_font(
                     } else {
                         Style::Normal
                     });
-                font_source.select_best_match(&[FamilyName::Title(name.to_string())], &properties)
+                font_source.select_best_match(&[FamilyName::Title(name.to_string())], properties)
             }
         };
         if let Ok(handle) = handle {
@@ -59,10 +59,10 @@ pub unsafe extern "C" fn load_system_font(
             };
             match font {
                 Ok(font) => {
-                    if needs_exact_metrics == 1 {
-                        if (bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()) {
-                            return ptr::null_mut();
-                        }
+                    if needs_exact_metrics == 1
+                        && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
+                    {
+                        return ptr::null_mut();
                     }
                     fz_keep_font(ctx, font.inner);
                     return font.inner;

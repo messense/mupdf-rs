@@ -93,9 +93,9 @@ impl From<fz_irect> for IRect {
     }
 }
 
-impl Into<fz_irect> for IRect {
-    fn into(self) -> fz_irect {
-        let IRect { x0, y0, x1, y1 } = self;
+impl From<IRect> for fz_irect {
+    fn from(val: IRect) -> Self {
+        let IRect { x0, y0, x1, y1 } = val;
         fz_irect { x0, y0, x1, y1 }
     }
 }
@@ -221,9 +221,9 @@ impl From<fz_rect> for Rect {
     }
 }
 
-impl Into<fz_rect> for Rect {
-    fn into(self) -> fz_rect {
-        let Rect { x0, y0, x1, y1 } = self;
+impl From<Rect> for fz_rect {
+    fn from(val: Rect) -> Self {
+        let Rect { x0, y0, x1, y1 } = val;
         fz_rect { x0, y0, x1, y1 }
     }
 }
