@@ -1,3 +1,5 @@
+#![allow(clippy::unnecessary_cast)]
+
 /// Error types
 #[rustfmt::skip] #[macro_use] pub mod error;
 /// Bitmaps used for creating halftoned versions of contone buffers, and saving out

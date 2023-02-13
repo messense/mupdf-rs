@@ -84,7 +84,7 @@ impl<'a> PdfFilterOptions<'a> {
     }
 
     /// Sets a callback for the filter, which will be given the initial
-    /// transformation matrix, the image name (or "<inline>") and the image.
+    /// transformation matrix, the image name (or "\<inline\>") and the image.
     ///
     /// The returned image has to be a new one, so `image.clone()` can be used
     /// to keep the same.

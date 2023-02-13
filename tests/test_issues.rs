@@ -20,15 +20,14 @@ fn test_issue_27_flatten() {
     let pages = doc
         .pages()
         .unwrap()
-        .map(|page| Ok(page?.to_text_page(TextPageOptions::PRESERVE_LIGATURES)?))
+        .map(|page| page?.to_text_page(TextPageOptions::PRESERVE_LIGATURES))
         .collect::<Result<Vec<_>, Error>>()
         .unwrap();
     // The original code from the issue doesn't compile anymore since `pages` is required to hold
     // ownership.
     let blocks = pages
         .iter()
-        .map(|text_page| text_page.blocks())
-        .flatten()
+        .flat_map(|text_page| text_page.blocks())
         .collect::<Vec<_>>();
     assert!(!blocks.is_empty());
 }

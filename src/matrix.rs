@@ -161,16 +161,16 @@ impl From<fz_matrix> for Matrix {
     }
 }
 
-impl Into<fz_matrix> for &Matrix {
-    fn into(self) -> fz_matrix {
-        let Matrix { a, b, c, d, e, f } = *self;
+impl From<&Matrix> for fz_matrix {
+    fn from(val: &Matrix) -> Self {
+        let Matrix { a, b, c, d, e, f } = *val;
         fz_matrix { a, b, c, d, e, f }
     }
 }
 
-impl Into<fz_matrix> for Matrix {
-    fn into(self) -> fz_matrix {
-        let Matrix { a, b, c, d, e, f } = self;
+impl From<Matrix> for fz_matrix {
+    fn from(val: Matrix) -> Self {
+        let Matrix { a, b, c, d, e, f } = val;
         fz_matrix { a, b, c, d, e, f }
     }
 }
