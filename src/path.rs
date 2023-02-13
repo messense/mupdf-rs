@@ -84,7 +84,7 @@ impl Path {
                 &c_walker,
                 raw_ptr as _
             ));
-            Box::from_raw(raw_ptr);
+            let _ = Box::from_raw(raw_ptr);
         }
         Ok(())
     }
