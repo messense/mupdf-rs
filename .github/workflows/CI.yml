@@ -80,8 +80,9 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
-      - uses: taiki-e/install-action@cargo-valgrind
-      - run: cargo valgrind test
+      - run: cargo test
+        env:
+          CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --error-exitcode=1 --track-origins=yes"
 
   fmt:
     name: Rustfmt
