@@ -8,6 +8,7 @@ use std::ptr;
 
 use crate::pdf::PdfDocument;
 use crate::{Image, Matrix, Rect};
+use crate::context::context;
 
 // Double indirection is required to pass trait objects trough FFI.
 type BoxedCallback<'a> = Box<Box<dyn FnMut(Matrix, &str, &Image) -> Option<Image> + 'a>>;
@@ -124,7 +125,9 @@ impl<'a> PdfFilterOptions<'a> {
             });
 
             if let Ok(Some(ret)) = ret {
-                ret.inner
+                // Increase reference count because the dropped `Image` (returned from `wrapper`)
+                // decreases the count
+                fz_keep_image(context(), ret.inner)
             } else {
                 ptr::null_mut()
             }
