@@ -192,7 +192,7 @@ impl PdfWriteOptions {
     }
 
     pub fn set_permissions(&mut self, value: Permission) -> &mut Self {
-        self.inner.permissions = value.bits as _;
+        self.inner.permissions = value.bits() as _;
         self
     }
 
