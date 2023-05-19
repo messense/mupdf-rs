@@ -87,7 +87,7 @@ epub = []
 tesseract = []
 
 [build-dependencies]
-bindgen = { version = "0.64", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.65", default-features = false, features = ["runtime"] }
 cc = "1.0.50"
 pkg-config = "0.3"
 
