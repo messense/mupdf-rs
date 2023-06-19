@@ -234,6 +234,11 @@ fn build_libmupdf() {
     make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
     make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
 
+    // Enable parallel compilation
+    if let Ok(n) = std::thread::available_parallelism() {
+        make_flags.push(format!("-j{}", n));
+    }
+
     let make = if cfg!(any(
         target_os = "freebsd",
         target_os = "openbsd",
