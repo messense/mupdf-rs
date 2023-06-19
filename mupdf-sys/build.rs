@@ -316,6 +316,8 @@ fn build_libmupdf() {
         if cfg!(not(feature = "js")) {
             cl_env.push("/DFZ_ENABLE_JS#0".to_string());
         }
+        // Enable parallel compilation
+        cl_env.push("/MP".to_string());
         let d = msbuild
             .args(&[
                 "platform\\win32\\mupdf.sln",
