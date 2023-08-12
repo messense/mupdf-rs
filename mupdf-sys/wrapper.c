@@ -369,12 +369,12 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_erro
     return font;
 }
 
-fz_font *mupdf_new_font_from_memory(fz_context *ctx, const char *name, int index, const unsigned char *data, int data_len, mupdf_error_t **errptr)
+fz_font *mupdf_new_font_from_buffer(fz_context *ctx, const char *name, int index, fz_buffer *buffer, mupdf_error_t **errptr)
 {
     fz_font *font = NULL;
     fz_try(ctx)
     {
-        font = fz_new_font_from_memory(ctx, name, data, data_len, index, 0);
+        font = fz_new_font_from_buffer(ctx, name, buffer, index, 0);
     }
     fz_catch(ctx)
     {
