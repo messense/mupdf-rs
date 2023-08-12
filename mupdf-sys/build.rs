@@ -256,9 +256,7 @@ fn build_libmupdf() {
         .output()
         .expect("make failed");
     if !output.status.success() {
-        let err = String::from_utf8_lossy(&output.stderr);
-        let out = String::from_utf8_lossy(&output.stdout);
-        panic!("Build error:\nSTDERR:{}\nSTDOUT:{}", err, out);
+        panic!("Build error, exit code {}", output.status.code().unwrap());
     }
     println!("cargo:rustc-link-search=native={}", build_dir.display());
     println!("cargo:rustc-link-lib=static=mupdf");

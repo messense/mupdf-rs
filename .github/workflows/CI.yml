@@ -78,7 +78,7 @@ jobs:
         with:
           submodules: 'recursive'
           fetch-depth: 500
-      - uses: dtolnay/rust-toolchain@1.61.0
+      - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
       - uses: taiki-e/install-action@cargo-valgrind
       - run: cargo valgrind test
