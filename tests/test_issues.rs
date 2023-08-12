@@ -63,3 +63,20 @@ fn test_issue_43_malloc() {
         writer.end_page(device).unwrap();
     }
 }
+
+#[test]
+fn test_issue_60_display_list() {
+    let doc = PdfDocument::open("tests/files/p11.pdf").unwrap();
+    let num_pages = doc.page_count().unwrap();
+    println!("Document has {} page(s)", num_pages);
+
+    let _display_list: Vec<(usize, mupdf::DisplayList)> = doc
+        .pages()
+        .unwrap()
+        .enumerate()
+        .map(|(index, p)| {
+            let display = p.unwrap().to_display_list(true).unwrap();
+            (index, display)
+        })
+        .collect();
+}

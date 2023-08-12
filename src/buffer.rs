@@ -39,6 +39,12 @@ impl Buffer {
         Ok(Self { inner, offset: 0 })
     }
 
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let mut buf = Buffer::with_capacity(bytes.len());
+        buf.write_bytes(bytes)?;
+        Ok(buf)
+    }
+
     pub fn with_capacity(cap: usize) -> Self {
         let inner = unsafe { fz_new_buffer(context(), cap) };
         Self { inner, offset: 0 }
@@ -46,6 +52,12 @@ impl Buffer {
 
     pub fn len(&self) -> usize {
         unsafe { fz_buffer_storage(context(), self.inner, ptr::null_mut()) }
+    }
+
+    pub fn into_inner(mut self) -> *mut fz_buffer {
+        let inner = self.inner;
+        self.inner = ptr::null_mut();
+        inner
     }
 
     fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
@@ -125,9 +137,7 @@ impl TryFrom<&[u8]> for Buffer {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        let mut buf = Buffer::with_capacity(bytes.len());
-        buf.write_bytes(bytes)?;
-        Ok(buf)
+        Buffer::from_bytes(bytes)
     }
 }
 
@@ -135,9 +145,7 @@ impl TryFrom<Vec<u8>> for Buffer {
     type Error = Error;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let mut buf = Buffer::with_capacity(bytes.len());
-        buf.write_bytes(&bytes)?;
-        Ok(buf)
+        Buffer::from_bytes(&bytes)
     }
 }
 

@@ -1,12 +1,11 @@
 use std::ffi::{CStr, CString};
 use std::fmt;
-use std::os::raw::c_int;
 use std::str::FromStr;
 
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
-use crate::{context, Error, Matrix, Path};
+use crate::{context, Buffer, Error, Matrix, Path};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -75,14 +74,13 @@ impl Font {
 
     pub fn from_bytes_with_index(name: &str, index: i32, font_data: &[u8]) -> Result<Self, Error> {
         let c_name = CString::new(name)?;
-        let data_len = font_data.len() as c_int;
+        let buffer = Buffer::from_bytes(font_data)?;
         let inner = unsafe {
-            ffi_try!(mupdf_new_font_from_memory(
+            ffi_try!(mupdf_new_font_from_buffer(
                 context(),
                 c_name.as_ptr(),
                 index,
-                font_data.as_ptr(),
-                data_len
+                buffer.into_inner()
             ))
         };
         Ok(Self { inner })
