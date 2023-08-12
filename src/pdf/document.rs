@@ -496,14 +496,6 @@ impl PdfDocument {
         Ok(false)
     }
 
-    pub fn has_xref_streams(&self) -> bool {
-        unsafe { (*self.inner).has_xref_streams > 0 }
-    }
-
-    pub fn has_old_style_xrefs(&self) -> bool {
-        unsafe { (*self.inner).has_old_style_xrefs > 0 }
-    }
-
     pub fn permissions(&self) -> Permission {
         let bits = unsafe { pdf_document_permissions(context(), self.inner) };
         Permission::from_bits(bits as u32).unwrap_or_else(Permission::all)
