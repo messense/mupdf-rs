@@ -8,6 +8,7 @@ use std::slice;
 use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
+use serde::{Deserialize, Serialize};
 
 use crate::{context, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode};
 
@@ -42,6 +43,18 @@ impl TextPage {
         let mut text = String::new();
         buf.read_to_string(&mut text)?;
         Ok(text)
+    }
+    pub fn stext_page_as_json(&self, scale: f32) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let buf = fz_new_buffer(context(), 1024);
+            let out = fz_new_output_with_buffer(context(), buf);
+            fz_print_stext_page_as_json(context(), out, self.inner, scale);
+            fz_close_output(context(), out);
+            Buffer::from_raw(buf)
+        };
+        let mut res = String::new();
+        buf.read_to_string(&mut res).unwrap();
+        Ok(res)
     }
 
     pub fn blocks(&self) -> TextBlockIter {
@@ -99,6 +112,46 @@ pub enum TextBlockType {
     Image = FZ_STEXT_BLOCK_IMAGE as u32,
 }
 
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Font {
+    pub name: String,
+    pub family: String,
+    pub weight: String,
+    pub style: String,
+    pub size: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct BBox {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Line {
+    pub wmode: u32,
+    pub bbox: BBox,
+    pub font: Font,
+    pub x: u32,
+    pub y: u32,
+    pub text: String,
+}
+
+#[derive(Deserialize, Serialize, Debug)]
+pub struct Block {
+    pub r#type: String,
+    pub bbox: BBox,
+    pub lines: Vec<Line>,
+}
+
+// StructuredText
+#[derive(Deserialize, Serialize, Debug)]
+pub struct StextPage {
+    pub blocks: Vec<Block>,
+}
+
 /// A text block is a list of lines of text (typically a paragraph), or an image.
 pub struct TextBlock<'a> {
     inner: &'a fz_stext_block,
@@ -115,7 +168,7 @@ impl TextBlock<'_> {
 
     pub fn lines(&self) -> TextLineIter {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as i32 {
                 return TextLineIter {
                     next: self.inner.u.t.first_line,
                     _marker: PhantomData,
@@ -130,7 +183,7 @@ impl TextBlock<'_> {
 
     pub fn ctm(&self) -> Option<Matrix> {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as i32 {
                 return Some(self.inner.u.i.transform.into());
             }
         }
@@ -139,7 +192,7 @@ impl TextBlock<'_> {
 
     pub fn image(&self) -> Option<Image> {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as i32 {
                 let inner = self.inner.u.i.image;
                 fz_keep_image(context(), inner);
                 return Some(Image::from_raw(inner));
@@ -257,6 +310,35 @@ impl<'a> Iterator for TextCharIter<'a> {
 #[cfg(test)]
 mod test {
     use crate::{Document, TextPageOptions};
+
+    #[test]
+    fn test_get_stext_page_as_json() {
+        let path_to_doc = std::env::current_dir().unwrap()
+            .join("tests").join("files").join("dummy.pdf");
+        let doc = Document::open(path_to_doc.to_str().unwrap()).unwrap();
+        let page = doc.load_page(0).unwrap();
+        let stext_page = page.to_text_page(TextPageOptions::empty()).unwrap();
+        match stext_page.stext_page_as_json(1.0) {
+            Ok(stext_json) => {
+                let stext_page: serde_json::Result<crate::text_page::StextPage> = serde_json::from_str(stext_json.as_str());
+                match stext_page {
+                    Ok(res) => {
+                        for block in res.blocks {
+                            if block.r#type.eq("text") {
+                                for line in block.lines {
+                                    assert_eq!(&line.text, &"Dummy PDF file".to_string());
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        println!("stext_json parsing error: {:?}", &err);
+                    }
+                }
+            }
+            Err(_) => {}
+        }
+    }
 
     #[test]
     fn test_text_page_search() {
