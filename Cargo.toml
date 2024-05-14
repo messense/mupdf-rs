@@ -2,7 +2,7 @@
 name = "mupdf"
 version = "0.4.2"
 authors = ["messense <messense@icloud.com>"]
-edition = "2018"
+edition = "2021"
 description = "Safe Rust wrapper to MuPDF"
 keywords = ["pdf", "mupdf"]
 license = "AGPL-3.0"

@@ -385,7 +385,7 @@ fn main() {
         .allowlist_var("pdf_.*")
         .allowlist_var("PDF_.*")
         .allowlist_var("UCDN_.*")
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .size_t_is_usize(true)
         .generate()
         .expect("Unable to generate bindings");
