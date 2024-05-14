@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use mupdf_sys::*;
 
 use crate::{
-    Buffer, Colorspace, context, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Quad,
+    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Quad,
     Rect, Separations, TextPage, TextPageOptions,
 };
 
@@ -239,7 +239,11 @@ impl Page {
 
     pub fn stext_page_as_json_from_page(&self, scale: f32) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_stext_page_as_json_from_page(context(), self.inner, scale));
+            let inner = ffi_try!(mupdf_stext_page_as_json_from_page(
+                context(),
+                self.inner,
+                scale
+            ));
             Buffer::from_raw(inner)
         };
         let mut res = String::new();
@@ -360,7 +364,7 @@ impl Iterator for LinkIter {
                     ptr::null_mut(),
                     ptr::null_mut(),
                 )
-                    .page;
+                .page;
             }
             Some(Link {
                 bounds,
@@ -413,18 +417,22 @@ pub struct StextPage {
 
 #[cfg(test)]
 mod test {
-    use crate::{Document, Matrix};
     use crate::page::StextPage;
+    use crate::{Document, Matrix};
 
     #[test]
     fn test_get_stext_page_as_json() {
-        let path_to_doc = std::env::current_dir().unwrap()
-            .join("tests").join("files").join("dummy.pdf");
+        let path_to_doc = std::env::current_dir()
+            .unwrap()
+            .join("tests")
+            .join("files")
+            .join("dummy.pdf");
         let doc = Document::open(path_to_doc.to_str().unwrap()).unwrap();
         let page = doc.load_page(0).unwrap();
         match page.stext_page_as_json_from_page(1.0) {
             Ok(stext_json) => {
-                let stext_page: serde_json::Result<StextPage> = serde_json::from_str(stext_json.as_str());
+                let stext_page: serde_json::Result<StextPage> =
+                    serde_json::from_str(stext_json.as_str());
                 match stext_page {
                     Ok(res) => {
                         for block in res.blocks {
