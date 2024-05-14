@@ -115,7 +115,7 @@ impl TextBlock<'_> {
 
     pub fn lines(&self) -> TextLineIter {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as i32 {
                 return TextLineIter {
                     next: self.inner.u.t.first_line,
                     _marker: PhantomData,
@@ -130,7 +130,7 @@ impl TextBlock<'_> {
 
     pub fn ctm(&self) -> Option<Matrix> {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as i32 {
                 return Some(self.inner.u.i.transform.into());
             }
         }
@@ -139,7 +139,7 @@ impl TextBlock<'_> {
 
     pub fn image(&self) -> Option<Image> {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as _ {
+            if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as i32 {
                 let inner = self.inner.u.i.image;
                 fz_keep_image(context(), inner);
                 return Some(Image::from_raw(inner));

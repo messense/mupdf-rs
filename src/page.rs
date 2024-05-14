@@ -3,6 +3,8 @@ use std::io::Read;
 use std::ptr;
 use std::slice;
 
+use serde::{Deserialize, Serialize};
+
 use mupdf_sys::*;
 
 use crate::{
@@ -235,6 +237,20 @@ impl Page {
         Ok(out)
     }
 
+    pub fn stext_page_as_json_from_page(&self, scale: f32) -> Result<String, Error> {
+        let mut buf = unsafe {
+            let inner = ffi_try!(mupdf_stext_page_as_json_from_page(
+                context(),
+                self.inner,
+                scale
+            ));
+            Buffer::from_raw(inner)
+        };
+        let mut res = String::new();
+        buf.read_to_string(&mut res).unwrap();
+        Ok(res)
+    }
+
     pub fn to_xhtml(&self) -> Result<String, Error> {
         let mut buf = unsafe {
             let inner = ffi_try!(mupdf_page_to_xhtml(context(), self.inner));
@@ -359,9 +375,82 @@ impl Iterator for LinkIter {
     }
 }
 
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Font {
+    pub name: String,
+    pub family: String,
+    pub weight: String,
+    pub style: String,
+    pub size: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct BBox {
+    pub x: u32,
+    pub y: u32,
+    pub w: u32,
+    pub h: u32,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Line {
+    pub wmode: u32,
+    pub bbox: BBox,
+    pub font: Font,
+    pub x: u32,
+    pub y: u32,
+    pub text: String,
+}
+
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct Block {
+    pub r#type: String,
+    pub bbox: BBox,
+    pub lines: Vec<Line>,
+}
+
+// StructuredText
+#[derive(Deserialize, Serialize, Debug, Clone)]
+pub struct StextPage {
+    pub blocks: Vec<Block>,
+}
+
 #[cfg(test)]
 mod test {
+    use crate::page::StextPage;
     use crate::{Document, Matrix};
+
+    #[test]
+    fn test_get_stext_page_as_json() {
+        let path_to_doc = std::env::current_dir()
+            .unwrap()
+            .join("tests")
+            .join("files")
+            .join("dummy.pdf");
+        let doc = Document::open(path_to_doc.to_str().unwrap()).unwrap();
+        let page = doc.load_page(0).unwrap();
+        match page.stext_page_as_json_from_page(1.0) {
+            Ok(stext_json) => {
+                let stext_page: serde_json::Result<StextPage> =
+                    serde_json::from_str(stext_json.as_str());
+                match stext_page {
+                    Ok(res) => {
+                        for block in res.blocks {
+                            if block.r#type.eq("text") {
+                                for line in block.lines {
+                                    assert_eq!(&line.text, &"Dummy PDF file".to_string());
+                                }
+                            }
+                        }
+                    }
+                    Err(err) => {
+                        println!("stext_page parsing error: {:?}", &err);
+                    }
+                }
+            }
+            Err(_err) => {}
+        }
+    }
 
     #[test]
     fn test_page_to_svg() {
@@ -454,20 +543,20 @@ mod test {
             [Quad {
                 ul: Point {
                     x: 56.8,
-                    y: 69.32512
+                    y: 69.32512,
                 },
                 ur: Point {
                     x: 115.85405,
-                    y: 69.32512
+                    y: 69.32512,
                 },
                 ll: Point {
                     x: 56.8,
-                    y: 87.311844
+                    y: 87.311844,
                 },
                 lr: Point {
                     x: 115.85405,
-                    y: 87.311844
-                }
+                    y: 87.311844,
+                },
             }]
         );
 
