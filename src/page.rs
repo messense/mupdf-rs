@@ -371,7 +371,7 @@ impl Iterator for LinkIter {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Font {
     pub name: String,
     pub family: String,
@@ -380,7 +380,7 @@ pub struct Font {
     pub size: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct BBox {
     pub x: u32,
     pub y: u32,
@@ -388,7 +388,7 @@ pub struct BBox {
     pub h: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Line {
     pub wmode: u32,
     pub bbox: BBox,
@@ -398,7 +398,7 @@ pub struct Line {
     pub text: String,
 }
 
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct Block {
     pub r#type: String,
     pub bbox: BBox,
@@ -406,7 +406,7 @@ pub struct Block {
 }
 
 // StructuredText
-#[derive(Deserialize, Serialize, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
 pub struct StextPage {
     pub blocks: Vec<Block>,
 }
