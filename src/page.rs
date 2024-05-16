@@ -337,6 +337,12 @@ impl Drop for Page {
     }
 }
 
+impl Clone for Page {
+    fn clone(&self) -> Self {
+        unsafe { Page::from_raw(fz_keep_page(context(), self.inner)) }
+    }
+}
+
 #[derive(Debug)]
 pub struct LinkIter {
     next: *mut fz_link,
