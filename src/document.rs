@@ -300,6 +300,12 @@ impl Drop for Document {
     }
 }
 
+impl Clone for Document {
+    fn clone(&self) -> Self {
+        unsafe { Document::from_raw(fz_keep_document(context(), self.inner)) }
+    }
+}
+
 #[derive(Debug)]
 pub struct PageIter<'a> {
     index: i32,
