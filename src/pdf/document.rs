@@ -572,6 +572,34 @@ impl PdfDocument {
         }
         Ok(())
     }
+
+    /// Delete `/Outlines` in document catalog and all the **outline items** it points to.
+    ///
+    /// Do nothing if document has no outlines.
+    pub fn delete_outlines(&mut self) -> Result<(), Error> {
+        if let Some(outlines) = self.catalog()?.get_dict("Outlines")? {
+            if let Some(outline) = outlines.get_dict("First")? {
+                self.walk_outlines_del(outline)?;
+            }
+            self.delete_object(outlines.as_indirect()?)?;
+        }
+
+        Ok(())
+    }
+
+    fn walk_outlines_del(&mut self, outline: PdfObject) -> Result<(), Error> {
+        let mut cur = Some(outline);
+
+        while let Some(item) = cur.take() {
+            if let Some(down) = item.get_dict("First")? {
+                self.walk_outlines_del(down)?;
+            }
+            cur = item.get_dict("Next")?;
+            self.delete_object(item.as_indirect()?)?;
+        }
+
+        Ok(())
+    }
 }
 
 impl Deref for PdfDocument {
