@@ -14,6 +14,8 @@ pub mod colorspace;
 pub mod context;
 /// Provide two-way communication between application and library
 pub mod cookie;
+/// Destination
+pub mod destination;
 /// Device interface
 pub mod device;
 /// A way of packaging up a stream of graphical operations
@@ -72,6 +74,7 @@ pub use colorspace::Colorspace;
 pub(crate) use context::context;
 pub use context::Context;
 pub use cookie::Cookie;
+pub use destination::{Destination, DestinationKind};
 pub use device::{BlendMode, Device};
 pub use display_list::DisplayList;
 pub use document::{Document, MetadataName};
