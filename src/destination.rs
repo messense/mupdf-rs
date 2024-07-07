@@ -4,11 +4,11 @@ use crate::Error;
 #[derive(Debug, Clone)]
 pub struct Destination {
     /// Indirect reference to page object.
-    pub page: PdfObject,
-    pub kind: DestinationKind,
+    page: PdfObject,
+    kind: DestinationKind,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum DestinationKind {
     /// Display the page at a scale which just fits the whole page
     /// in the window both horizontally and vertically.
@@ -21,7 +21,11 @@ pub enum DestinationKind {
     FitV { left: f32 },
     /// Display the page with (`left`, `top`) at the upper-left corner
     /// of the window and the page magnified by factor `zoom`.
-    XYZ { left: f32, top: f32, zoom: f32 },
+    XYZ {
+        left: Option<f32>,
+        top: Option<f32>,
+        zoom: Option<f32>,
+    },
     /// Display the page zoomed to show the rectangle specified by `left`, `bottom`, `right`, and `top`.
     FitR {
         left: f32,
@@ -41,6 +45,10 @@ pub enum DestinationKind {
 }
 
 impl Destination {
+    pub(crate) fn new(page: PdfObject, kind: DestinationKind) -> Self {
+        Self { page, kind }
+    }
+
     /// Encode destination into a PDF array.
     pub(crate) fn encode_into(self, array: &mut PdfObject) -> Result<(), Error> {
         debug_assert_eq!(array.len()?, 0);
@@ -58,9 +66,21 @@ impl Destination {
             }
             DestinationKind::XYZ { left, top, zoom } => {
                 array.array_push(PdfObject::new_name("XYZ")?)?;
-                array.array_push(PdfObject::new_real(left)?)?;
-                array.array_push(PdfObject::new_real(top)?)?;
-                array.array_push(PdfObject::new_real(zoom)?)?;
+                array.array_push(
+                    left.map(PdfObject::new_real)
+                        .transpose()?
+                        .unwrap_or(PdfObject::new_null()),
+                )?;
+                array.array_push(
+                    top.map(PdfObject::new_real)
+                        .transpose()?
+                        .unwrap_or(PdfObject::new_null()),
+                )?;
+                array.array_push(
+                    zoom.map(PdfObject::new_real)
+                        .transpose()?
+                        .unwrap_or(PdfObject::new_null()),
+                )?;
             }
             DestinationKind::FitR {
                 left,

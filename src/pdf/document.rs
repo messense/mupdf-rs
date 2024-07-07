@@ -10,8 +10,8 @@ use num_enum::TryFromPrimitive;
 
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, Buffer, CjkFontOrdering, Document, Error, Font, Image, SimpleFontEncoding, Size,
-    WriteMode,
+    context, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error, Font, Image,
+    Outline, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -570,6 +570,90 @@ impl PdfDocument {
         unsafe {
             ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no));
         }
+        Ok(())
+    }
+
+    pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {
+        self.delete_outlines()?;
+
+        if !toc.is_empty() {
+            let mut outlines = self.new_dict()?;
+            outlines.dict_put("Type", PdfObject::new_name("Outlines")?)?;
+            // Now we access outlines indirectly
+            let mut outlines = self.add_object(&outlines)?;
+            self.walk_outlines_insert(toc, &mut outlines)?;
+            self.catalog()?.dict_put("Outlines", outlines)?;
+        }
+
+        Ok(())
+    }
+
+    fn walk_outlines_insert(
+        &mut self,
+        down: &[Outline],
+        parent: &mut PdfObject,
+    ) -> Result<(), Error> {
+        debug_assert!(!down.is_empty() && parent.is_indirect()?);
+
+        // All the indirect references in the current level.
+        let mut refs = Vec::new();
+
+        for outline in down {
+            let mut item = self.new_dict()?;
+            item.dict_put("Title", PdfObject::new_string(&outline.title)?)?;
+            item.dict_put("Parent", parent.clone())?;
+            if let Some(dest) = outline
+                .page
+                .map(|page| {
+                    let page = self.find_page(page as i32)?;
+
+                    let has_x = !outline.x.is_nan();
+                    let has_y = !outline.y.is_nan();
+                    let dest_kind = match (has_x, has_y) {
+                        (true, true) => DestinationKind::XYZ {
+                            left: Some(outline.x),
+                            top: Some(outline.y),
+                            zoom: None,
+                        },
+                        (true, false) => DestinationKind::FitV { left: outline.x },
+                        (false, true) => DestinationKind::FitH { top: outline.y },
+                        (false, false) => DestinationKind::Fit,
+                    };
+                    let dest = Destination::new(page, dest_kind);
+
+                    let mut array = self.new_array()?;
+                    dest.encode_into(&mut array)?;
+
+                    Ok(array)
+                })
+                .or_else(|| outline.uri.as_deref().map(PdfObject::new_string))
+                .transpose()?
+            {
+                item.dict_put("Dest", dest)?;
+            }
+
+            refs.push(self.add_object(&item)?);
+            if !outline.down.is_empty() {
+                self.walk_outlines_insert(&outline.down, refs.last_mut().unwrap())?;
+            }
+        }
+
+        // NOTE: doing the same thing as mutation version of `slice::array_windows`
+        for i in 0..down.len().saturating_sub(1) {
+            let [prev, next, ..] = &mut refs[i..] else {
+                unreachable!();
+            };
+            prev.dict_put("Next", next.clone())?;
+            next.dict_put("Prev", prev.clone())?;
+        }
+
+        let mut refs = refs.into_iter();
+        let first = refs.next().unwrap();
+        let last = refs.last().unwrap_or_else(|| first.clone());
+
+        parent.dict_put("First", first)?;
+        parent.dict_put("Last", last)?;
+
         Ok(())
     }
 
