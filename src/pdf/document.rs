@@ -11,7 +11,7 @@ use num_enum::TryFromPrimitive;
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
     context, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error, Font, Image,
-    Outline, SimpleFontEncoding, Size, WriteMode,
+    Outline, Point, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -607,17 +607,13 @@ impl PdfDocument {
                 .map(|page| {
                     let page = self.find_page(page as i32)?;
 
-                    let has_x = !outline.x.is_nan();
-                    let has_y = !outline.y.is_nan();
-                    let dest_kind = match (has_x, has_y) {
-                        (true, true) => DestinationKind::XYZ {
-                            left: Some(outline.x),
-                            top: Some(outline.y),
-                            zoom: None,
-                        },
-                        (true, false) => DestinationKind::FitV { left: outline.x },
-                        (false, true) => DestinationKind::FitH { top: outline.y },
-                        (false, false) => DestinationKind::Fit,
+                    let matrix = page.page_ctm()?;
+                    let fz_point = Point::new(outline.x, outline.y);
+                    let Point { x, y } = fz_point.transform(&matrix);
+                    let dest_kind = DestinationKind::XYZ {
+                        left: Some(x),
+                        top: Some(y),
+                        zoom: None,
                     };
                     let dest = Destination::new(page, dest_kind);
 

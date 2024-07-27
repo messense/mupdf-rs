@@ -7,7 +7,7 @@ use std::slice;
 use mupdf_sys::*;
 
 use crate::pdf::PdfDocument;
-use crate::{context, Buffer, Error};
+use crate::{context, Buffer, Error, Matrix};
 
 pub trait IntoPdfDictKey {
     fn into_pdf_dict_key(self) -> Result<PdfObject, Error>;
@@ -387,6 +387,13 @@ impl PdfObject {
             }
             Some(PdfDocument::from_raw(ptr))
         }
+    }
+
+    pub fn page_ctm(&self) -> Result<Matrix, Error> {
+        let matrix =
+            unsafe { ffi_try!(mupdf_pdf_page_obj_transform(context(), self.inner)).into() };
+
+        Ok(matrix)
     }
 }
 
