@@ -1,6 +1,6 @@
 [package]
 name = "mupdf"
-version = "0.4.3"
+version = "0.4.4"
 authors = ["messense <messense@icloud.com>"]
 edition = "2021"
 description = "Safe Rust wrapper to MuPDF"
@@ -43,7 +43,7 @@ all-fonts = ["mupdf-sys/all-fonts"]
 system-fonts = ["font-kit"]
 
 [dependencies]
-mupdf-sys = { version = "0.4.2", path = "mupdf-sys" }
+mupdf-sys = { version = "0.4.4", path = "mupdf-sys" }
 once_cell = "1.3.1"
 num_enum = "0.7.0"
 bitflags = "2.0.2"
