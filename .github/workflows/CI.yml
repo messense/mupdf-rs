@@ -52,7 +52,29 @@ jobs:
       - name: Test package mupdf-sys
         if: matrix.os == 'ubuntu-latest'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
+  
+  test-msys:
+    name: Test Suite (MSYS2)
+    runs-on: windows-2019
+    strategy:
+      matrix:
+        include:
+          - { sys: ucrt64,  env: ucrt-x86_64 }
+          - { sys: mingw64, env: x86_64 }
+          # - { sys: mingw32, env: i686 }
+          - { sys: clang64, env: clang-x86_64 }
+    steps:
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: ${{matrix.sys}}
+          install: mingw-w64-${{matrix.env}}-rust base base-devel unzip git
 
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          fetch-depth: 500
+      - run: cargo test
+  
   asan:
     name: Address Sanitizer
     runs-on: ubuntu-latest
