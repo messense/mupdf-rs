@@ -59,6 +59,9 @@ fn build_libmupdf() {
     let build_dir = out_dir.join("build");
     t!(fs::create_dir_all(&build_dir));
 
+    // workaround for windows gnu toolchain, path separator is `/` but not `\`
+    let build_dir_str = build_dir.to_string_lossy().replace("\\", "/");
+
     let current_dir = env::current_dir().unwrap();
     let mupdf_src_dir = current_dir.join("mupdf");
     cp_r(&mupdf_src_dir, &build_dir);
