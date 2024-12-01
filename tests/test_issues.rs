@@ -80,3 +80,21 @@ fn test_issue_60_display_list() {
         })
         .collect();
 }
+
+#[test]
+fn test_issue_86_invalid_utf8() {
+    let doc = PdfDocument::open("tests/files/utf8-error-on-this-file.pdf").unwrap();
+    for (idx, page) in doc.pages().unwrap().enumerate() {
+        let page = page.unwrap();
+        let text = page.to_text();
+        assert!(text.is_ok());
+        println!("page: {idx}, text: {}", text.unwrap());
+
+        let json = page.stext_page_as_json_from_page(1.0);
+        assert!(json.is_ok());
+
+        // Validate JSON parsing
+        let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&json.unwrap());
+        assert!(parsed_json.is_ok());
+    }
+}
