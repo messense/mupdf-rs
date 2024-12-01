@@ -91,7 +91,7 @@ fn build_libmupdf() {
     let mut make_flags = vec![
         "libs".to_owned(),
         format!("build={}", profile),
-        format!("OUT={}", build_dir.display()),
+        format!("OUT={}", &build_dir_str),
         #[cfg(feature = "sys-lib-freetype")]
         "USE_SYSTEM_FREETYPE=yes".to_owned(),
         #[cfg(feature = "sys-lib-gumbo")]
@@ -253,7 +253,7 @@ fn build_libmupdf() {
     };
     let output = Command::new(make)
         .args(&make_flags)
-        .current_dir(&build_dir)
+        .current_dir(&build_dir_str)
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit())
         .output()
@@ -261,7 +261,7 @@ fn build_libmupdf() {
     if !output.status.success() {
         panic!("Build error, exit code {}", output.status.code().unwrap());
     }
-    println!("cargo:rustc-link-search=native={}", build_dir.display());
+    println!("cargo:rustc-link-search=native={}", &build_dir_str);
     println!("cargo:rustc-link-lib=static=mupdf");
     // println!("cargo:rustc-link-lib=static=mupdf-pkcs7");
     println!("cargo:rustc-link-lib=static=mupdf-third");

@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - dev
   pull_request:
   workflow_dispatch:
 
@@ -18,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo check
@@ -33,7 +34,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - name: Install LLVM
@@ -52,36 +53,41 @@ jobs:
       - name: Test package mupdf-sys
         if: matrix.os == 'ubuntu-latest'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
-  
+
   test-msys:
     name: Test Suite (MSYS2)
     runs-on: windows-2019
+    defaults:
+      run:
+        shell: msys2 {0}
     strategy:
       matrix:
         include:
-          - { sys: ucrt64,  env: ucrt-x86_64 }
+          - { sys: ucrt64, env: ucrt-x86_64 }
           - { sys: mingw64, env: x86_64 }
-          # - { sys: mingw32, env: i686 }
+          - { sys: mingw32, env: i686 }
           - { sys: clang64, env: clang-x86_64 }
     steps:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: ${{matrix.sys}}
-          install: mingw-w64-${{matrix.env}}-rust base base-devel unzip git
+          install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git
 
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 500
-      - run: cargo test
-  
+      - run: |
+          rustc --version --verbose
+          cargo test
+
   asan:
     name: Address Sanitizer
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@nightly
         with:
@@ -98,7 +104,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          submodules: 'recursive'
+          submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
