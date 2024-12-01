@@ -3012,7 +3012,7 @@ void mupdf_pdf_page_set_crop_box(fz_context *ctx, pdf_page *page, fz_rect rect, 
 {
     fz_try(ctx)
     {
-        fz_rect mediabox = pdf_bound_page(ctx, page);
+        fz_rect mediabox = pdf_bound_page(ctx, page, FZ_MEDIA_BOX);
         pdf_obj *obj = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(MediaBox));
         if (obj)
         {

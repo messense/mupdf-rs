@@ -351,6 +351,13 @@ fn build_libmupdf() {
                 profile
             );
         }
+
+        if profile == "Debug" {
+            println!("cargo:rustc-link-lib=dylib=ucrtd");
+            println!("cargo:rustc-link-lib=dylib=vcruntimed");
+            println!("cargo:rustc-link-lib=dylib=msvcrtd");
+        }
+
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
     } else {
