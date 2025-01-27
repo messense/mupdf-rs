@@ -130,7 +130,7 @@ impl Font {
         self.advance_glyph_with_wmode(glyph, false)
     }
 
-    pub fn outline_glyph_with_ctm(&self, glyph: i32, ctm: &Matrix) -> Result<Path, Error> {
+    pub fn outline_glyph_with_ctm(&self, glyph: i32, ctm: &Matrix) -> Result<Option<Path>, Error> {
         unsafe {
             let inner = ffi_try!(mupdf_outline_glyph(
                 context(),
@@ -138,11 +138,14 @@ impl Font {
                 glyph,
                 ctm.into()
             ));
-            Ok(Path::from_raw(inner))
+            if inner.is_null() {
+                return Ok(None);
+            }
+            Ok(Some(Path::from_raw(inner)))
         }
     }
 
-    pub fn outline_glyph(&self, glyph: i32) -> Result<Path, Error> {
+    pub fn outline_glyph(&self, glyph: i32) -> Result<Option<Path>, Error> {
         self.outline_glyph_with_ctm(glyph, &Matrix::IDENTITY)
     }
 }
