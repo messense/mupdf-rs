@@ -169,7 +169,7 @@ impl Path {
         Ok(())
     }
 
-    pub fn rect(&mut self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<(), Error> {
+    pub fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_rectto(context(), self.inner, x1, y1, x2, y2));
         }

@@ -621,7 +621,7 @@ void mupdf_closepath(fz_context *ctx, fz_path *path, mupdf_error_t **errptr)
     }
 }
 
-void mupdf_rectto(fz_context *ctx, fz_path *path, int x1, int y1, int x2, int y2, mupdf_error_t **errptr)
+void mupdf_rectto(fz_context *ctx, fz_path *path, float x1, float y1, float x2, float y2, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
