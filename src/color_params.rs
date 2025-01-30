@@ -1,7 +1,4 @@
-use std::{
-    fmt::{self, Debug, Formatter},
-    mem,
-};
+use std::fmt::{self, Debug, Formatter};
 
 use mupdf_sys::*;
 
