@@ -23,7 +23,7 @@ pub trait PathWalker {
     }
 }
 
-impl<W: PathWalker> PathWalker for &mut W {
+impl<W: PathWalker + ?Sized> PathWalker for &mut W {
     fn move_to(&mut self, x: f32, y: f32) {
         (**self).move_to(x, y)
     }
@@ -329,5 +329,8 @@ mod test {
         assert!(!walker.curve_to);
         assert_eq!(walker.close, 2);
         assert!(walker.curve_to_y);
+
+        let mut dyn_walker: &mut dyn PathWalker = &mut TestPathWalker::default();
+        path.walk(dyn_walker).unwrap();
     }
 }
