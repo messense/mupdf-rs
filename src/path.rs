@@ -10,21 +10,66 @@ pub trait PathWalker {
     fn line_to(&mut self, x: f32, y: f32);
     fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32);
     fn close(&mut self);
+
+    fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+        self.curve_to(cx, cy, ex, ey, ex, ey);
+    }
+    fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
+        self.move_to(x1, y1);
+        self.line_to(x2, y1);
+        self.line_to(x2, y2);
+        self.line_to(x1, y2);
+        self.close();
+    }
 }
 
-extern "C" fn path_walk_move_to(_ctx: *mut fz_context, arg: *mut c_void, x: f32, y: f32) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.move_to(x, y);
+impl<W: PathWalker + ?Sized> PathWalker for &mut W {
+    fn move_to(&mut self, x: f32, y: f32) {
+        (**self).move_to(x, y)
+    }
+    fn line_to(&mut self, x: f32, y: f32) {
+        (**self).line_to(x, y)
+    }
+    fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {
+        (**self).curve_to(cx1, cy1, cx2, cy2, ex, ey)
+    }
+    fn close(&mut self) {
+        (**self).close()
+    }
+
+    fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+        (**self).curve_to_y(cx, cy, ex, ey)
+    }
+    fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
+        (**self).rect(x1, y1, x2, y2)
+    }
+}
+
+unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
+    let mut walker: Box<W> = unsafe { Box::from_raw(arg.cast()) };
+    f(&mut walker);
     mem::forget(walker);
 }
 
-extern "C" fn path_walk_line_to(_ctx: *mut fz_context, arg: *mut c_void, x: f32, y: f32) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.line_to(x, y);
-    mem::forget(walker);
+unsafe extern "C" fn path_walk_move_to<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x: f32,
+    y: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.move_to(x, y));
 }
 
-extern "C" fn path_walk_curve_to(
+unsafe extern "C" fn path_walk_line_to<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x: f32,
+    y: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.line_to(x, y));
+}
+
+unsafe extern "C" fn path_walk_curve_to<W: PathWalker>(
     _ctx: *mut fz_context,
     arg: *mut c_void,
     cx1: f32,
@@ -34,15 +79,33 @@ extern "C" fn path_walk_curve_to(
     ex: f32,
     ey: f32,
 ) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.curve_to(cx1, cy1, cx2, cy2, ex, ey);
-    mem::forget(walker);
+    with_path_walker::<W>(arg, |walker| walker.curve_to(cx1, cy1, cx2, cy2, ex, ey));
 }
 
-extern "C" fn path_walk_close(_ctx: *mut fz_context, arg: *mut c_void) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.close();
-    mem::forget(walker);
+unsafe extern "C" fn path_walk_close<W: PathWalker>(_ctx: *mut fz_context, arg: *mut c_void) {
+    with_path_walker::<W>(arg, |walker| walker.close());
+}
+
+unsafe extern "C" fn path_walk_curve_to_y<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    cx: f32,
+    cy: f32,
+    ex: f32,
+    ey: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.curve_to_y(cx, cy, ex, ey));
+}
+
+unsafe extern "C" fn path_walk_rect<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.rect(x1, y1, x2, y2));
 }
 
 #[derive(Debug)]
@@ -65,26 +128,26 @@ impl Path {
         Ok(Self { inner })
     }
 
-    pub fn walk(&self, walker: &mut dyn PathWalker) -> Result<(), Error> {
+    pub fn walk<W: PathWalker>(&self, walker: W) -> Result<(), Error> {
         unsafe {
             let c_walker = fz_path_walker {
-                moveto: Some(path_walk_move_to),
-                lineto: Some(path_walk_line_to),
-                curveto: Some(path_walk_curve_to),
-                closepath: Some(path_walk_close),
+                moveto: Some(path_walk_move_to::<W>),
+                lineto: Some(path_walk_line_to::<W>),
+                curveto: Some(path_walk_curve_to::<W>),
+                closepath: Some(path_walk_close::<W>),
                 quadto: None,
                 curvetov: None,
-                curvetoy: None,
-                rectto: None,
+                curvetoy: Some(path_walk_curve_to_y::<W>),
+                rectto: Some(path_walk_rect::<W>),
             };
             let raw_ptr = Box::into_raw(Box::new(walker));
             ffi_try!(mupdf_walk_path(
                 context(),
                 self.inner,
                 &c_walker,
-                raw_ptr as _
+                raw_ptr.cast()
             ));
-            let _ = Box::from_raw(raw_ptr);
+            drop(Box::from_raw(raw_ptr));
         }
         Ok(())
     }
@@ -146,7 +209,7 @@ impl Path {
         Ok(())
     }
 
-    pub fn rect(&mut self, x1: i32, y1: i32, x2: i32, y2: i32) -> Result<(), Error> {
+    pub fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_rectto(context(), self.inner, x1, y1, x2, y2));
         }
@@ -207,11 +270,14 @@ impl Clone for Path {
 mod test {
     use super::{Path, PathWalker};
 
+    #[derive(Default)]
     struct TestPathWalker {
         move_to: bool,
         line_to: bool,
         curve_to: bool,
-        close: bool,
+        close: u8,
+        curve_to_y: bool,
+        rect: bool,
     }
 
     impl PathWalker for TestPathWalker {
@@ -225,13 +291,23 @@ mod test {
             if x == 10.0 && y == 10.0 {
                 self.line_to = true;
             }
+            if x == -5.0 && y == 5.0 {
+                self.rect = true;
+            }
         }
 
-        #[allow(unused_variables)]
-        fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {}
+        fn curve_to(&mut self, _cx1: f32, _cy1: f32, _cx2: f32, _cy2: f32, _ex: f32, _ey: f32) {
+            self.curve_to = true;
+        }
 
         fn close(&mut self) {
-            self.close = true;
+            self.close += 1;
+        }
+
+        fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+            if cx == 5.0 && cy == 10.0 && ex == 20.0 && ey == 30.0 {
+                self.curve_to_y = true;
+            }
         }
     }
 
@@ -241,16 +317,20 @@ mod test {
         path.move_to(0.0, 0.0).unwrap();
         path.line_to(10.0, 10.0).unwrap();
         path.close().unwrap();
-        let mut walker = TestPathWalker {
-            move_to: false,
-            line_to: false,
-            curve_to: false,
-            close: false,
-        };
+        path.curve_to_y(5.0, 10.0, 20.0, 30.0).unwrap();
+        path.rect(-5.0, -5.0, 5.0, 5.0).unwrap();
+        path.close().unwrap(); // close after rect is ignored
+
+        let mut walker = TestPathWalker::default();
         path.walk(&mut walker).unwrap();
+
         assert!(walker.move_to);
         assert!(walker.line_to);
-        assert!(walker.close);
         assert!(!walker.curve_to);
+        assert_eq!(walker.close, 2);
+        assert!(walker.curve_to_y);
+
+        let mut dyn_walker: &mut dyn PathWalker = &mut TestPathWalker::default();
+        path.walk(dyn_walker).unwrap();
     }
 }
