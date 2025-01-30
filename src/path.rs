@@ -12,19 +12,46 @@ pub trait PathWalker {
     fn close(&mut self);
 }
 
-extern "C" fn path_walk_move_to(_ctx: *mut fz_context, arg: *mut c_void, x: f32, y: f32) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.move_to(x, y);
+impl<W: PathWalker> PathWalker for &mut W {
+    fn move_to(&mut self, x: f32, y: f32) {
+        (**self).move_to(x, y)
+    }
+    fn line_to(&mut self, x: f32, y: f32) {
+        (**self).line_to(x, y)
+    }
+    fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {
+        (**self).curve_to(cx1, cy1, cx2, cy2, ex, ey)
+    }
+    fn close(&mut self) {
+        (**self).close()
+    }
+}
+
+unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
+    let mut walker: Box<W> = unsafe { Box::from_raw(arg.cast()) };
+    f(&mut walker);
     mem::forget(walker);
 }
 
-extern "C" fn path_walk_line_to(_ctx: *mut fz_context, arg: *mut c_void, x: f32, y: f32) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.line_to(x, y);
-    mem::forget(walker);
+unsafe extern "C" fn path_walk_move_to<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x: f32,
+    y: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.move_to(x, y));
 }
 
-extern "C" fn path_walk_curve_to(
+unsafe extern "C" fn path_walk_line_to<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x: f32,
+    y: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.line_to(x, y));
+}
+
+unsafe extern "C" fn path_walk_curve_to<W: PathWalker>(
     _ctx: *mut fz_context,
     arg: *mut c_void,
     cx1: f32,
@@ -34,15 +61,11 @@ extern "C" fn path_walk_curve_to(
     ex: f32,
     ey: f32,
 ) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.curve_to(cx1, cy1, cx2, cy2, ex, ey);
-    mem::forget(walker);
+    with_path_walker::<W>(arg, |walker| walker.curve_to(cx1, cy1, cx2, cy2, ex, ey));
 }
 
-extern "C" fn path_walk_close(_ctx: *mut fz_context, arg: *mut c_void) {
-    let walker: Box<&mut dyn PathWalker> = unsafe { mem::transmute(arg) };
-    walker.close();
-    mem::forget(walker);
+unsafe extern "C" fn path_walk_close<W: PathWalker>(_ctx: *mut fz_context, arg: *mut c_void) {
+    with_path_walker::<W>(arg, |walker| walker.close());
 }
 
 #[derive(Debug)]
@@ -65,13 +88,13 @@ impl Path {
         Ok(Self { inner })
     }
 
-    pub fn walk(&self, walker: &mut dyn PathWalker) -> Result<(), Error> {
+    pub fn walk<W: PathWalker>(&self, walker: W) -> Result<(), Error> {
         unsafe {
             let c_walker = fz_path_walker {
-                moveto: Some(path_walk_move_to),
-                lineto: Some(path_walk_line_to),
-                curveto: Some(path_walk_curve_to),
-                closepath: Some(path_walk_close),
+                moveto: Some(path_walk_move_to::<W>),
+                lineto: Some(path_walk_line_to::<W>),
+                curveto: Some(path_walk_curve_to::<W>),
+                closepath: Some(path_walk_close::<W>),
                 quadto: None,
                 curvetov: None,
                 curvetoy: None,
@@ -82,9 +105,9 @@ impl Path {
                 context(),
                 self.inner,
                 &c_walker,
-                raw_ptr as _
+                raw_ptr.cast()
             ));
-            let _ = Box::from_raw(raw_ptr);
+            drop(Box::from_raw(raw_ptr));
         }
         Ok(())
     }
@@ -228,7 +251,9 @@ mod test {
         }
 
         #[allow(unused_variables)]
-        fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {}
+        fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {
+            self.curve_to = true;
+        }
 
         fn close(&mut self) {
             self.close = true;
