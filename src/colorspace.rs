@@ -1,10 +1,11 @@
 use std::cmp::PartialEq;
 use std::ffi::CStr;
 use std::fmt;
+use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::context;
+use crate::{context, ColorParams, Error};
 
 #[derive(Debug)]
 pub struct Colorspace {
@@ -85,6 +86,62 @@ impl Colorspace {
         let name_cstr = unsafe { CStr::from_ptr(ptr) };
         name_cstr.to_str().unwrap()
     }
+
+    pub fn convert_color(
+        &self,
+        color: &[f32],
+        to: &Colorspace,
+        via: Option<&Colorspace>,
+        params: ColorParams,
+    ) -> Result<Vec<f32>, Error> {
+        let from_n = usize::try_from(self.n()).unwrap();
+        assert!(color.len() >= from_n);
+        let to_n = usize::try_from(to.n()).unwrap();
+
+        let via = via.map_or(ptr::null_mut(), |cs| cs.inner);
+        unsafe {
+            let mut out = Vec::with_capacity(to_n);
+            ffi_try!(mupdf_convert_color(
+                context(),
+                self.inner,
+                color.as_ptr(),
+                to.inner,
+                out.as_mut_ptr(),
+                via,
+                params.into()
+            ));
+            out.set_len(to_n);
+            Ok(out)
+        }
+    }
+
+    pub fn convert_color_into(
+        &self,
+        color: &[f32],
+        to: &Colorspace,
+        out: &mut [f32],
+        via: Option<&Colorspace>,
+        params: ColorParams,
+    ) -> Result<usize, Error> {
+        let from_n = usize::try_from(self.n()).unwrap();
+        assert!(color.len() >= from_n);
+        let n = usize::try_from(to.n()).unwrap();
+        assert!(out.len() >= n);
+
+        let via = via.map_or(ptr::null_mut(), |cs| cs.inner);
+        unsafe {
+            ffi_try!(mupdf_convert_color(
+                context(),
+                self.inner,
+                color.as_ptr(),
+                to.inner,
+                out.as_mut_ptr(),
+                via,
+                params.into()
+            ));
+            Ok(n)
+        }
+    }
 }
 
 impl PartialEq for Colorspace {
@@ -106,6 +163,8 @@ impl fmt::Display for Colorspace {
 
 #[cfg(test)]
 mod test {
+    use crate::ColorParams;
+
     use super::Colorspace;
 
     #[test]
@@ -126,5 +185,31 @@ mod test {
         assert!(cmyk.is_device_cmyk());
         assert!(cmyk.is_cmyk());
         assert_eq!(cmyk.name(), "DeviceCMYK");
+    }
+
+    #[test]
+    fn test_color_conversion() {
+        let red = Colorspace::device_rgb()
+            .convert_color(
+                &[1.0, 0.0, 0.0],
+                &Colorspace::device_cmyk(),
+                None,
+                ColorParams::default(),
+            )
+            .unwrap();
+        assert_eq!(&*red, [0.0, 1.0, 1.0, 0.0]);
+
+        let mut gray = [0.0; 4];
+        let n = Colorspace::device_gray()
+            .convert_color_into(
+                &[0.6],
+                &Colorspace::device_rgb(),
+                &mut gray,
+                None,
+                ColorParams::default(),
+            )
+            .unwrap();
+        assert_eq!(n, 3);
+        assert_eq!(gray, [0.6, 0.6, 0.6, 0.0]);
     }
 }
