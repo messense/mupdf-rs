@@ -10,6 +10,17 @@ pub trait PathWalker {
     fn line_to(&mut self, x: f32, y: f32);
     fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32);
     fn close(&mut self);
+
+    fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+        self.curve_to(cx, cy, ex, ey, ex, ey);
+    }
+    fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
+        self.move_to(x1, y1);
+        self.line_to(x2, y1);
+        self.line_to(x2, y2);
+        self.line_to(x1, y2);
+        self.close();
+    }
 }
 
 impl<W: PathWalker> PathWalker for &mut W {
@@ -24,6 +35,13 @@ impl<W: PathWalker> PathWalker for &mut W {
     }
     fn close(&mut self) {
         (**self).close()
+    }
+
+    fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+        (**self).curve_to_y(cx, cy, ex, ey)
+    }
+    fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
+        (**self).rect(x1, y1, x2, y2)
     }
 }
 
@@ -68,6 +86,28 @@ unsafe extern "C" fn path_walk_close<W: PathWalker>(_ctx: *mut fz_context, arg: 
     with_path_walker::<W>(arg, |walker| walker.close());
 }
 
+unsafe extern "C" fn path_walk_curve_to_y<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    cx: f32,
+    cy: f32,
+    ex: f32,
+    ey: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.curve_to_y(cx, cy, ex, ey));
+}
+
+unsafe extern "C" fn path_walk_rect<W: PathWalker>(
+    _ctx: *mut fz_context,
+    arg: *mut c_void,
+    x1: f32,
+    y1: f32,
+    x2: f32,
+    y2: f32,
+) {
+    with_path_walker::<W>(arg, |walker| walker.rect(x1, y1, x2, y2));
+}
+
 #[derive(Debug)]
 pub struct Path {
     pub(crate) inner: *mut fz_path,
@@ -97,8 +137,8 @@ impl Path {
                 closepath: Some(path_walk_close::<W>),
                 quadto: None,
                 curvetov: None,
-                curvetoy: None,
-                rectto: None,
+                curvetoy: Some(path_walk_curve_to_y::<W>),
+                rectto: Some(path_walk_rect::<W>),
             };
             let raw_ptr = Box::into_raw(Box::new(walker));
             ffi_try!(mupdf_walk_path(
@@ -230,11 +270,14 @@ impl Clone for Path {
 mod test {
     use super::{Path, PathWalker};
 
+    #[derive(Default)]
     struct TestPathWalker {
         move_to: bool,
         line_to: bool,
         curve_to: bool,
-        close: bool,
+        close: u8,
+        curve_to_y: bool,
+        rect: bool,
     }
 
     impl PathWalker for TestPathWalker {
@@ -248,15 +291,23 @@ mod test {
             if x == 10.0 && y == 10.0 {
                 self.line_to = true;
             }
+            if x == -5.0 && y == 5.0 {
+                self.rect = true;
+            }
         }
 
-        #[allow(unused_variables)]
-        fn curve_to(&mut self, cx1: f32, cy1: f32, cx2: f32, cy2: f32, ex: f32, ey: f32) {
+        fn curve_to(&mut self, _cx1: f32, _cy1: f32, _cx2: f32, _cy2: f32, _ex: f32, _ey: f32) {
             self.curve_to = true;
         }
 
         fn close(&mut self) {
-            self.close = true;
+            self.close += 1;
+        }
+
+        fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) {
+            if cx == 5.0 && cy == 10.0 && ex == 20.0 && ey == 30.0 {
+                self.curve_to_y = true;
+            }
         }
     }
 
@@ -266,16 +317,17 @@ mod test {
         path.move_to(0.0, 0.0).unwrap();
         path.line_to(10.0, 10.0).unwrap();
         path.close().unwrap();
-        let mut walker = TestPathWalker {
-            move_to: false,
-            line_to: false,
-            curve_to: false,
-            close: false,
-        };
+        path.curve_to_y(5.0, 10.0, 20.0, 30.0).unwrap();
+        path.rect(-5.0, -5.0, 5.0, 5.0).unwrap();
+        path.close().unwrap(); // close after rect is ignored
+
+        let mut walker = TestPathWalker::default();
         path.walk(&mut walker).unwrap();
+
         assert!(walker.move_to);
         assert!(walker.line_to);
-        assert!(walker.close);
         assert!(!walker.curve_to);
+        assert_eq!(walker.close, 2);
+        assert!(walker.curve_to_y);
     }
 }
