@@ -139,6 +139,10 @@ impl Matrix {
         self.d += h * b;
         self
     }
+
+    pub fn expansion(&self) -> f32 {
+        (self.a * self.d - self.b * self.c).abs().sqrt()
+    }
 }
 
 impl Default for Matrix {
