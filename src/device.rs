@@ -8,6 +8,9 @@ use crate::{
     Shade, StrokeState, Text, TextPage, TextPageOptions,
 };
 
+mod custom;
+pub use custom::CustomDevice;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
 pub enum BlendMode {
@@ -40,6 +43,10 @@ pub struct Device {
 impl Device {
     pub(crate) unsafe fn from_raw(dev: *mut fz_device, list: *mut fz_display_list) -> Self {
         Self { dev, list }
+    }
+
+    pub fn from_custom<D: CustomDevice>(device: D) -> Self {
+        custom::create(device)
     }
 
     pub fn from_pixmap_with_clip(pixmap: &Pixmap, clip: IRect) -> Result<Self, Error> {

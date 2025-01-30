@@ -81,7 +81,7 @@ pub(crate) use context::context;
 pub use context::Context;
 pub use cookie::Cookie;
 pub use destination::{Destination, DestinationKind};
-pub use device::{BlendMode, Device};
+pub use device::{BlendMode, CustomDevice, Device};
 pub use display_list::DisplayList;
 pub use document::{Document, MetadataName};
 pub use document_writer::DocumentWriter;
