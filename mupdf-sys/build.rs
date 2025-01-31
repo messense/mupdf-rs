@@ -414,7 +414,8 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
         let mut newlines = 0;
         let mut arguments = false;
 
-        for mut line in comment.split('\n') {
+        for line in comment.split('\n') {
+            let mut line = line.trim();
             if line.is_empty() {
                 newlines += 1;
                 continue;
@@ -427,8 +428,9 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
             }
 
             match newlines {
+                _ if argument => output.push('\n'),
                 0 => {}
-                1 if !argument => output.push_str("<br>"),
+                1 => output.push_str("<br>"),
                 _ => output.push_str("\n\n"),
             };
             newlines = 0;
@@ -445,8 +447,9 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
                 .replace('[', "\\[")
                 .replace(']', "\\]")
                 .replace('<', "\\<")
-                .replace('>', "\\>");
-            let line = self.types.replace_all(&line, |c: &regex::Captures| {
+                .replace('>', "\\>")
+                .replace("NULL", "`NULL`");
+            let mut line = self.types.replace_all(&line, |c: &regex::Captures| {
                 let name = &c[0];
                 if name.contains('*') {
                     return format!("`{}`", name);
@@ -465,6 +468,30 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
 
                 format!("[`{}`]", name)
             });
+
+            if let Some((first, rest)) = line.split_once(": ") {
+                let mut new_line = String::new();
+
+                for arg in first.split(", ") {
+                    if arg.contains(|c: char| c.is_whitespace() || c == '`') {
+                        new_line.clear();
+                        break;
+                    }
+
+                    if !new_line.is_empty() {
+                        new_line.push_str(", ");
+                    }
+                    new_line.push('`');
+                    new_line.push_str(arg);
+                    new_line.push('`');
+                }
+
+                if !new_line.is_empty() {
+                    new_line.push_str(": ");
+                    new_line.push_str(rest);
+                    line = new_line.into();
+                }
+            }
 
             output.push_str(&line);
 
