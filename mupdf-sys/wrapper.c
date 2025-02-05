@@ -1124,6 +1124,19 @@ fz_cookie *mupdf_new_cookie(fz_context *ctx, mupdf_error_t **errptr)
     return cookie;
 }
 
+/* Colorspace */
+void mupdf_convert_color(fz_context *ctx, fz_colorspace *ss, const float *sv, fz_colorspace *ds, float *dv, fz_colorspace *is, fz_color_params params, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_convert_color(ctx, ss, sv, ds, dv, is, params);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 /* DisplayList */
 fz_display_list *mupdf_new_display_list(fz_context *ctx, fz_rect mediabox, mupdf_error_t **errptr)
 {
