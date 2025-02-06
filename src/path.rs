@@ -330,7 +330,8 @@ mod test {
         assert_eq!(walker.close, 2);
         assert!(walker.curve_to_y);
 
-        let mut dyn_walker: &mut dyn PathWalker = &mut TestPathWalker::default();
+        let dyn_walker: &mut dyn PathWalker = &mut TestPathWalker::default();
         path.walk(dyn_walker).unwrap();
+        let _ = dyn_walker;
     }
 }

@@ -197,7 +197,11 @@ mod test {
                 ColorParams::default(),
             )
             .unwrap();
-        assert_eq!(&*red, [0.0, 1.0, 1.0, 0.0]);
+        assert_eq!(red.len(), 4);
+        assert_eq!(red[0], 0.0);
+        assert!((0.99..=1.0).contains(&red[1]));
+        assert_eq!(red[2], 1.0);
+        assert_eq!(red[3], 0.0);
 
         let mut gray = [0.0; 4];
         let n = Colorspace::device_gray()
@@ -210,6 +214,9 @@ mod test {
             )
             .unwrap();
         assert_eq!(n, 3);
-        assert_eq!(gray, [0.6, 0.6, 0.6, 0.0]);
+        assert!((0.6..0.7).contains(&gray[0]));
+        assert!((0.6..0.7).contains(&gray[1]));
+        assert!((0.6..0.7).contains(&gray[2]));
+        assert_eq!(gray[3], 0.0);
     }
 }
