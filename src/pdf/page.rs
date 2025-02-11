@@ -1,4 +1,8 @@
-use std::{mem::ManuallyDrop, ops::{Deref, DerefMut}, ptr::NonNull};
+use std::{
+    mem::ManuallyDrop,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
 use mupdf_sys::*;
 
