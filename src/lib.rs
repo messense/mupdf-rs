@@ -99,3 +99,118 @@ pub use size::Size;
 pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::{Text, TextItem, TextSpan};
 pub use text_page::{TextBlock, TextChar, TextLine, TextPage, TextPageOptions};
+
+use core::marker::PhantomData;
+use zerocopy::{FromBytes, IntoBytes};
+
+pub(crate) trait Sealed {}
+
+#[allow(private_bounds)]
+pub trait FFIAnalogue: IntoBytes + FromBytes + Sized + Sealed {
+    type FFIType: IntoBytes + FromBytes + Sized;
+
+    fn _assert_size_eq() {
+        let _assert = AssertSizeEquals::<Self, Self::FFIType>::new();
+    }
+}
+
+trait FFIWrapper {
+    type FFIType;
+    fn as_ref(&self) -> &Self::FFIType;
+    fn as_ptr(&self) -> *const Self::FFIType;
+    fn as_mut_ptr(&mut self) -> *mut Self::FFIType;
+}
+
+macro_rules! unsafe_impl_ffi_wrapper {
+    ($struct:ident, $ffi_type:ident, $ffi_drop_fn:ident) => {
+        impl $crate::FFIWrapper for $struct {
+            type FFIType = $ffi_type;
+            fn as_ref(&self) -> &Self::FFIType {
+                // SAFETY: Guaranteed by caller
+                unsafe { self.inner.as_ref() }
+            }
+            fn as_ptr(&self) -> *const Self::FFIType {
+                self.inner.as_ptr()
+            }
+            fn as_mut_ptr(&mut self) -> *mut Self::FFIType {
+                unsafe { self.inner.as_mut() }
+            }
+        }
+
+        impl Drop for $struct {
+            fn drop(&mut self) {
+                let ptr = <Self as $crate::FFIWrapper>::as_ptr(&*self) as *mut _;
+                // SAFETY: Guaranteed by caller
+                unsafe { $ffi_drop_fn($crate::context(), ptr) }
+            }
+        }
+    };
+}
+
+macro_rules! impl_ffi_traits {
+    ($struct:ident, $ffi_type:ident) => {
+        impl $crate::Sealed for $struct {}
+        impl $crate::FFIAnalogue for $struct {
+            type FFIType = $ffi_type;
+        }
+
+        impl From<$ffi_type> for $struct {
+            fn from(val: $ffi_type) -> $struct {
+                ::zerocopy::transmute!(val)
+            }
+        }
+
+        impl From<$struct> for $ffi_type {
+            fn from(val: $struct) -> $ffi_type {
+                ::zerocopy::transmute!(val)
+            }
+        }
+    };
+}
+
+pub(crate) use impl_ffi_traits;
+pub(crate) use unsafe_impl_ffi_wrapper;
+
+/// # Safety
+///
+/// * `ptr` can be null (this function will simply return an error if that is the case), but if it
+///   is non-null then it must be well-aligned and point to a valid slice of `R::FFIType` that
+///   contains at least `len` consecutive instances of `R::FFIType`. If it contains more than `len`
+///   instances, all instances past the `len`th instance will be leaked.
+unsafe fn rust_vec_from_ffi_ptr<R: FFIAnalogue>(
+    ptr: *mut R::FFIType,
+    len: i32,
+) -> Result<Vec<R>, Error> {
+    if ptr.is_null() {
+        return Err(Error::UnexpectedNullPtr);
+    }
+
+    let rust_ty_ptr = ptr as *mut R;
+    let len = usize::try_from(len)?;
+    // SAFETY: Upheld by caller
+    Ok(unsafe { Vec::from_raw_parts(rust_ty_ptr, len, len) })
+}
+
+fn rust_slice_to_ffi_ptr<R: FFIAnalogue>(vec: &[R]) -> Result<(*const R::FFIType, i32), Error> {
+    let len = i32::try_from(vec.len())?;
+    let ptr = vec.as_ptr() as *mut R::FFIType;
+    if ptr.is_null() {
+        return Err(Error::UnexpectedNullPtr);
+    }
+
+    Ok((ptr, len))
+}
+
+struct AssertSizeEquals<A, B> {
+    _phantom: PhantomData<(A, B)>,
+}
+
+impl<A, B> AssertSizeEquals<A, B> {
+    const _SIZE_OK: () = assert!(size_of::<A>() == size_of::<B>());
+
+    fn new() -> Self {
+        Self {
+            _phantom: PhantomData,
+        }
+    }
+}
