@@ -3,6 +3,7 @@ use std::ffi::{CStr, CString};
 use std::fmt;
 use std::io::{self, BufReader, Read, Write};
 use std::slice;
+use std::str::FromStr;
 
 use mupdf_sys::*;
 
@@ -317,6 +318,7 @@ impl PdfObject {
         Ok(Some(Self { inner }))
     }
 
+    #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Result<usize, Error> {
         let size = unsafe { ffi_try!(mupdf_pdf_array_len(context(), self.inner)) };
         Ok(size as usize)

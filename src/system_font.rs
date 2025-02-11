@@ -1,4 +1,3 @@
-use std::convert::TryFrom;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
@@ -12,7 +11,7 @@ use num_enum::TryFromPrimitive;
 use crate::font::Font;
 use mupdf_sys::*;
 
-pub unsafe extern "C" fn load_system_font(
+pub(crate) unsafe extern "C" fn load_system_font(
     ctx: *mut fz_context,
     name: *const c_char,
     bold: c_int,
@@ -57,17 +56,14 @@ pub unsafe extern "C" fn load_system_font(
                 ),
                 Err(_) => return ptr::null_mut(),
             };
-            match font {
-                Ok(font) => {
-                    if needs_exact_metrics == 1
-                        && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
-                    {
-                        return ptr::null_mut();
-                    }
-                    fz_keep_font(ctx, font.inner);
-                    return font.inner;
+            if let Ok(font) = font {
+                if needs_exact_metrics == 1
+                    && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
+                {
+                    return ptr::null_mut();
                 }
-                Err(_) => {}
+                fz_keep_font(ctx, font.inner);
+                return font.inner;
             }
         }
     }
@@ -76,6 +72,7 @@ pub unsafe extern "C" fn load_system_font(
 
 #[derive(TryFromPrimitive)]
 #[repr(u32)]
+#[allow(clippy::enum_variant_names)]
 enum Ordering {
     AdobeCns = FZ_ADOBE_CNS as u32,
     AdobeGb = FZ_ADOBE_GB as u32,
@@ -146,38 +143,17 @@ pub unsafe extern "C" fn load_system_cjk_font(
 }
 
 #[cfg(not(windows))]
-pub unsafe extern "C" fn load_system_cjk_font(
+pub(crate) unsafe extern "C" fn load_system_cjk_font(
     ctx: *mut fz_context,
     name: *const c_char,
-    ordering: c_int,
-    serif: c_int,
+    _ordering: c_int,
+    _serif: c_int,
 ) -> *mut fz_font {
     // Try name first
-    let font = load_system_font(ctx, name, 0, 0, 0);
-    if !font.is_null() {
-        return font;
-    }
-    if serif == 1 {
-        match Ordering::try_from(ordering as u32) {
-            Ok(Ordering::AdobeCns) => {}
-            Ok(Ordering::AdobeGb) => {}
-            Ok(Ordering::AdobeJapan) => {}
-            Ok(Ordering::AdobeKorea) => {}
-            Err(_) => {}
-        }
-    } else {
-        match Ordering::try_from(ordering as u32) {
-            Ok(Ordering::AdobeCns) => {}
-            Ok(Ordering::AdobeGb) => {}
-            Ok(Ordering::AdobeJapan) => {}
-            Ok(Ordering::AdobeKorea) => {}
-            Err(_) => {}
-        }
-    }
-    ptr::null_mut()
+    load_system_font(ctx, name, 0, 0, 0)
 }
 
-pub unsafe extern "C" fn load_system_fallback_font(
+pub(crate) unsafe extern "C" fn load_system_fallback_font(
     _ctx: *mut fz_context,
     _script: c_int,
     _language: c_int,

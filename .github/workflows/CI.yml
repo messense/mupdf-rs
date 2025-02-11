@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get -y install libfontconfig1-dev
-      - run: cargo check
+      - run: cargo clippy --tests -- -D warnings
 
   test:
     name: Test Suite

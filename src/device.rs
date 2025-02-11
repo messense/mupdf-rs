@@ -76,6 +76,7 @@ impl Device {
         })
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn fill_path(
         &self,
         path: &Path,
@@ -102,6 +103,7 @@ impl Device {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn stroke_path(
         &self,
         path: &Path,
@@ -183,6 +185,7 @@ impl Device {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn stroke_text(
         &self,
         text: &Text,

@@ -185,7 +185,7 @@ pub struct TextItemIter<'a> {
     total: usize,
 }
 
-impl<'a> Iterator for TextItemIter<'a> {
+impl Iterator for TextItemIter<'_> {
     type Item = TextItem;
 
     fn next(&mut self) -> Option<Self::Item> {

@@ -253,7 +253,7 @@ impl PdfDocument {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
         let len = bytes.len();
         let mut buf = Buffer::with_capacity(len);
-        buf.write(bytes)?;
+        buf.write_all(bytes)?;
         unsafe {
             let inner = ffi_try!(mupdf_pdf_open_document_from_bytes(context(), buf.inner));
             Ok(Self::from_raw(inner))
@@ -645,7 +645,7 @@ impl PdfDocument {
 
         let mut refs = refs.into_iter();
         let first = refs.next().unwrap();
-        let last = refs.last().unwrap_or_else(|| first.clone());
+        let last = refs.next_back().unwrap_or_else(|| first.clone());
 
         parent.dict_put("First", first)?;
         parent.dict_put("Last", last)?;

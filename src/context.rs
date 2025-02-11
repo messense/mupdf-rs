@@ -28,7 +28,7 @@ static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
 });
 
 thread_local! {
-    static LOCAL_CONTEXT: RefCell<RawContext> = RefCell::new(RawContext(ptr::null_mut()));
+    static LOCAL_CONTEXT: RefCell<RawContext> = const { RefCell::new(RawContext(ptr::null_mut())) };
 }
 
 #[derive(Debug)]
