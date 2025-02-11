@@ -432,6 +432,23 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
         }
         Some(output)
     }
+
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
+        static ZEROCOPY_TYPES: [&str; 2] = ["fz_point", "fz_quad"];
+
+        if ZEROCOPY_TYPES.contains(&info.name) {
+            [
+                "zerocopy::FromBytes",
+                "zerocopy::IntoBytes",
+                "zerocopy::Immutable",
+            ]
+            .into_iter()
+            .map(ToString::to_string)
+            .collect()
+        } else {
+            vec![]
+        }
+    }
 }
 
 fn main() {

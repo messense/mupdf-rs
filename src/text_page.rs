@@ -3,13 +3,15 @@ use std::ffi::CString;
 use std::io::Read;
 use std::marker::PhantomData;
 use std::ptr;
-use std::slice;
 
 use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
-use crate::{context, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode};
+use crate::rust_vec_from_ffi_ptr;
+use crate::{
+    context, rust_slice_to_ffi_ptr, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode,
+};
 
 bitflags! {
     /// Options for creating a pixmap and draw device.
@@ -52,33 +54,40 @@ impl TextPage {
     }
 
     pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
-        struct Quads(*mut fz_quad);
-
-        impl Drop for Quads {
-            fn drop(&mut self) {
-                if !self.0.is_null() {
-                    unsafe { fz_free(context(), self.0 as _) };
-                }
-            }
-        }
-
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
-        unsafe {
-            let quads = Quads(ffi_try!(mupdf_search_stext_page(
+        let quads = unsafe {
+            ffi_try!(mupdf_search_stext_page(
                 context(),
                 self.inner,
                 c_needle.as_ptr(),
                 hit_max as _,
                 &mut hit_count
-            )));
-            if hit_count == 0 {
-                return Ok(Vec::new());
-            }
-            let items = slice::from_raw_parts(quads.0, hit_count as usize);
-            Ok(items.iter().map(|quad| (*quad).into()).collect())
-        }
+            ))
+        };
+
+        unsafe { rust_vec_from_ffi_ptr(quads, hit_count) }
+    }
+
+    pub fn highlight_selection(
+        &mut self,
+        a: Point,
+        b: Point,
+        quads: &[Quad],
+    ) -> Result<i32, Error> {
+        let (ptr, len): (*const fz_quad, _) = rust_slice_to_ffi_ptr(quads)?;
+
+        Ok(unsafe {
+            fz_highlight_selection(
+                context(),
+                self.inner,
+                a.into(),
+                b.into(),
+                ptr as *mut _,
+                len,
+            )
+        })
     }
 }
 

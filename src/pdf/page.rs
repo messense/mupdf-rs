@@ -1,21 +1,35 @@
-use std::ops::{Deref, DerefMut};
+use std::{mem::ManuallyDrop, ops::{Deref, DerefMut}, ptr::NonNull};
 
 use mupdf_sys::*;
 
 use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfFilterOptions, PdfObject};
-use crate::{context, Error, Matrix, Page, Rect};
+use crate::{context, unsafe_impl_ffi_wrapper, Error, FFIWrapper, Matrix, Page, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
-    pub(crate) inner: *mut pdf_page,
-    page: Page,
+    pub(crate) inner: NonNull<pdf_page>,
+    // Technically, this struct is self-referential as `self.inner` and `(*self.page).inner` point
+    // to the same location in memory (since the first field of `pdf_page` is an `fz_page`, and
+    // `(*self.page).inner` is a pointer to the first field if `self.inner`). So, to avoid a
+    // double-free situation, we're storing this `Page` as `ManuallyDrop` so its destructor is
+    // never called, and we call `pdf_drop_page` on `inner` to drop its inner `fz_page` along with
+    // all the other stuff it may or may not contain.
+    // This also means that we need to make sure to not access `page` at all besides through the
+    // `Deref` and `DerefMut` traits. If we use both `inner` and `page` in the body of a function,
+    // we might run into some nasty mutable aliasing problems, so we need to make sure we're using
+    // `Deref(Mut)` to ensure we aren't accessing any other fields whenever we mutably access
+    // `page` (or that we aren't accessing `page` when we're mutably accessing `inner`).
+    page: ManuallyDrop<Page>,
 }
 
+unsafe_impl_ffi_wrapper!(PdfPage, pdf_page, pdf_drop_page);
+
 impl PdfPage {
-    pub(crate) unsafe fn from_raw(ptr: *mut pdf_page) -> Self {
+    pub(crate) unsafe fn from_raw(ptr: NonNull<pdf_page>) -> Self {
         Self {
             inner: ptr,
-            page: Page::from_raw(ptr as *mut fz_page),
+            // This cast is safe because the first member of the `pdf_page` struct is a `fz_page`
+            page: ManuallyDrop::new(Page::from_raw(ptr.cast())),
         }
     }
 
@@ -26,7 +40,7 @@ impl PdfPage {
         unsafe {
             let annot = ffi_try!(mupdf_pdf_create_annot(
                 context(),
-                self.inner,
+                self.as_mut_ptr(),
                 subtype as i32
             ));
             Ok(PdfAnnotation::from_raw(annot))
@@ -35,28 +49,32 @@ impl PdfPage {
 
     pub fn delete_annotation(&mut self, annot: &PdfAnnotation) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_pdf_delete_annot(context(), self.inner, annot.inner));
+            ffi_try!(mupdf_pdf_delete_annot(
+                context(),
+                self.as_mut_ptr(),
+                annot.inner
+            ));
         }
         Ok(())
     }
 
     pub fn annotations(&self) -> AnnotationIter {
-        let next = unsafe { pdf_first_annot(context(), self.inner) };
+        let next = unsafe { pdf_first_annot(context(), self.as_ptr() as *mut _) };
         AnnotationIter { next }
     }
 
     pub fn update(&mut self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_update_page(context(), self.inner)) };
+        let ret = unsafe { ffi_try!(mupdf_pdf_update_page(context(), self.as_mut_ptr())) };
         Ok(ret)
     }
 
     pub fn redact(&mut self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.inner)) };
+        let ret = unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.as_mut_ptr())) };
         Ok(ret)
     }
 
     pub fn object(&self) -> PdfObject {
-        unsafe { PdfObject::from_raw_keep_ref((*self.inner).obj) }
+        unsafe { PdfObject::from_raw_keep_ref(self.as_ref().obj) }
     }
 
     pub fn rotation(&self) -> Result<i32, Error> {
@@ -71,19 +89,23 @@ impl PdfPage {
 
     pub fn set_rotation(&mut self, rotate: i32) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_pdf_page_set_rotation(context(), self.inner, rotate));
+            ffi_try!(mupdf_pdf_page_set_rotation(
+                context(),
+                self.as_mut_ptr(),
+                rotate
+            ));
         }
         Ok(())
     }
 
     pub fn media_box(&self) -> Result<Rect, Error> {
-        let rect = unsafe { mupdf_pdf_page_media_box(context(), self.inner) };
+        let rect = unsafe { mupdf_pdf_page_media_box(context(), self.as_ptr() as *mut _) };
         Ok(rect.into())
     }
 
     pub fn crop_box(&self) -> Result<Rect, Error> {
         let bounds = self.bounds()?;
-        let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.inner) };
+        let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.as_ptr() as *mut _) };
         let media_box = self.media_box()?;
         let x0 = pos.x;
         let y0 = media_box.height() - pos.y - bounds.height();
@@ -96,7 +118,7 @@ impl PdfPage {
         unsafe {
             ffi_try!(mupdf_pdf_page_set_crop_box(
                 context(),
-                self.inner,
+                self.as_mut_ptr(),
                 crop_box.into()
             ));
         }
@@ -104,7 +126,7 @@ impl PdfPage {
     }
 
     pub fn ctm(&self) -> Result<Matrix, Error> {
-        let m = unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.inner)) };
+        let m = unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.as_ptr() as *mut _)) };
         Ok(m.into())
     }
 
@@ -112,7 +134,7 @@ impl PdfPage {
         unsafe {
             ffi_try!(mupdf_pdf_filter_page_contents(
                 context(),
-                self.inner,
+                self.as_mut_ptr(),
                 &mut opt.inner as *mut _
             ))
         }
@@ -132,16 +154,6 @@ impl Deref for PdfPage {
 impl DerefMut for PdfPage {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.page
-    }
-}
-
-impl From<Page> for PdfPage {
-    fn from(page: Page) -> Self {
-        let ptr = page.inner;
-        Self {
-            inner: ptr as *mut pdf_page,
-            page,
-        }
     }
 }
 
@@ -165,6 +177,16 @@ impl Iterator for AnnotationIter {
     }
 }
 
+impl TryFrom<Page> for PdfPage {
+    type Error = Error;
+    fn try_from(value: Page) -> Result<Self, Self::Error> {
+        let pdf_page = unsafe { pdf_page_from_fz_page(context(), value.as_ptr() as *mut _) };
+        NonNull::new(pdf_page)
+            .ok_or(Error::UnexpectedNullPtr)
+            .map(|inner| unsafe { PdfPage::from_raw(inner) })
+    }
+}
+
 #[cfg(test)]
 mod test {
     use crate::pdf::{PdfAnnotation, PdfDocument, PdfPage};
@@ -173,7 +195,7 @@ mod test {
     #[test]
     fn test_page_properties() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
-        let mut page0 = PdfPage::from(doc.load_page(0).unwrap());
+        let mut page0 = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
 
         // CTM
         let ctm = page0.ctm().unwrap();
@@ -205,7 +227,7 @@ mod test {
     #[test]
     fn test_page_annotations() {
         let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
-        let page0 = PdfPage::from(doc.load_page(0).unwrap());
+        let page0 = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
         let annots: Vec<PdfAnnotation> = page0.annotations().collect();
         assert_eq!(annots.len(), 0);
     }

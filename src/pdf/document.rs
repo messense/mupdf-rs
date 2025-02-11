@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 use bitflags::bitflags;
 use mupdf_sys::*;
@@ -538,16 +538,17 @@ impl PdfDocument {
 
     pub fn new_page_at<T: Into<Size>>(&mut self, page_no: i32, size: T) -> Result<PdfPage, Error> {
         let size = size.into();
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_page(
+        let inner = unsafe {
+            ffi_try!(mupdf_pdf_new_page(
                 context(),
                 self.inner,
                 page_no,
                 size.width,
                 size.height
-            ));
-            Ok(PdfPage::from_raw(inner))
-        }
+            ))
+        };
+        let inner = NonNull::new(inner).ok_or(Error::UnexpectedNullPtr)?;
+        Ok(unsafe { PdfPage::from_raw(inner) })
     }
 
     pub fn new_page<T: Into<Size>>(&mut self, size: T) -> Result<PdfPage, Error> {
