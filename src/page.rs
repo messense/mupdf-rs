@@ -426,7 +426,6 @@ pub struct StextPage {
 
 #[cfg(test)]
 mod test {
-    use crate::page::StextPage;
     use crate::{Document, Matrix};
 
     #[test]
@@ -441,7 +440,7 @@ mod test {
         let page = doc.load_page(0).unwrap();
         match page.stext_page_as_json_from_page(1.0) {
             Ok(stext_json) => {
-                let stext_page: serde_json::Result<StextPage> =
+                let stext_page: serde_json::Result<crate::page::StextPage> =
                     serde_json::from_str(stext_json.as_str());
                 match stext_page {
                     Ok(res) => {
