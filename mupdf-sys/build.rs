@@ -4,6 +4,7 @@ use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 // see https://github.com/ArtifexSoftware/mupdf/blob/master/source/fitz/noto.c
+#[cfg(not(feature = "all-fonts"))]
 const SKIP_FONTS: [&str; 6] = [
     "TOFU",
     "TOFU_CJK",
@@ -12,17 +13,6 @@ const SKIP_FONTS: [&str; 6] = [
     "TOFU_EMOJI",
     "TOFU_SIL",
 ];
-
-fn fail_on_empty_directory(name: &str) {
-    if fs::read_dir(name).unwrap().count() == 0 {
-        println!(
-            "The `{}` directory is empty, did you forget to pull the submodules?",
-            name
-        );
-        println!("Try `git submodule update --init --recursive`");
-        panic!();
-    }
-}
 
 macro_rules! t {
     ($e:expr) => {
@@ -82,7 +72,8 @@ fn build_libmupdf() {
     #[cfg(not(feature = "js"))]
     build.define("FZ_ENABLE_JS", Some("0"));
 
-    if !cfg!(feature = "all-fonts") {
+    #[cfg(not(feature = "all-fonts"))]
+    {
         SKIP_FONTS.iter().for_each(|font| {
             build.define(font, None);
         });
@@ -120,107 +111,49 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-freetype") {
-        let lib = pkg_config::probe_library("freetype2").unwrap();
+    // this may be unused if none of the features below are enabled
+    #[allow(unused_variables)]
+    let add_lib = |cflags_name: &'static str, pkgcfg_name: &'static str| {
         make_flags.push(format!(
-            "SYS_FREETYPE_CFLAGS={}",
-            lib.include_paths
+            "SYS_{cflags_name}_CFLAGS={}",
+            pkg_config::probe_library(pkgcfg_name)
+                .unwrap()
+                .include_paths
                 .iter()
                 .map(|p| format!("-I{}", p.display()))
                 .collect::<Vec<_>>()
                 .join(" ")
         ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-gumbo") {
-        let lib = pkg_config::probe_library("gumbo").unwrap();
-        make_flags.push(format!(
-            "SYS_GUMBO_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-harfbuzz") {
-        let lib = pkg_config::probe_library("harfbuzz").unwrap();
-        make_flags.push(format!(
-            "SYS_HARFBUZZ_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-jbig2dec") {
-        let lib = pkg_config::probe_library("jbig2dec").unwrap();
-        make_flags.push(format!(
-            "SYS_JBIG2DEC_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-libjpeg") {
-        let lib = pkg_config::probe_library("libjpeg").unwrap();
-        make_flags.push(format!(
-            "SYS_LIBJPEG_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-openjpeg") {
-        let lib = pkg_config::probe_library("libopenjp2").unwrap();
-        make_flags.push(format!(
-            "SYS_OPENJPEG_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib") || cfg!(feature = "sys-lib-zlib") {
-        let lib = pkg_config::probe_library("zlib").unwrap();
-        make_flags.push(format!(
-            "SYS_ZLIB_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
+    };
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-freetype"))]
+    add_lib("FREETYPE", "freetype2");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-gumbo"))]
+    add_lib("GUMBO", "gumbo");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-harfbuzz"))]
+    add_lib("HARFBUZZ", "harfbuzz");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-jbig2dec"))]
+    add_lib("JBIG2DEC", "jbig2dec");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-libjpeg"))]
+    add_lib("LIBJPEG", "libjpeg");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-openjpeg"))]
+    add_lib("OPENJPEG", "libopenjp2");
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-zlib"))]
+    add_lib("ZLIB", "zlib");
 
     // leptonica and tesseract excluded from sys-lib feature
-    if cfg!(feature = "sys-lib-leptonica") {
-        let lib = pkg_config::probe_library("lept").unwrap();
-        make_flags.push(format!(
-            "SYS_LEPTONICA_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
-    if cfg!(feature = "sys-lib-tesseract") {
-        let lib = pkg_config::probe_library("tesseract").unwrap();
-        make_flags.push(format!(
-            "SYS_TESSERACT_CFLAGS={}",
-            lib.include_paths
-                .iter()
-                .map(|p| format!("-I{}", p.display()))
-                .collect::<Vec<_>>()
-                .join(" ")
-        ));
-    }
+    #[cfg(feature = "sys-lib-leptonica")]
+    add_lib("LEPTONICA", "lept");
+
+    #[cfg(feature = "sys-lib-tesseract")]
+    add_lib("TESSARACT", "tessaract");
+
     //
     // The mupdf Makefile does not do a very good job of detecting
     // and acting on cross-compilation, so we'll let the `cc` crate do it.
@@ -502,7 +435,12 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
 }
 
 fn main() {
-    fail_on_empty_directory("mupdf");
+    if fs::read_dir("mupdf").map_or(true, |d| d.count() == 0) {
+        println!("The `mupdf` directory is empty, did you forget to pull the submodules?");
+        println!("Try `git submodule update --init --recursive`");
+        panic!();
+    }
+
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
 
