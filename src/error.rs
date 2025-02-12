@@ -22,6 +22,11 @@ impl fmt::Display for MuPdfError {
 
 impl std::error::Error for MuPdfError {}
 
+/// # Safety
+///
+/// * `error` must point to a non-null, well-aligned initialized instance of `mupdf_error_t`.
+///
+/// * `(*error).message` must point to a null-terminated c-string.
 pub unsafe fn ffi_error(err: *mut mupdf_error_t) -> MuPdfError {
     use std::ffi::CStr;
 

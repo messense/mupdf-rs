@@ -41,6 +41,7 @@ pub struct StrokeState {
 }
 
 impl StrokeState {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         start_cap: LineCap,
         dash_cap: LineCap,

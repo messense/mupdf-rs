@@ -66,7 +66,7 @@ impl Document {
         let c_magic = CString::new(magic)?;
         let len = bytes.len();
         let mut buf = Buffer::with_capacity(len);
-        buf.write(bytes)?;
+        buf.write_all(bytes)?;
         let inner = unsafe {
             ffi_try!(mupdf_open_document_from_bytes(
                 context(),
@@ -313,7 +313,7 @@ pub struct PageIter<'a> {
     doc: &'a Document,
 }
 
-impl<'a> Iterator for PageIter<'a> {
+impl Iterator for PageIter<'_> {
     type Item = Result<Page, Error>;
 
     fn next(&mut self) -> Option<Self::Item> {
