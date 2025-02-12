@@ -3,8 +3,6 @@ use std::io::Read;
 use std::ptr;
 use std::slice;
 
-use serde::{Deserialize, Serialize};
-
 use mupdf_sys::*;
 
 use crate::{
@@ -381,7 +379,8 @@ impl Iterator for LinkIter {
     }
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Font {
     pub name: String,
     pub family: String,
@@ -390,7 +389,8 @@ pub struct Font {
     pub size: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct BBox {
     pub x: u32,
     pub y: u32,
@@ -398,7 +398,8 @@ pub struct BBox {
     pub h: u32,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Line {
     pub wmode: u32,
     pub bbox: BBox,
@@ -408,7 +409,8 @@ pub struct Line {
     pub text: String,
 }
 
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct Block {
     pub r#type: String,
     pub bbox: BBox,
@@ -416,7 +418,8 @@ pub struct Block {
 }
 
 // StructuredText
-#[derive(Deserialize, Serialize, Debug, Clone)]
+#[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct StextPage {
     pub blocks: Vec<Block>,
 }
@@ -427,6 +430,7 @@ mod test {
     use crate::{Document, Matrix};
 
     #[test]
+    #[cfg(feature = "serde")]
     fn test_get_stext_page_as_json() {
         let path_to_doc = std::env::current_dir()
             .unwrap()

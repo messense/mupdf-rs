@@ -46,12 +46,12 @@ jobs:
       - name: Setup msbuild
         if: matrix.os == 'windows-2019'
         uses: microsoft/setup-msbuild@v1.3.1
-      - run: cargo test
+      - run: cargo test --features serde
         timeout-minutes: 20
         if: matrix.os == 'windows-2019'
         env:
           LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
-      - run: cargo test
+      - run: cargo test --features serde
         if: matrix.os != 'windows-2019'
       - name: Test package mupdf-sys
         if: matrix.os == 'ubuntu-latest'
@@ -82,7 +82,7 @@ jobs:
           fetch-depth: 500
       - run: |
           rustc --version --verbose
-          cargo test
+          cargo test --features serde
 
   asan:
     name: Address Sanitizer
@@ -96,9 +96,9 @@ jobs:
         with:
           components: rust-src
       - run: sudo apt-get -y install libfontconfig1-dev
-      - name: cargo test
+      - name: cargo test --features serde
         run: |
-          cargo test -Zbuild-std --target x86_64-unknown-linux-gnu
+          cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --features serde
         env:
           RUSTFLAGS: -Zsanitizer=address
 
@@ -113,7 +113,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
       - run: sudo apt-get -y install libfontconfig1-dev
-      - run: cargo test
+      - run: cargo test --features serde
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --error-exitcode=1 --track-origins=yes"
 
