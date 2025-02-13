@@ -3,9 +3,12 @@ use mupdf_sys::{fz_point, fz_transform_point};
 use crate::{impl_ffi_traits, Matrix};
 
 /// A point in a two-dimensional space.
+/// This is marked `repr(c)` to ensure compatibility with the FFI analogue, [`fz_point`], so that
+/// [`zerocopy::transmute`]ing between the two always preseves information correctly
 #[derive(
     Debug, Clone, Copy, PartialEq, zerocopy::FromBytes, zerocopy::IntoBytes, zerocopy::Immutable,
 )]
+#[repr(C)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
