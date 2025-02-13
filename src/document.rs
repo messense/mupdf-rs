@@ -1,6 +1,6 @@
 use std::ffi::{CStr, CString};
 use std::io::Write;
-use std::ptr::{self, NonNull};
+use std::ptr;
 
 use mupdf_sys::*;
 
@@ -215,8 +215,8 @@ impl Document {
 
     pub fn load_page(&self, page_no: i32) -> Result<Page, Error> {
         let fz_page = unsafe { ffi_try!(mupdf_load_page(context(), self.inner, page_no)) };
-        let inner = NonNull::new(fz_page).ok_or(Error::UnexpectedNullPtr)?;
-        Ok(unsafe { Page::from_raw(inner) })
+        // SAFETY: We're trusting the FFI layer here to provide a valid pointer
+        unsafe { Page::from_raw(fz_page) }
     }
 
     pub fn pages(&self) -> Result<PageIter, Error> {

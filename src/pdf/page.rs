@@ -29,11 +29,15 @@ pub struct PdfPage {
 unsafe_impl_ffi_wrapper!(PdfPage, pdf_page, pdf_drop_page);
 
 impl PdfPage {
+    /// # Safety
+    ///
+    /// * `ptr` must point to a valid, well-aligned instance of [`pdf_page`]
     pub(crate) unsafe fn from_raw(ptr: NonNull<pdf_page>) -> Self {
         Self {
             inner: ptr,
             // This cast is safe because the first member of the `pdf_page` struct is a `fz_page`
-            page: ManuallyDrop::new(Page::from_raw(ptr.cast())),
+            // SAFETY: Upheld by caller
+            page: ManuallyDrop::new(unsafe { Page::from_non_null(ptr.cast()) }),
         }
     }
 

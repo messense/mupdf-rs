@@ -20,10 +20,24 @@ pub struct Page {
 unsafe_impl_ffi_wrapper!(Page, fz_page, fz_drop_page);
 
 impl Page {
-    pub(crate) unsafe fn from_raw(raw: NonNull<fz_page>) -> Self {
+    /// # Safety
+    ///
+    /// * `raw` may be null, that will cause this function to return an error. If it is non-null,
+    ///   however, it must point to a valid, well-aligned instance of [`fz_page`].
+    pub(crate) unsafe fn from_raw(raw: *mut fz_page) -> Result<Self, Error> {
+        NonNull::new(raw)
+            // SAFETY: Upheld by caller
+            .map(|nn| unsafe { Self::from_non_null(nn) })
+            .ok_or(Error::UnexpectedNullPtr)
+    }
+
+    /// # Safety
+    ///
+    /// * `nonnull` must point to a valid, well-aligned instance of [`fz_page`]
+    pub(crate) unsafe fn from_non_null(nonnull: NonNull<fz_page>) -> Self {
         Self {
-            inner: raw,
-            doc: (*raw.as_ptr()).doc,
+            inner: nonnull,
+            doc: (*nonnull.as_ptr()).doc,
         }
     }
 
@@ -325,7 +339,9 @@ impl Clone for Page {
         unsafe {
             fz_keep_page(context(), inner.as_ptr() as *mut _);
         }
-        unsafe { Page::from_raw(inner) }
+        // SAFETY: If it was safe to construct `self`, it's safe to construct another instance of
+        // `Self`.
+        unsafe { Page::from_non_null(inner) }
     }
 }
 
