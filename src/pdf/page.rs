@@ -185,6 +185,11 @@ impl TryFrom<Page> for PdfPage {
     type Error = Error;
     fn try_from(value: Page) -> Result<Self, Self::Error> {
         let pdf_page = unsafe { pdf_page_from_fz_page(context(), value.as_ptr() as *mut _) };
+        // We need to make sure to not run the destructor for `Page`, or else it'll be freed and
+        // then this struct will be pointing to invalid memory when we try to use it.
+        // ...god please give me linear types so that I can check this sort of transformation at
+        // compile-time
+        std::mem::forget(value);
         NonNull::new(pdf_page)
             .ok_or(Error::UnexpectedNullPtr)
             .map(|inner| unsafe { PdfPage::from_raw(inner) })
