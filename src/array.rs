@@ -16,10 +16,15 @@ use crate::context;
 // pointer, allocated from `fz_calloc`, but says the length of items behind it is 0, you still have
 // to `fz_free` that pointer. It's probably lying about the length behind it being 0 - it was
 // probably part of an allocation bigger than 0, but of which 0 bytes were actually written to.
-#[derive(Default)]
 pub struct FzArray<T> {
     ptr: Option<NonNull<T>>,
     len: usize,
+}
+
+impl<T> Default for FzArray<T> {
+    fn default() -> Self {
+        Self { ptr: None, len: 0 }
+    }
 }
 
 impl<T> FzArray<T> {
