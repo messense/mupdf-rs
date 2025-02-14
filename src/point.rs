@@ -1,9 +1,14 @@
 use mupdf_sys::{fz_point, fz_transform_point};
 
-use crate::Matrix;
+use crate::{impl_ffi_traits, Matrix};
 
 /// A point in a two-dimensional space.
-#[derive(Debug, Clone, Copy, PartialEq)]
+/// This is marked `repr(c)` to ensure compatibility with the FFI analogue, [`fz_point`], so that
+/// [`zerocopy::transmute`]ing between the two always preseves information correctly
+#[derive(
+    Debug, Clone, Copy, PartialEq, zerocopy::FromBytes, zerocopy::IntoBytes, zerocopy::Immutable,
+)]
+#[repr(C)]
 pub struct Point {
     pub x: f32,
     pub y: f32,
@@ -31,18 +36,6 @@ impl Point {
     }
 }
 
-impl From<fz_point> for Point {
-    fn from(p: fz_point) -> Self {
-        Self { x: p.x, y: p.y }
-    }
-}
-
-impl From<Point> for fz_point {
-    fn from(p: Point) -> Self {
-        fz_point { x: p.x, y: p.y }
-    }
-}
-
 impl From<(f32, f32)> for Point {
     fn from(p: (f32, f32)) -> Self {
         Self { x: p.0, y: p.1 }
@@ -57,3 +50,5 @@ impl From<(i32, i32)> for Point {
         }
     }
 }
+
+impl_ffi_traits!(Point, fz_point);

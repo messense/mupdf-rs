@@ -93,3 +93,4 @@ pkg-config = "0.3"
 regex = "1.11"
 
 [dependencies]
+zerocopy = { version = "0.8.17", features = ["derive"] }
