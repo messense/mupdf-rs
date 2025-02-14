@@ -190,14 +190,24 @@ unsafe fn rust_vec_from_ffi_ptr<R: FFIAnalogue>(
     ptr: *mut R::FFIType,
     len: i32,
 ) -> Result<FzArray<R>, Error> {
+    println!("being called with ptr {ptr:?}, len {len}");
+
     let Some(ptr) = NonNull::new(ptr) else {
         return Err(Error::UnexpectedNullPtr);
     };
 
     let rust_ty_ptr = ptr.cast::<R>();
-    let len = usize::try_from(len)?;
     // SAFETY: Upheld by caller
-    Ok(unsafe { FzArray::from_parts(rust_ty_ptr, len) })
+    // This is safe because we definitely have at least 0 elements here. We just have to create
+    // this before the `usize::try_from` in case they gave us a valid pointer but an invalid
+    // length. if that is the case, we need to make sure we still free the memory they give us,
+    // which will be ensured by the `Drop` impl for this `FzArray`
+    let mut arr = unsafe { FzArray::from_parts(rust_ty_ptr, 0) };
+
+    let len = usize::try_from(len)?;
+    // SAFETY: Upheld by caller - they told us that there are at least this many elements.
+    unsafe { arr.set_len(len) };
+    Ok(arr)
 }
 
 fn rust_slice_to_ffi_ptr<R: FFIAnalogue>(vec: &[R]) -> Result<(*const R::FFIType, i32), Error> {

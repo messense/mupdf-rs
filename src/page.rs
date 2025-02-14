@@ -1,4 +1,4 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{c_int, CStr, CString};
 use std::io::Read;
 use std::ptr::{self, NonNull};
 
@@ -319,16 +319,12 @@ impl Page {
         let quads = unsafe {
             ffi_try!(mupdf_search_page(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr() as *mut fz_page,
                 c_needle.as_ptr(),
-                hit_max as _,
+                hit_max as c_int,
                 &mut hit_count
             ))
         };
-
-        if hit_count == 0 {
-            return Ok(FzArray::default());
-        }
 
         unsafe { rust_vec_from_ffi_ptr(quads, hit_count) }
     }

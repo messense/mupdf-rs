@@ -54,7 +54,7 @@ macro_rules! ffi_try {
         use std::ptr;
         let mut err = ptr::null_mut();
         // SAFETY: Upheld by the caller of the macro
-        let res = $func($($arg),+, &mut err);
+        let res = $func($($arg),+, (&mut err) as *mut *mut ::mupdf_sys::mupdf_error_t);
         if let Some(err) = ::core::ptr::NonNull::new(err) {
             // SAFETY: We're trusting the FFI call to provide us with a valid ptr if it is not
             // null.
