@@ -67,6 +67,12 @@ pub mod text;
 /// Text page
 pub mod text_page;
 
+/// Contains a special [`array::Array`] type which wraps an allocation from the `fz_calloc`
+/// allocation fn that mupdf uses internally. Ideally this will eventually be replaced with
+/// `Box<[_], A>` once the allocator api is stabilized.
+pub mod array;
+
+use array::FzArray;
 pub use bitmap::Bitmap;
 pub use buffer::Buffer;
 pub use color_params::{ColorParams, RenderingIntent};
@@ -100,7 +106,7 @@ pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::{Text, TextItem, TextSpan};
 pub use text_page::{TextBlock, TextChar, TextLine, TextPage, TextPageOptions};
 
-use core::marker::PhantomData;
+use core::{marker::PhantomData, ptr::NonNull};
 use zerocopy::{FromBytes, IntoBytes};
 
 pub(crate) trait Sealed {}
@@ -176,19 +182,22 @@ pub(crate) use unsafe_impl_ffi_wrapper;
 /// * `ptr` can be null (this function will simply return an error if that is the case), but if it
 ///   is non-null then it must be well-aligned and point to a valid slice of `R::FFIType` that
 ///   contains at least `len` consecutive instances of `R::FFIType`. If it contains more than `len`
-///   instances, all instances past the `len`th instance will be leaked.
+///   instances, those following instances must be treated as inaccessible, as they will still be
+///   freed when the returned [`FzArray`] is dropped.
+///
+/// * `ptr` must also point to memory that was allocated by `fz_calloc`
 unsafe fn rust_vec_from_ffi_ptr<R: FFIAnalogue>(
     ptr: *mut R::FFIType,
     len: i32,
-) -> Result<Vec<R>, Error> {
-    if ptr.is_null() {
+) -> Result<FzArray<R>, Error> {
+    let Some(ptr) = NonNull::new(ptr) else {
         return Err(Error::UnexpectedNullPtr);
-    }
+    };
 
-    let rust_ty_ptr = ptr as *mut R;
+    let rust_ty_ptr = ptr.cast::<R>();
     let len = usize::try_from(len)?;
     // SAFETY: Upheld by caller
-    Ok(unsafe { Vec::from_raw_parts(rust_ty_ptr, len, len) })
+    Ok(unsafe { FzArray::from_parts(rust_ty_ptr, len) })
 }
 
 fn rust_slice_to_ffi_ptr<R: FFIAnalogue>(vec: &[R]) -> Result<(*const R::FFIType, i32), Error> {

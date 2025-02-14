@@ -8,9 +8,9 @@ use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
-use crate::rust_vec_from_ffi_ptr;
 use crate::{
-    context, rust_slice_to_ffi_ptr, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode,
+    array::FzArray, context, rust_slice_to_ffi_ptr, rust_vec_from_ffi_ptr, Buffer, Error, Image,
+    Matrix, Point, Quad, Rect, WriteMode,
 };
 
 bitflags! {
@@ -53,7 +53,7 @@ impl TextPage {
         }
     }
 
-    pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
+    pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
@@ -277,7 +277,7 @@ mod test {
         let hits = text_page.search("Dummy", 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(
-            hits,
+            &*hits,
             [Quad {
                 ul: Point {
                     x: 56.8,
