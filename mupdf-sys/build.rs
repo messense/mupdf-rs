@@ -15,7 +15,7 @@ const SKIP_FONTS: [&str; 6] = [
 ];
 
 macro_rules! t {
-    ($e:expr) => {
+    ($e:expr ) => {
         match $e {
             Ok(n) => n,
             Err(e) => panic!("\n{} failed with {}\n", stringify!($e), e),
@@ -29,7 +29,8 @@ fn cp_r(dir: &Path, dest: &Path) {
         let path = entry.path();
         let dst = dest.join(path.file_name().expect("Failed to get filename of path"));
         if t!(fs::metadata(&path)).is_file() {
-            t!(fs::copy(path, dst));
+            fs::copy(&path, &dst)
+                .unwrap_or_else(|e| panic!("Couldn't fs::copy {path:?} to {dst:?}: {e}"));
         } else {
             t!(fs::create_dir_all(&dst));
             cp_r(&path, &dst);
