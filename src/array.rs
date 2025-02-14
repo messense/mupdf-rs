@@ -32,7 +32,10 @@ impl<T> FzArray<T> {
     /// * If `len > 0`, the memory it points to also must be allocated by `fz_calloc` inside a
     ///   mupdf FFI call. `ptr` may be dangling or not well-aligned if `len == 0`
     pub(crate) unsafe fn from_parts(ptr: NonNull<T>, len: usize) -> Self {
-        Self { ptr: Some(ptr), len }
+        Self {
+            ptr: Some(ptr),
+            len,
+        }
     }
 
     /// # Safety
@@ -51,7 +54,7 @@ impl<T> Deref for FzArray<T> {
             // SAFETY: `self.ptr.as_ptr()` is not non-null (as it's a NonNull) and the creator has
             // promised us that it does point to a valid slice. Also, if it does point to a
             Some(ptr) => unsafe { slice::from_raw_parts(ptr.as_ptr(), self.len) },
-            None => &[]
+            None => &[],
         }
     }
 }
@@ -62,8 +65,8 @@ impl<T> DerefMut for FzArray<T> {
             Some(ptr) => {
                 let ptr = unsafe { ptr.as_mut() };
                 unsafe { slice::from_raw_parts_mut(ptr, self.len) }
-            },
-            None => &mut []
+            }
+            None => &mut [],
         }
     }
 }
