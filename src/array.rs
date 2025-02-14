@@ -74,7 +74,6 @@ impl<T> DerefMut for FzArray<T> {
 impl<T> Drop for FzArray<T> {
     fn drop(&mut self) {
         if let Some(ptr) = self.ptr {
-            println!("Drop is being called with addr {:?}", self.ptr);
             // SAFETY: Upheld by constructor - this must point to something allocated by fz_calloc
             unsafe { fz_free(context(), ptr.as_ptr() as *mut c_void) };
         }
@@ -86,7 +85,9 @@ impl<T> IntoIterator for FzArray<T> {
     type Item = T;
     fn into_iter(self) -> Self::IntoIter {
         let next_item_and_end = self.ptr.map(|p| {
-            let end = unsafe { p.add(self.len) }.addr();
+            // Would be nice to use `.addr()` but it seems CI doesn't have 1.84 yet, and that's
+            // what stabilized the strict provenance APIs
+            let end = unsafe { p.add(self.len) }.as_ptr() as usize;
             (p, end)
         });
         FzIter {
@@ -106,7 +107,8 @@ impl<T> Iterator for FzIter<T> {
     fn next(&mut self) -> Option<Self::Item> {
         let (next_item, end_addr) = self.next_item_and_end.as_mut()?;
 
-        if next_item.addr() == *end_addr {
+        // Same thing as above with `.addr()`
+        if next_item.as_ptr() as usize == *end_addr {
             return None;
         }
 
