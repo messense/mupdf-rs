@@ -431,7 +431,7 @@ pub struct StextPage {
 
 #[cfg(test)]
 mod test {
-    use crate::{array::FzArray, Document, Matrix};
+    use crate::{Document, Matrix};
 
     #[test]
     #[cfg(feature = "serde")]
