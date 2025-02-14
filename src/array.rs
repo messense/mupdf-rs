@@ -14,8 +14,8 @@ use crate::context;
 /// allocator API is stable, as we need to be able to free this with `fz_free` instead of the
 /// system allocator.
 pub struct FzArray<T> {
-    pub(crate) ptr: NonNull<T>,
-    pub(crate) len: usize,
+    ptr: NonNull<T>,
+    len: usize,
 }
 
 impl<T> FzArray<T> {
