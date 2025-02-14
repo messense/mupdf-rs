@@ -1,6 +1,5 @@
 use std::{
     ffi::c_void,
-    num::NonZero,
     ops::{Deref, DerefMut},
     ptr::{self, NonNull},
     slice,
@@ -99,7 +98,7 @@ impl<T> IntoIterator for FzArray<T> {
 
 pub struct FzIter<T> {
     _kept_to_be_dropped: FzArray<T>,
-    next_item_and_end: Option<(NonNull<T>, NonZero<usize>)>,
+    next_item_and_end: Option<(NonNull<T>, usize)>,
 }
 
 impl<T> Iterator for FzIter<T> {
