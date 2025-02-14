@@ -26,12 +26,12 @@ impl std::error::Error for MuPdfError {}
 
 /// # Safety
 ///
-/// * `err` must point to a valid, well-aligned instance of [`mupdf_error_t`].
+/// * `ptr` must point to a valid, well-aligned instance of [`mupdf_error_t`].
 ///
-/// * The pointers stored in this `mupdf_error_t` must also be non-null, well-aligned, and point to
-///   valid instances of what they claim to represent.
+/// * The pointers stored in this [`mupdf_error_t`] must also be non-null, well-aligned, and point
+///   to valid instances of what they claim to represent.
 ///
-/// * The `message` ptr in `mupdf_error_t` must point to a null-terminated c-string.
+/// * The [`field@mupdf_error_t::message`] ptr in `ptr` must point to a null-terminated c-string
 pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
     use std::ffi::CStr;
 

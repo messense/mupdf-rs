@@ -67,7 +67,7 @@ pub mod text;
 /// Text page
 pub mod text_page;
 
-/// Contains a special [`array::Array`] type which wraps an allocation from the `fz_calloc`
+/// Contains a special [`array::FzArray`] type which wraps an allocation from the `fz_calloc`
 /// allocation fn that mupdf uses internally. Ideally this will eventually be replaced with
 /// `Box<[_], A>` once the allocator api is stabilized.
 pub mod array;
