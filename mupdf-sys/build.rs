@@ -23,7 +23,7 @@ macro_rules! t {
     };
 }
 
-fn cp_r(dir: &Path, dest: &Path) {
+fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     for entry in t!(fs::read_dir(dir)) {
         let entry = t!(entry);
         let path = entry.path();
@@ -31,9 +31,9 @@ fn cp_r(dir: &Path, dest: &Path) {
         if t!(fs::metadata(&path)).is_file() {
             fs::copy(&path, &dst)
                 .unwrap_or_else(|e| panic!("Couldn't fs::copy {path:?} to {dst:?}: {e}"));
-        } else {
+        } else if dst.to_str().is_none_or(|dst| !excluding_dir_names.contains(&dst)) {
             t!(fs::create_dir_all(&dst));
-            cp_r(&path, &dst);
+            cp_r(&path, &dst, excluding_dir_names);
         }
     }
 }
@@ -55,7 +55,7 @@ fn build_libmupdf() {
 
     let current_dir = env::current_dir().unwrap();
     let mupdf_src_dir = current_dir.join("mupdf");
-    cp_r(&mupdf_src_dir, &build_dir);
+    cp_r(&mupdf_src_dir, &build_dir, &[".git"]);
 
     let mut build = cc::Build::new();
     #[cfg(not(feature = "xps"))]
@@ -220,7 +220,7 @@ fn build_libmupdf() {
 
     let current_dir = env::current_dir().unwrap();
     let mupdf_src_dir = current_dir.join("mupdf");
-    cp_r(&mupdf_src_dir, &build_dir);
+    cp_r(&mupdf_src_dir, &build_dir, &[".git"]);
 
     let msbuild = cc::windows_registry::find(target.as_str(), "msbuild.exe");
     if let Some(mut msbuild) = msbuild {
