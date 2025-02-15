@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -31,8 +32,9 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
         if t!(fs::metadata(&path)).is_file() {
             fs::copy(&path, &dst)
                 .unwrap_or_else(|e| panic!("Couldn't fs::copy {path:?} to {dst:?}: {e}"));
-        } else if dst
-            .to_str()
+        } else if path
+            .file_name()
+            .and_then(OsStr::to_str)
             .is_none_or(|dst| !excluding_dir_names.contains(&dst))
         {
             t!(fs::create_dir_all(&dst));
