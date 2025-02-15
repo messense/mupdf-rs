@@ -31,7 +31,10 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
         if t!(fs::metadata(&path)).is_file() {
             fs::copy(&path, &dst)
                 .unwrap_or_else(|e| panic!("Couldn't fs::copy {path:?} to {dst:?}: {e}"));
-        } else if dst.to_str().is_none_or(|dst| !excluding_dir_names.contains(&dst)) {
+        } else if dst
+            .to_str()
+            .is_none_or(|dst| !excluding_dir_names.contains(&dst))
+        {
             t!(fs::create_dir_all(&dst));
             cp_r(&path, &dst, excluding_dir_names);
         }
