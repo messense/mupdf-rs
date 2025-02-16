@@ -1,4 +1,4 @@
-use std::{ffi::c_int, mem, ptr, slice};
+use std::{ffi::c_int, mem, num::NonZero, ptr, slice};
 
 use mupdf_sys::*;
 
@@ -7,8 +7,8 @@ use crate::{
     Shade, StrokeState, Text,
 };
 
-#[allow(unused_variables)]
-pub trait CustomDevice {
+#[allow(unused_variables, clippy::too_many_arguments)]
+pub trait NativeDevice {
     fn close_device(&mut self) {}
 
     fn fill_path(
@@ -125,9 +125,23 @@ pub trait CustomDevice {
     }
 
     fn end_group(&mut self) {}
+
+    fn begin_tile(
+        &mut self,
+        area: Rect,
+        view: Rect,
+        x_step: f32,
+        y_step: f32,
+        ctm: Matrix,
+        id: Option<NonZero<i32>>,
+    ) -> Option<NonZero<i32>> {
+        None
+    }
+
+    fn end_tile(&mut self) {}
 }
 
-impl<T: CustomDevice + ?Sized> CustomDevice for &mut T {
+impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     fn close_device(&mut self) {
         (**self).close_device();
     }
@@ -273,10 +287,26 @@ impl<T: CustomDevice + ?Sized> CustomDevice for &mut T {
     fn end_group(&mut self) {
         (**self).end_group();
     }
+
+    fn begin_tile(
+        &mut self,
+        area: Rect,
+        view: Rect,
+        x_step: f32,
+        y_step: f32,
+        ctm: Matrix,
+        id: Option<NonZero<i32>>,
+    ) -> Option<NonZero<i32>> {
+        (**self).begin_tile(area, view, x_step, y_step, ctm, id)
+    }
+
+    fn end_tile(&mut self) {
+        (**self).end_tile();
+    }
 }
 
-pub(crate) fn create<D: CustomDevice>(device: D) -> Device {
-    let d = unsafe {
+pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
+    unsafe {
         let c_device = mupdf_new_derived_device::<CDevice<D>>(context(), c"RustDevice".as_ptr());
         ptr::write(&raw mut (*c_device).rust_device, device);
 
@@ -306,9 +336,11 @@ pub(crate) fn create<D: CustomDevice>(device: D) -> Device {
         (*c_device).base.begin_group = Some(begin_group::<D>);
         (*c_device).base.end_group = Some(end_group::<D>);
 
+        (*c_device).base.begin_tile = Some(begin_tile::<D>);
+        (*c_device).base.end_tile = Some(end_tile::<D>);
+
         Device::from_raw(c_device.cast(), ptr::null_mut())
-    };
-    d
+    }
 }
 
 #[repr(C)]
@@ -317,25 +349,27 @@ struct CDevice<D> {
     rust_device: D,
 }
 
-unsafe fn with_rust_device<'a, D: CustomDevice>(dev: *mut fz_device, f: impl FnOnce(&mut D)) {
+unsafe fn with_rust_device<D: NativeDevice, T>(
+    dev: *mut fz_device,
+    f: impl FnOnce(&mut D) -> T,
+) -> T {
     let c_device: *mut CDevice<D> = dev.cast();
     let rust_device = &mut (*c_device).rust_device;
-    f(rust_device);
-    let _ = rust_device;
+    f(rust_device)
 }
 
-unsafe extern "C" fn close_device<D: CustomDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D>(dev, |dev| dev.close_device());
+unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| dev.close_device());
 }
 
-unsafe extern "C" fn drop_device<D: CustomDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+unsafe extern "C" fn drop_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
     let c_device: *mut CDevice<D> = dev.cast();
     let rust_device = &raw mut (*c_device).rust_device;
 
     ptr::drop_in_place(rust_device);
 }
 
-unsafe extern "C" fn fill_path<D: CustomDevice>(
+unsafe extern "C" fn fill_path<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     path: *const fz_path,
@@ -346,7 +380,7 @@ unsafe extern "C" fn fill_path<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let cs = Colorspace::from_raw(color_space);
         let cs_n = cs.n() as usize;
 
@@ -366,7 +400,7 @@ unsafe extern "C" fn fill_path<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn stroke_path<D: CustomDevice>(
+unsafe extern "C" fn stroke_path<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     path: *const fz_path,
@@ -377,7 +411,7 @@ unsafe extern "C" fn stroke_path<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let cs = Colorspace::from_raw(color_space);
         let cs_n = cs.n() as usize;
 
@@ -401,7 +435,7 @@ unsafe extern "C" fn stroke_path<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn clip_path<D: CustomDevice>(
+unsafe extern "C" fn clip_path<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     path: *const fz_path,
@@ -409,7 +443,7 @@ unsafe extern "C" fn clip_path<D: CustomDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let path = Path::from_raw(path.cast_mut());
 
         dev.clip_path(&path, even_odd != 0, cmt.into(), scissor.into());
@@ -418,7 +452,7 @@ unsafe extern "C" fn clip_path<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn clip_stroke_path<D: CustomDevice>(
+unsafe extern "C" fn clip_stroke_path<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     path: *const fz_path,
@@ -426,7 +460,7 @@ unsafe extern "C" fn clip_stroke_path<D: CustomDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let path = Path::from_raw(path.cast_mut());
         let stroke_state = StrokeState {
             inner: stroke_state.cast_mut(),
@@ -439,7 +473,7 @@ unsafe extern "C" fn clip_stroke_path<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn fill_text<D: CustomDevice>(
+unsafe extern "C" fn fill_text<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     text: *const fz_text,
@@ -449,7 +483,7 @@ unsafe extern "C" fn fill_text<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let text = Text {
             inner: text.cast_mut(),
         };
@@ -469,7 +503,7 @@ unsafe extern "C" fn fill_text<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn stroke_text<D: CustomDevice>(
+unsafe extern "C" fn stroke_text<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     text: *const fz_text,
@@ -480,7 +514,7 @@ unsafe extern "C" fn stroke_text<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let text = Text {
             inner: text.cast_mut(),
         };
@@ -505,14 +539,14 @@ unsafe extern "C" fn stroke_text<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn clip_text<D: CustomDevice>(
+unsafe extern "C" fn clip_text<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     text: *const fz_text,
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let text = Text {
             inner: text.cast_mut(),
         };
@@ -523,7 +557,7 @@ unsafe extern "C" fn clip_text<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn clip_stroke_text<D: CustomDevice>(
+unsafe extern "C" fn clip_stroke_text<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     text: *const fz_text,
@@ -531,7 +565,7 @@ unsafe extern "C" fn clip_stroke_text<D: CustomDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let text = Text {
             inner: text.cast_mut(),
         };
@@ -546,13 +580,13 @@ unsafe extern "C" fn clip_stroke_text<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn ignore_text<D: CustomDevice>(
+unsafe extern "C" fn ignore_text<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     text: *const fz_text,
     cmt: fz_matrix,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let text = Text {
             inner: text.cast_mut(),
         };
@@ -563,7 +597,7 @@ unsafe extern "C" fn ignore_text<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn fill_shade<D: CustomDevice>(
+unsafe extern "C" fn fill_shade<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     shd: *mut fz_shade,
@@ -571,7 +605,7 @@ unsafe extern "C" fn fill_shade<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let shade = Shade { inner: shd };
 
         dev.fill_shade(&shade, ctm.into(), alpha, color_params.into());
@@ -580,7 +614,7 @@ unsafe extern "C" fn fill_shade<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn fill_image<D: CustomDevice>(
+unsafe extern "C" fn fill_image<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     img: *mut fz_image,
@@ -588,7 +622,7 @@ unsafe extern "C" fn fill_image<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let img = Image::from_raw(img);
 
         dev.fill_image(&img, ctm.into(), alpha, color_params.into());
@@ -597,7 +631,7 @@ unsafe extern "C" fn fill_image<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn fill_image_mask<D: CustomDevice>(
+unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     img: *mut fz_image,
@@ -607,7 +641,7 @@ unsafe extern "C" fn fill_image_mask<D: CustomDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let cs = Colorspace::from_raw(color_space);
         let cs_n = cs.n() as usize;
 
@@ -626,14 +660,14 @@ unsafe extern "C" fn fill_image_mask<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn clip_image_mask<D: CustomDevice>(
+unsafe extern "C" fn clip_image_mask<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     img: *mut fz_image,
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let img = Image::from_raw(img);
 
         dev.clip_image_mask(&img, cmt.into(), scissor.into());
@@ -642,13 +676,13 @@ unsafe extern "C" fn clip_image_mask<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn pop_clip<D: CustomDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D>(dev, |dev| {
+unsafe extern "C" fn pop_clip<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
         dev.pop_clip();
     });
 }
 
-unsafe extern "C" fn begin_mask<D: CustomDevice>(
+unsafe extern "C" fn begin_mask<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     area: fz_rect,
@@ -657,7 +691,7 @@ unsafe extern "C" fn begin_mask<D: CustomDevice>(
     color: *const f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let cs = Colorspace::from_raw(color_space);
         let cs_n = cs.n() as usize;
 
@@ -671,12 +705,12 @@ unsafe extern "C" fn begin_mask<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn end_mask<D: CustomDevice>(
+unsafe extern "C" fn end_mask<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     f: *mut fz_function,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let f = Function { inner: f };
 
         dev.end_mask(&f);
@@ -685,7 +719,7 @@ unsafe extern "C" fn end_mask<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn begin_group<D: CustomDevice>(
+unsafe extern "C" fn begin_group<D: NativeDevice>(
     _ctx: *mut fz_context,
     dev: *mut fz_device,
     area: fz_rect,
@@ -695,7 +729,7 @@ unsafe extern "C" fn begin_group<D: CustomDevice>(
     blendmode: c_int,
     alpha: f32,
 ) {
-    with_rust_device::<D>(dev, |dev| {
+    with_rust_device::<D, _>(dev, |dev| {
         let cs = Colorspace::from_raw(color_space);
 
         let blendmode = BlendMode::try_from(blendmode as u32).unwrap();
@@ -711,8 +745,37 @@ unsafe extern "C" fn begin_group<D: CustomDevice>(
     });
 }
 
-unsafe extern "C" fn end_group<D: CustomDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D>(dev, |dev| {
+unsafe extern "C" fn end_group<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
         dev.end_group();
+    });
+}
+
+unsafe extern "C" fn begin_tile<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    area: fz_rect,
+    view: fz_rect,
+    xstep: f32,
+    ystep: f32,
+    ctm: fz_matrix,
+    id: c_int,
+) -> c_int {
+    let i = with_rust_device::<D, _>(dev, |dev| {
+        dev.begin_tile(
+            area.into(),
+            view.into(),
+            xstep,
+            ystep,
+            ctm.into(),
+            NonZero::new(id as i32),
+        )
+    });
+    i.map_or(0, NonZero::get) as c_int
+}
+
+unsafe extern "C" fn end_tile<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
+        dev.end_tile();
     });
 }

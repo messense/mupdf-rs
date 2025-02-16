@@ -1,5 +1,5 @@
-use std::ffi::CString;
 use std::ptr;
+use std::{ffi::CString, num::NonZero};
 
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
@@ -9,8 +9,8 @@ use crate::{
     Shade, StrokeState, Text, TextPage, TextPageOptions,
 };
 
-mod custom;
-pub use custom::CustomDevice;
+mod native;
+pub use native::NativeDevice;
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
 #[repr(u32)]
@@ -56,8 +56,8 @@ impl Device {
         Self { dev, list }
     }
 
-    pub fn from_custom<D: CustomDevice>(device: D) -> Self {
-        custom::create(device)
+    pub fn from_native<D: NativeDevice>(device: D) -> Self {
+        native::create(device)
     }
 
     pub fn from_pixmap_with_clip(pixmap: &Pixmap, clip: IRect) -> Result<Self, Error> {
@@ -419,8 +419,8 @@ impl Device {
         xstep: f32,
         ystep: f32,
         ctm: &Matrix,
-        id: i32,
-    ) -> Result<i32, Error> {
+        id: Option<NonZero<i32>>,
+    ) -> Result<Option<NonZero<i32>>, Error> {
         let i = unsafe {
             ffi_try!(mupdf_begin_tile(
                 context(),
@@ -430,10 +430,10 @@ impl Device {
                 xstep,
                 ystep,
                 ctm.into(),
-                id
+                id.map_or(0, NonZero::get)
             ))
         };
-        Ok(i)
+        Ok(NonZero::new(i))
     }
 
     pub fn end_tile(&self) -> Result<(), Error> {
