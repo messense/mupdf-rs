@@ -2875,11 +2875,11 @@ void mupdf_begin_mask(fz_context *ctx, fz_device *device, fz_rect area, bool lum
     }
 }
 
-void mupdf_end_mask(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+void mupdf_end_mask(fz_context *ctx, fz_device *device, fz_function *fn, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_end_mask(ctx, device);
+        fz_end_mask_tr(ctx, device, fn);
     }
     fz_catch(ctx)
     {

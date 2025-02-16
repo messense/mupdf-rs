@@ -118,8 +118,8 @@ fn build_libmupdf() {
     ];
 
     // this may be unused if none of the features below are enabled
-    #[allow(unused_variables)]
-    let add_lib = |cflags_name: &'static str, pkgcfg_name: &'static str| {
+    #[allow(unused_variables, unused_mut)]
+    let mut add_lib = |cflags_name: &'static str, pkgcfg_name: &'static str| {
         make_flags.push(format!(
             "SYS_{cflags_name}_CFLAGS={}",
             pkg_config::probe_library(pkgcfg_name)

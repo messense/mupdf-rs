@@ -2,6 +2,7 @@ use std::ffi::CString;
 use std::ptr;
 
 use mupdf_sys::*;
+use num_enum::TryFromPrimitive;
 
 use crate::{
     context, ColorParams, Colorspace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect,
@@ -11,27 +12,37 @@ use crate::{
 mod custom;
 pub use custom::CustomDevice;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
+#[repr(u32)]
 pub enum BlendMode {
     /* PDF 1.4 -- standard separable */
-    Normal = 0,
-    Multiply = 1,
-    Screen = 2,
-    Overlay = 3,
-    Darken = 4,
-    Lighten = 5,
-    ColorDodge = 6,
-    ColorBurn = 7,
-    HardLight = 8,
-    SoftLight = 9,
-    Difference = 10,
-    Exclusion = 11,
+    Normal = FZ_BLEND_NORMAL as u32,
+    Multiply = FZ_BLEND_MULTIPLY as u32,
+    Screen = FZ_BLEND_SCREEN as u32,
+    Overlay = FZ_BLEND_OVERLAY as u32,
+    Darken = FZ_BLEND_DARKEN as u32,
+    Lighten = FZ_BLEND_LIGHTEN as u32,
+    ColorDodge = FZ_BLEND_COLOR_DODGE as u32,
+    ColorBurn = FZ_BLEND_COLOR_BURN as u32,
+    HardLight = FZ_BLEND_HARD_LIGHT as u32,
+    SoftLight = FZ_BLEND_SOFT_LIGHT as u32,
+    Difference = FZ_BLEND_DIFFERENCE as u32,
+    Exclusion = FZ_BLEND_EXCLUSION as u32,
     /* PDF 1.4 -- standard non-separable */
-    Hue = 12,
-    Saturation = 13,
-    Color = 14,
-    Luminosity = 15,
+    Hue = FZ_BLEND_HUE as u32,
+    Saturation = FZ_BLEND_SATURATION as u32,
+    Color = FZ_BLEND_COLOR as u32,
+    Luminosity = FZ_BLEND_LUMINOSITY as u32,
+}
+
+pub struct Function {
+    pub(crate) inner: *mut fz_function,
+}
+
+impl Drop for Function {
+    fn drop(&mut self) {
+        unsafe { fz_drop_function(context(), self.inner) }
+    }
 }
 
 #[derive(Debug)]
@@ -359,9 +370,13 @@ impl Device {
         Ok(())
     }
 
-    pub fn end_mask(&self) -> Result<(), Error> {
+    pub fn end_mask(&self, f: Option<&Function>) -> Result<(), Error> {
         unsafe {
-            ffi_try!(mupdf_end_mask(context(), self.dev));
+            ffi_try!(mupdf_end_mask(
+                context(),
+                self.dev,
+                f.map_or(ptr::null_mut(), |f| f.inner)
+            ));
         }
         Ok(())
     }
