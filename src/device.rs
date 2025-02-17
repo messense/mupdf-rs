@@ -114,7 +114,7 @@ pub enum Structure {
     Quote = fz_structure_FZ_STRUCTURE_QUOTE as _,
     Note = fz_structure_FZ_STRUCTURE_NOTE as _,
     Reference = fz_structure_FZ_STRUCTURE_REFERENCE as _,
-    Bibentry = fz_structure_FZ_STRUCTURE_BIBENTRY as _,
+    BibEntry = fz_structure_FZ_STRUCTURE_BIBENTRY as _,
     Code = fz_structure_FZ_STRUCTURE_CODE as _,
     Link = fz_structure_FZ_STRUCTURE_LINK as _,
     Annot = fz_structure_FZ_STRUCTURE_ANNOT as _,
@@ -580,6 +580,47 @@ impl Device {
     pub fn end_layer(&self) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_end_layer(context(), self.dev));
+        }
+        Ok(())
+    }
+
+    pub fn begin_structure(&self, standard: Structure, raw: &str, idx: i32) -> Result<(), Error> {
+        let c_raw = CString::new(raw)?;
+        unsafe {
+            ffi_try!(mupdf_begin_structure(
+                context(),
+                self.dev,
+                standard as _,
+                c_raw.as_ptr(),
+                idx as _
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn end_structure(&self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_end_structure(context(), self.dev));
+        }
+        Ok(())
+    }
+
+    pub fn begin_metatext(&self, meta: Metatext, text: &str) -> Result<(), Error> {
+        let c_text = CString::new(text)?;
+        unsafe {
+            ffi_try!(mupdf_begin_metatext(
+                context(),
+                self.dev,
+                meta as _,
+                c_text.as_ptr()
+            ));
+        }
+        Ok(())
+    }
+
+    pub fn end_metatext(&self) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_end_metatext(context(), self.dev));
         }
         Ok(())
     }

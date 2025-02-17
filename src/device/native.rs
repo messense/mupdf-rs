@@ -901,3 +901,92 @@ unsafe extern "C" fn end_metatext<D: NativeDevice>(_ctx: *mut fz_context, dev: *
         dev.end_metatext();
     });
 }
+
+#[cfg(test)]
+mod test {
+    use std::rc::Rc;
+
+    use crate::{
+        device::{Metatext, Structure},
+        Device, NativeDevice,
+    };
+
+    #[test]
+    fn native_device() {
+        #[derive(Default)]
+        struct Test {
+            begin_layer: u8,
+            end_layer: u8,
+            begin_structure: u8,
+            end_structure: u8,
+            begin_metatext: u8,
+            end_metatext: u8,
+        }
+
+        impl NativeDevice for Test {
+            fn begin_layer(&mut self, name: &str) {
+                assert_eq!(name, "begin layer name");
+                self.begin_layer += 1;
+            }
+
+            fn end_layer(&mut self) {
+                self.end_layer += 1;
+            }
+
+            fn begin_structure(&mut self, standard: Structure, raw: &str, idx: i32) {
+                assert_eq!(standard, Structure::Div);
+                assert_eq!(raw, "div");
+                assert_eq!(idx, 5);
+                self.begin_structure += 1;
+            }
+
+            fn end_structure(&mut self) {
+                self.end_structure += 1;
+            }
+
+            fn begin_metatext(&mut self, meta: Metatext, text: &str) {
+                assert_eq!(meta, Metatext::Title);
+                assert_eq!(text, "some text");
+                self.begin_metatext += 1;
+            }
+
+            fn end_metatext(&mut self) {
+                self.end_metatext += 1;
+            }
+        }
+
+        let mut ndev = Test::default();
+        let dev = Device::from_native(&mut ndev);
+
+        dev.begin_layer("begin layer name").unwrap();
+        assert_eq!(ndev.begin_layer, 1);
+        dev.end_layer().unwrap();
+        assert_eq!(ndev.end_layer, 1);
+
+        dev.begin_structure(Structure::Div, "div", 5).unwrap();
+        assert_eq!(ndev.begin_structure, 1);
+        dev.end_structure().unwrap();
+        assert_eq!(ndev.end_structure, 1);
+
+        dev.begin_metatext(Metatext::Title, "some text").unwrap();
+        assert_eq!(ndev.begin_metatext, 1);
+        dev.end_metatext().unwrap();
+        assert_eq!(ndev.end_metatext, 1);
+    }
+
+    #[test]
+    fn native_device_drop() {
+        struct DropDevice(#[allow(dead_code)] Rc<()>);
+
+        impl NativeDevice for DropDevice {}
+
+        let proof = Rc::new(());
+        let detector = proof.clone();
+        assert_eq!(Rc::strong_count(&proof), 2, "setup failed");
+
+        let dev = Device::from_native(DropDevice(detector));
+        assert_eq!(Rc::strong_count(&proof), 2, "dropped too early");
+        drop(dev);
+        assert_eq!(Rc::strong_count(&proof), 1, "not dropped");
+    }
+}
