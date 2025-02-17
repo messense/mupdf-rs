@@ -79,14 +79,14 @@ impl TextPage {
         let (ptr, len): (*const fz_quad, _) = rust_slice_to_ffi_ptr(quads)?;
 
         Ok(unsafe {
-            fz_highlight_selection(
+            ffi_try!(mupdf_highlight_selection(
                 context(),
                 self.inner,
                 a.into(),
                 b.into(),
-                ptr as *mut _,
-                len,
-            )
+                ptr as *mut fz_quad,
+                len
+            ))
         })
     }
 }
