@@ -56,6 +56,101 @@ bitflags! {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
+#[repr(i32)]
+pub enum Structure {
+    Invalid = fz_structure_FZ_STRUCTURE_INVALID as _,
+
+    /* Grouping elements (PDF 1.7 - Table 10.20) */
+    Document = fz_structure_FZ_STRUCTURE_DOCUMENT as _,
+    Part = fz_structure_FZ_STRUCTURE_PART as _,
+    Art = fz_structure_FZ_STRUCTURE_ART as _,
+    Sect = fz_structure_FZ_STRUCTURE_SECT as _,
+    Div = fz_structure_FZ_STRUCTURE_DIV as _,
+    BlockQuote = fz_structure_FZ_STRUCTURE_BLOCKQUOTE as _,
+    Caption = fz_structure_FZ_STRUCTURE_CAPTION as _,
+    TOC = fz_structure_FZ_STRUCTURE_TOC as _,
+    TOCI = fz_structure_FZ_STRUCTURE_TOCI as _,
+    Index = fz_structure_FZ_STRUCTURE_INDEX as _,
+    NonStruct = fz_structure_FZ_STRUCTURE_NONSTRUCT as _,
+    Private = fz_structure_FZ_STRUCTURE_PRIVATE as _,
+    /* Grouping elements (PDF 2.0 - Table 364) */
+    DocumentFragment = fz_structure_FZ_STRUCTURE_DOCUMENTFRAGMENT as _,
+    /* Grouping elements (PDF 2.0 - Table 365) */
+    Aside = fz_structure_FZ_STRUCTURE_ASIDE as _,
+    /* Grouping elements (PDF 2.0 - Table 366) */
+    Title = fz_structure_FZ_STRUCTURE_TITLE as _,
+    FENote = fz_structure_FZ_STRUCTURE_FENOTE as _,
+    /* Grouping elements (PDF 2.0 - Table 367) */
+    Sub = fz_structure_FZ_STRUCTURE_SUB as _,
+
+    /* Paragraphlike elements (PDF 1.7 - Table 10.21) */
+    P = fz_structure_FZ_STRUCTURE_P as _,
+    H = fz_structure_FZ_STRUCTURE_H as _,
+    H1 = fz_structure_FZ_STRUCTURE_H1 as _,
+    H2 = fz_structure_FZ_STRUCTURE_H2 as _,
+    H3 = fz_structure_FZ_STRUCTURE_H3 as _,
+    H4 = fz_structure_FZ_STRUCTURE_H4 as _,
+    H5 = fz_structure_FZ_STRUCTURE_H5 as _,
+    H6 = fz_structure_FZ_STRUCTURE_H6 as _,
+
+    /* List elements (PDF 1.7 - Table 10.23) */
+    List = fz_structure_FZ_STRUCTURE_LIST as _,
+    ListItem = fz_structure_FZ_STRUCTURE_LISTITEM as _,
+    Label = fz_structure_FZ_STRUCTURE_LABEL as _,
+    ListBody = fz_structure_FZ_STRUCTURE_LISTBODY as _,
+
+    /* Table elements (PDF 1.7 - Table 10.24) */
+    Table = fz_structure_FZ_STRUCTURE_TABLE as _,
+    TR = fz_structure_FZ_STRUCTURE_TR as _,
+    TH = fz_structure_FZ_STRUCTURE_TH as _,
+    TD = fz_structure_FZ_STRUCTURE_TD as _,
+    THead = fz_structure_FZ_STRUCTURE_THEAD as _,
+    TBody = fz_structure_FZ_STRUCTURE_TBODY as _,
+    TFoot = fz_structure_FZ_STRUCTURE_TFOOT as _,
+
+    /* Inline elements (PDF 1.7 - Table 10.25) */
+    Span = fz_structure_FZ_STRUCTURE_SPAN as _,
+    Quote = fz_structure_FZ_STRUCTURE_QUOTE as _,
+    Note = fz_structure_FZ_STRUCTURE_NOTE as _,
+    Reference = fz_structure_FZ_STRUCTURE_REFERENCE as _,
+    Bibentry = fz_structure_FZ_STRUCTURE_BIBENTRY as _,
+    Code = fz_structure_FZ_STRUCTURE_CODE as _,
+    Link = fz_structure_FZ_STRUCTURE_LINK as _,
+    Annot = fz_structure_FZ_STRUCTURE_ANNOT as _,
+    /* Inline elements (PDF 2.0 - Table 368) */
+    Em = fz_structure_FZ_STRUCTURE_EM as _,
+    Strong = fz_structure_FZ_STRUCTURE_STRONG as _,
+
+    /* Ruby inline element (PDF 1.7 - Table 10.26) */
+    Ruby = fz_structure_FZ_STRUCTURE_RUBY as _,
+    RB = fz_structure_FZ_STRUCTURE_RB as _,
+    RT = fz_structure_FZ_STRUCTURE_RT as _,
+    RP = fz_structure_FZ_STRUCTURE_RP as _,
+
+    /* Warichu inline element (PDF 1.7 - Table 10.26) */
+    Warichu = fz_structure_FZ_STRUCTURE_WARICHU as _,
+    WT = fz_structure_FZ_STRUCTURE_WT as _,
+    WP = fz_structure_FZ_STRUCTURE_WP as _,
+
+    /* Illustration elements (PDF 1.7 - Table 10.27) */
+    Figure = fz_structure_FZ_STRUCTURE_FIGURE as _,
+    Formula = fz_structure_FZ_STRUCTURE_FORMULA as _,
+    Form = fz_structure_FZ_STRUCTURE_FORM as _,
+
+    /* Artifact structure type (PDF 2.0 - Table 375) */
+    Artifact = fz_structure_FZ_STRUCTURE_ARTIFACT as _,
+}
+
+#[derive(Debug, PartialEq, Eq, Clone, Copy, TryFromPrimitive)]
+#[repr(u32)]
+pub enum Metatext {
+    ActualText = fz_metatext_FZ_METATEXT_ACTUALTEXT as _,
+    Alt = fz_metatext_FZ_METATEXT_ALT as _,
+    Abbreviation = fz_metatext_FZ_METATEXT_ABBREVIATION as _,
+    Title = fz_metatext_FZ_METATEXT_TITLE as _,
+}
+
 pub struct DefaultColorspaces {
     pub(crate) inner: *mut fz_default_colorspaces,
 }

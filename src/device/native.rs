@@ -12,7 +12,7 @@ use crate::{
     Shade, StrokeState, Text,
 };
 
-use super::{DefaultColorspaces, DeviceFlag};
+use super::{DefaultColorspaces, DeviceFlag, Metatext, Structure};
 
 #[allow(unused_variables, clippy::too_many_arguments)]
 pub trait NativeDevice {
@@ -154,6 +154,14 @@ pub trait NativeDevice {
     fn begin_layer(&mut self, name: &str) {}
 
     fn end_layer(&mut self) {}
+
+    fn begin_structure(&mut self, standard: Structure, raw: &str, idx: i32) {}
+
+    fn end_structure(&mut self) {}
+
+    fn begin_metatext(&mut self, meta: Metatext, text: &str) {}
+
+    fn end_metatext(&mut self) {}
 }
 
 impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
@@ -334,6 +342,22 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     fn end_layer(&mut self) {
         (**self).end_layer();
     }
+
+    fn begin_structure(&mut self, standard: Structure, raw: &str, idx: i32) {
+        (**self).begin_structure(standard, raw, idx);
+    }
+
+    fn end_structure(&mut self) {
+        (**self).end_structure();
+    }
+
+    fn begin_metatext(&mut self, meta: Metatext, text: &str) {
+        (**self).begin_metatext(meta, text);
+    }
+
+    fn end_metatext(&mut self) {
+        (**self).end_metatext();
+    }
 }
 
 pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
@@ -375,6 +399,12 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
 
         (*c_device).base.begin_layer = Some(begin_layer::<D>);
         (*c_device).base.end_layer = Some(end_layer::<D>);
+
+        (*c_device).base.begin_structure = Some(begin_structure::<D>);
+        (*c_device).base.end_structure = Some(end_structure::<D>);
+
+        (*c_device).base.begin_metatext = Some(begin_metatext::<D>);
+        (*c_device).base.end_metatext = Some(end_metatext::<D>);
 
         Device::from_raw(c_device.cast(), ptr::null_mut())
     }
@@ -828,5 +858,46 @@ unsafe extern "C" fn begin_layer<D: NativeDevice>(
 unsafe extern "C" fn end_layer<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
     with_rust_device::<D, _>(dev, |dev| {
         dev.end_layer();
+    });
+}
+
+unsafe extern "C" fn begin_structure<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    standard: fz_structure,
+    raw: *const c_char,
+    idx: c_int,
+) {
+    with_rust_device::<D, _>(dev, |dev| {
+        let standard = Structure::try_from(standard as i32).unwrap();
+        let raw = unsafe { CStr::from_ptr(raw) }.to_str().unwrap();
+
+        dev.begin_structure(standard, raw, idx as i32);
+    });
+}
+
+unsafe extern "C" fn end_structure<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
+        dev.end_structure();
+    });
+}
+
+unsafe extern "C" fn begin_metatext<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    meta: fz_metatext,
+    text: *const c_char,
+) {
+    with_rust_device::<D, _>(dev, |dev| {
+        let meta = Metatext::try_from(meta as u32).unwrap();
+        let text = unsafe { CStr::from_ptr(text) }.to_str().unwrap();
+
+        dev.begin_metatext(meta, text);
+    });
+}
+
+unsafe extern "C" fn end_metatext<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
+        dev.end_metatext();
     });
 }
