@@ -60,24 +60,6 @@ pub struct DefaultColorspaces {
     pub(crate) inner: *mut fz_default_colorspaces,
 }
 
-impl DefaultColorspaces {
-    pub fn gray(&self) -> Colorspace {
-        unsafe { Colorspace::from_raw((*self.inner).gray) }
-    }
-
-    pub fn rgb(&self) -> Colorspace {
-        unsafe { Colorspace::from_raw((*self.inner).rgb) }
-    }
-
-    pub fn cmyk(&self) -> Colorspace {
-        unsafe { Colorspace::from_raw((*self.inner).cmyk) }
-    }
-
-    pub fn oi(&self) -> Colorspace {
-        unsafe { Colorspace::from_raw((*self.inner).oi) }
-    }
-}
-
 impl Drop for DefaultColorspaces {
     fn drop(&mut self) {
         unsafe { fz_drop_default_colorspaces(context(), self.inner) }

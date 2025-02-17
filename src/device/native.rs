@@ -1,6 +1,6 @@
 use std::{
     ffi::{c_char, c_int, CStr},
-    mem,
+    mem::ManuallyDrop,
     num::NonZero,
     ptr, slice,
 };
@@ -23,7 +23,7 @@ pub trait NativeDevice {
         path: &Path,
         even_odd: bool,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -35,7 +35,7 @@ pub trait NativeDevice {
         path: &Path,
         stroke_state: &StrokeState,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -57,7 +57,7 @@ pub trait NativeDevice {
         &mut self,
         text: &Text,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -69,7 +69,7 @@ pub trait NativeDevice {
         text: &Text,
         stroke_state: &StrokeState,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -97,7 +97,7 @@ pub trait NativeDevice {
         &mut self,
         img: &Image,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -112,7 +112,7 @@ pub trait NativeDevice {
         &mut self,
         area: Rect,
         luminosity: bool,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         cp: ColorParams,
     ) {
@@ -123,7 +123,7 @@ pub trait NativeDevice {
     fn begin_group(
         &mut self,
         area: Rect,
-        cs: Colorspace,
+        cs: &Colorspace,
         isolated: bool,
         knockout: bool,
         blendmode: BlendMode,
@@ -166,7 +166,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         path: &Path,
         even_odd: bool,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -179,7 +179,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         path: &Path,
         stroke_state: &StrokeState,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -205,7 +205,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         &mut self,
         text: &Text,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -218,7 +218,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         text: &Text,
         stroke_state: &StrokeState,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -256,7 +256,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         &mut self,
         img: &Image,
         cmt: Matrix,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         alpha: f32,
         cp: ColorParams,
@@ -276,7 +276,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
         &mut self,
         area: Rect,
         luminosity: bool,
-        color_space: Colorspace,
+        color_space: &Colorspace,
         color: &[f32],
         cp: ColorParams,
     ) {
@@ -290,7 +290,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     fn begin_group(
         &mut self,
         area: Rect,
-        cs: Colorspace,
+        cs: &Colorspace,
         isolated: bool,
         knockout: bool,
         blendmode: BlendMode,
@@ -418,22 +418,20 @@ unsafe extern "C" fn fill_path<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
 
-        let path = Path::from_raw(path.cast_mut());
+        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
 
         dev.fill_path(
             &path,
             even_odd != 0,
             cmt.into(),
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             alpha,
             color_params.into(),
         );
-
-        mem::forget(path);
     });
 }
 
@@ -449,26 +447,23 @@ unsafe extern "C" fn stroke_path<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
 
-        let path = Path::from_raw(path.cast_mut());
-        let stroke_state = StrokeState {
+        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+        let stroke_state = ManuallyDrop::new(StrokeState {
             inner: stroke_state.cast_mut(),
-        };
+        });
 
         dev.stroke_path(
             &path,
             &stroke_state,
             cmt.into(),
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             alpha,
             color_params.into(),
         );
-
-        mem::forget(stroke_state);
-        mem::forget(path);
     });
 }
 
@@ -481,11 +476,9 @@ unsafe extern "C" fn clip_path<D: NativeDevice>(
     scissor: fz_rect,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let path = Path::from_raw(path.cast_mut());
+        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
 
         dev.clip_path(&path, even_odd != 0, cmt.into(), scissor.into());
-
-        mem::forget(path);
     });
 }
 
@@ -498,15 +491,12 @@ unsafe extern "C" fn clip_stroke_path<D: NativeDevice>(
     scissor: fz_rect,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let path = Path::from_raw(path.cast_mut());
-        let stroke_state = StrokeState {
+        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+        let stroke_state = ManuallyDrop::new(StrokeState {
             inner: stroke_state.cast_mut(),
-        };
+        });
 
         dev.clip_stroke_path(&path, &stroke_state, cmt.into(), scissor.into());
-
-        mem::forget(stroke_state);
-        mem::forget(path);
     });
 }
 
@@ -521,22 +511,21 @@ unsafe extern "C" fn fill_text<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let text = Text {
-            inner: text.cast_mut(),
-        };
-
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
+
+        let text = ManuallyDrop::new(Text {
+            inner: text.cast_mut(),
+        });
+
         dev.fill_text(
             &text,
             cmt.into(),
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             alpha,
             color_params.into(),
         );
-
-        mem::forget(text);
     });
 }
 
@@ -552,27 +541,25 @@ unsafe extern "C" fn stroke_text<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let text = Text {
-            inner: text.cast_mut(),
-        };
-        let stroke_state = StrokeState {
-            inner: stroke_state.cast_mut(),
-        };
-
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
+
+        let text = ManuallyDrop::new(Text {
+            inner: text.cast_mut(),
+        });
+        let stroke_state = ManuallyDrop::new(StrokeState {
+            inner: stroke_state.cast_mut(),
+        });
+
         dev.stroke_text(
             &text,
             &stroke_state,
             cmt.into(),
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             alpha,
             color_params.into(),
         );
-
-        mem::forget(stroke_state);
-        mem::forget(text);
     });
 }
 
@@ -584,13 +571,11 @@ unsafe extern "C" fn clip_text<D: NativeDevice>(
     scissor: fz_rect,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let text = Text {
+        let text = ManuallyDrop::new(Text {
             inner: text.cast_mut(),
-        };
+        });
 
         dev.clip_text(&text, cmt.into(), scissor.into());
-
-        mem::forget(text);
     });
 }
 
@@ -603,17 +588,14 @@ unsafe extern "C" fn clip_stroke_text<D: NativeDevice>(
     scissor: fz_rect,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let text = Text {
+        let text = ManuallyDrop::new(Text {
             inner: text.cast_mut(),
-        };
-        let stroke_state = StrokeState {
+        });
+        let stroke_state = ManuallyDrop::new(StrokeState {
             inner: stroke_state.cast_mut(),
-        };
+        });
 
         dev.clip_stroke_text(&text, &stroke_state, cmt.into(), scissor.into());
-
-        mem::forget(stroke_state);
-        mem::forget(text);
     });
 }
 
@@ -624,13 +606,11 @@ unsafe extern "C" fn ignore_text<D: NativeDevice>(
     cmt: fz_matrix,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let text = Text {
+        let text = ManuallyDrop::new(Text {
             inner: text.cast_mut(),
-        };
+        });
 
         dev.ignore_text(&text, cmt.into());
-
-        mem::forget(text);
     });
 }
 
@@ -643,11 +623,9 @@ unsafe extern "C" fn fill_shade<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let shade = Shade { inner: shd };
+        let shade = ManuallyDrop::new(Shade { inner: shd });
 
         dev.fill_shade(&shade, ctm.into(), alpha, color_params.into());
-
-        mem::forget(shade);
     });
 }
 
@@ -660,11 +638,9 @@ unsafe extern "C" fn fill_image<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let img = Image::from_raw(img);
+        let img = ManuallyDrop::new(Image::from_raw(img));
 
         dev.fill_image(&img, ctm.into(), alpha, color_params.into());
-
-        mem::forget(img);
     });
 }
 
@@ -679,21 +655,19 @@ unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
 
-        let img = Image::from_raw(img);
+        let img = ManuallyDrop::new(Image::from_raw(img));
 
         dev.fill_image_mask(
             &img,
             ctm.into(),
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             alpha,
             color_params.into(),
         );
-
-        mem::forget(img);
     });
 }
 
@@ -705,11 +679,9 @@ unsafe extern "C" fn clip_image_mask<D: NativeDevice>(
     scissor: fz_rect,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let img = Image::from_raw(img);
+        let img = ManuallyDrop::new(Image::from_raw(img));
 
         dev.clip_image_mask(&img, cmt.into(), scissor.into());
-
-        mem::forget(img);
     });
 }
 
@@ -729,13 +701,13 @@ unsafe extern "C" fn begin_mask<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
         let cs_n = cs.n() as usize;
 
         dev.begin_mask(
             area.into(),
             luminosity != 0,
-            cs,
+            &cs,
             slice::from_raw_parts(color, cs_n),
             color_params.into(),
         );
@@ -748,11 +720,9 @@ unsafe extern "C" fn end_mask<D: NativeDevice>(
     f: *mut fz_function,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let f = Function { inner: f };
+        let f = ManuallyDrop::new(Function { inner: f });
 
         dev.end_mask(&f);
-
-        mem::forget(f);
     });
 }
 
@@ -767,13 +737,13 @@ unsafe extern "C" fn begin_group<D: NativeDevice>(
     alpha: f32,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let cs = Colorspace::from_raw(color_space);
+        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
 
         let blendmode = BlendMode::try_from(blendmode as u32).unwrap();
 
         dev.begin_group(
             area.into(),
-            cs,
+            &cs,
             isolated != 0,
             knockout != 0,
             blendmode,
@@ -837,11 +807,9 @@ unsafe extern "C" fn set_default_colorspaces<D: NativeDevice>(
     dcs: *mut fz_default_colorspaces,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let dcs = DefaultColorspaces { inner: dcs };
+        let dcs = ManuallyDrop::new(DefaultColorspaces { inner: dcs });
 
         dev.set_default_colorspaces(&dcs);
-
-        mem::forget(dcs);
     });
 }
 
