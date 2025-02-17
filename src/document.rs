@@ -214,10 +214,9 @@ impl Document {
     }
 
     pub fn load_page(&self, page_no: i32) -> Result<Page, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_load_page(context(), self.inner, page_no));
-            Ok(Page::from_raw(inner))
-        }
+        let fz_page = unsafe { ffi_try!(mupdf_load_page(context(), self.inner, page_no)) };
+        // SAFETY: We're trusting the FFI layer here to provide a valid pointer
+        unsafe { Page::from_raw(fz_page) }
     }
 
     pub fn pages(&self) -> Result<PageIter, Error> {

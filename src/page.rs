@@ -1,31 +1,49 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{c_int, CStr, CString};
 use std::io::Read;
-use std::ptr;
-use std::slice;
+use std::ptr::{self, NonNull};
 
 use mupdf_sys::*;
 
+use crate::array::FzArray;
 use crate::{
-    context, Buffer, Colorspace, Cookie, Device, DisplayList, Error, Link, Matrix, Pixmap, Quad,
-    Rect, Separations, TextPage, TextPageOptions,
+    context, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Colorspace, Cookie, Device,
+    DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad, Rect, Separations, TextPage,
+    TextPageOptions,
 };
 
 #[derive(Debug)]
 pub struct Page {
-    pub(crate) inner: *mut fz_page,
+    /// Ideally we'd use `Unique` here to signify ownership but that's not stable
+    pub(crate) inner: NonNull<fz_page>,
     pub(crate) doc: *mut fz_document,
 }
 
+unsafe_impl_ffi_wrapper!(Page, fz_page, fz_drop_page);
+
 impl Page {
-    pub(crate) unsafe fn from_raw(raw: *mut fz_page) -> Self {
+    /// # Safety
+    ///
+    /// * `raw` may be null, that will cause this function to return an error. If it is non-null,
+    ///   however, it must point to a valid, well-aligned instance of [`fz_page`].
+    pub(crate) unsafe fn from_raw(raw: *mut fz_page) -> Result<Self, Error> {
+        NonNull::new(raw)
+            // SAFETY: Upheld by caller
+            .map(|nn| unsafe { Self::from_non_null(nn) })
+            .ok_or(Error::UnexpectedNullPtr)
+    }
+
+    /// # Safety
+    ///
+    /// * `nonnull` must point to a valid, well-aligned instance of [`fz_page`]
+    pub(crate) unsafe fn from_non_null(nonnull: NonNull<fz_page>) -> Self {
         Self {
-            inner: raw,
-            doc: (*raw).doc,
+            inner: nonnull,
+            doc: (*nonnull.as_ptr()).doc,
         }
     }
 
     pub fn bounds(&self) -> Result<Rect, Error> {
-        let rect = unsafe { ffi_try!(mupdf_bound_page(context(), self.inner)) };
+        let rect = unsafe { ffi_try!(mupdf_bound_page(context(), self.as_ptr() as *mut _)) };
         Ok(rect.into())
     }
 
@@ -39,7 +57,7 @@ impl Page {
         unsafe {
             let inner = ffi_try!(mupdf_page_to_pixmap(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 ctm.into(),
                 cs.inner,
                 alpha,
@@ -53,7 +71,7 @@ impl Page {
         let mut buf = unsafe {
             let inner = ffi_try!(mupdf_page_to_svg(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 ctm.into(),
                 ptr::null_mut()
             ));
@@ -68,7 +86,7 @@ impl Page {
         let mut buf = unsafe {
             let inner = ffi_try!(mupdf_page_to_svg(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 ctm.into(),
                 cookie.inner
             ));
@@ -83,7 +101,7 @@ impl Page {
         unsafe {
             let inner = ffi_try!(mupdf_page_to_text_page(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 opts.bits() as _
             ));
             Ok(TextPage::from_raw(inner))
@@ -94,7 +112,7 @@ impl Page {
         unsafe {
             let inner = ffi_try!(mupdf_page_to_display_list(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 annotations
             ));
             Ok(DisplayList::from_raw(inner))
@@ -105,7 +123,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -123,7 +141,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -136,7 +154,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_contents(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -154,7 +172,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_contents(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -167,7 +185,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_annots(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -185,7 +203,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_annots(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -198,7 +216,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_widgets(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -216,7 +234,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_widgets(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -227,7 +245,7 @@ impl Page {
 
     pub fn to_html(&self) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_page_to_html(context(), self.inner));
+            let inner = ffi_try!(mupdf_page_to_html(context(), self.as_ptr() as *mut _));
             Buffer::from_raw(inner)
         };
         let mut out = String::new();
@@ -239,7 +257,7 @@ impl Page {
         let mut buf = unsafe {
             let inner = ffi_try!(mupdf_stext_page_as_json_from_page(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut _,
                 scale
             ));
             Buffer::from_raw(inner)
@@ -251,7 +269,7 @@ impl Page {
 
     pub fn to_xhtml(&self) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_page_to_xhtml(context(), self.inner));
+            let inner = ffi_try!(mupdf_page_to_xhtml(context(), self.as_ptr() as *mut _));
             Buffer::from_raw(inner)
         };
         let mut out = String::new();
@@ -261,7 +279,7 @@ impl Page {
 
     pub fn to_xml(&self) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_page_to_xml(context(), self.inner));
+            let inner = ffi_try!(mupdf_page_to_xml(context(), self.as_ptr() as *mut _));
             Buffer::from_raw(inner)
         };
         let mut out = String::new();
@@ -271,7 +289,7 @@ impl Page {
 
     pub fn to_text(&self) -> Result<String, Error> {
         let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_page_to_text(context(), self.inner));
+            let inner = ffi_try!(mupdf_page_to_text(context(), self.as_ptr() as *mut _));
             Buffer::from_raw(inner)
         };
         let mut out = String::new();
@@ -280,7 +298,7 @@ impl Page {
     }
 
     pub fn links(&self) -> Result<LinkIter, Error> {
-        let next = unsafe { ffi_try!(mupdf_load_links(context(), self.inner)) };
+        let next = unsafe { ffi_try!(mupdf_load_links(context(), self.as_ptr() as *mut _)) };
         Ok(LinkIter {
             next,
             doc: self.doc,
@@ -289,55 +307,38 @@ impl Page {
 
     pub fn separations(&self) -> Result<Separations, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_page_separations(context(), self.inner));
+            let inner = ffi_try!(mupdf_page_separations(context(), self.as_ptr() as *mut _));
             Ok(Separations::from_raw(inner))
         }
     }
 
-    pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
-        struct Quads(*mut fz_quad);
-
-        impl Drop for Quads {
-            fn drop(&mut self) {
-                if !self.0.is_null() {
-                    unsafe { fz_free(context(), self.0 as _) };
-                }
-            }
-        }
-
+    pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
-        unsafe {
-            let quads = Quads(ffi_try!(mupdf_search_page(
+        let quads = unsafe {
+            ffi_try!(mupdf_search_page(
                 context(),
-                self.inner,
+                self.as_ptr() as *mut fz_page,
                 c_needle.as_ptr(),
-                hit_max as _,
+                hit_max as c_int,
                 &mut hit_count
-            )));
-            if hit_count == 0 {
-                return Ok(Vec::new());
-            }
-            let items = slice::from_raw_parts(quads.0, hit_count as usize);
-            Ok(items.iter().map(|quad| (*quad).into()).collect())
-        }
-    }
-}
+            ))
+        };
 
-impl Drop for Page {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                fz_drop_page(context(), self.inner);
-            }
-        }
+        unsafe { rust_vec_from_ffi_ptr(quads, hit_count) }
     }
 }
 
 impl Clone for Page {
     fn clone(&self) -> Self {
-        unsafe { Page::from_raw(fz_keep_page(context(), self.inner)) }
+        let inner = self.inner;
+        unsafe {
+            fz_keep_page(context(), inner.as_ptr() as *mut _);
+        }
+        // SAFETY: If it was safe to construct `self`, it's safe to construct another instance of
+        // `Self`.
+        unsafe { Page::from_non_null(inner) }
     }
 }
 
@@ -548,7 +549,7 @@ mod test {
         let hits = page0.search("Dummy", 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(
-            hits,
+            &*hits,
             [Quad {
                 ul: Point {
                     x: 56.8,

@@ -1,4 +1,5 @@
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
@@ -15,7 +16,7 @@ const SKIP_FONTS: [&str; 6] = [
 ];
 
 macro_rules! t {
-    ($e:expr) => {
+    ($e:expr ) => {
         match $e {
             Ok(n) => n,
             Err(e) => panic!("\n{} failed with {}\n", stringify!($e), e),
@@ -23,16 +24,21 @@ macro_rules! t {
     };
 }
 
-fn cp_r(dir: &Path, dest: &Path) {
+fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     for entry in t!(fs::read_dir(dir)) {
         let entry = t!(entry);
         let path = entry.path();
         let dst = dest.join(path.file_name().expect("Failed to get filename of path"));
         if t!(fs::metadata(&path)).is_file() {
-            t!(fs::copy(path, dst));
-        } else {
+            fs::copy(&path, &dst)
+                .unwrap_or_else(|e| panic!("Couldn't fs::copy {path:?} to {dst:?}: {e}"));
+        } else if path
+            .file_name()
+            .and_then(OsStr::to_str)
+            .is_none_or(|dst| !excluding_dir_names.contains(&dst))
+        {
             t!(fs::create_dir_all(&dst));
-            cp_r(&path, &dst);
+            cp_r(&path, &dst, excluding_dir_names);
         }
     }
 }
@@ -54,7 +60,7 @@ fn build_libmupdf() {
 
     let current_dir = env::current_dir().unwrap();
     let mupdf_src_dir = current_dir.join("mupdf");
-    cp_r(&mupdf_src_dir, &build_dir);
+    cp_r(&mupdf_src_dir, &build_dir, &[".git"]);
 
     let mut build = cc::Build::new();
     #[cfg(not(feature = "xps"))]
@@ -219,7 +225,7 @@ fn build_libmupdf() {
 
     let current_dir = env::current_dir().unwrap();
     let mupdf_src_dir = current_dir.join("mupdf");
-    cp_r(&mupdf_src_dir, &build_dir);
+    cp_r(&mupdf_src_dir, &build_dir, &[".git"]);
 
     let msbuild = cc::windows_registry::find(target.as_str(), "msbuild.exe");
     if let Some(mut msbuild) = msbuild {
@@ -431,6 +437,23 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
             newlines += 1;
         }
         Some(output)
+    }
+
+    fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
+        static ZEROCOPY_TYPES: [&str; 2] = ["fz_point", "fz_quad"];
+
+        if ZEROCOPY_TYPES.contains(&info.name) {
+            [
+                "zerocopy::FromBytes",
+                "zerocopy::IntoBytes",
+                "zerocopy::Immutable",
+            ]
+            .into_iter()
+            .map(ToString::to_string)
+            .collect()
+        } else {
+            vec![]
+        }
     }
 }
 
