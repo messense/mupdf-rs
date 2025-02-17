@@ -1,4 +1,9 @@
-use std::{ffi::c_int, mem, num::NonZero, ptr, slice};
+use std::{
+    ffi::{c_char, c_int, CStr},
+    mem,
+    num::NonZero,
+    ptr, slice,
+};
 
 use mupdf_sys::*;
 
@@ -6,6 +11,8 @@ use crate::{
     context, BlendMode, ColorParams, Colorspace, Device, Function, Image, Matrix, Path, Rect,
     Shade, StrokeState, Text,
 };
+
+use super::{DefaultColorspaces, DeviceFlag};
 
 #[allow(unused_variables, clippy::too_many_arguments)]
 pub trait NativeDevice {
@@ -139,6 +146,14 @@ pub trait NativeDevice {
     }
 
     fn end_tile(&mut self) {}
+
+    fn render_flags(&mut self, set: DeviceFlag, clear: DeviceFlag) {}
+
+    fn set_default_colorspaces(&mut self, default_cs: &DefaultColorspaces) {}
+
+    fn begin_layer(&mut self, name: &str) {}
+
+    fn end_layer(&mut self) {}
 }
 
 impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
@@ -303,6 +318,22 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     fn end_tile(&mut self) {
         (**self).end_tile();
     }
+
+    fn render_flags(&mut self, set: DeviceFlag, clear: DeviceFlag) {
+        (**self).render_flags(set, clear);
+    }
+
+    fn set_default_colorspaces(&mut self, default_cs: &DefaultColorspaces) {
+        (**self).set_default_colorspaces(default_cs);
+    }
+
+    fn begin_layer(&mut self, name: &str) {
+        (**self).begin_layer(name);
+    }
+
+    fn end_layer(&mut self) {
+        (**self).end_layer();
+    }
 }
 
 pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
@@ -338,6 +369,12 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
 
         (*c_device).base.begin_tile = Some(begin_tile::<D>);
         (*c_device).base.end_tile = Some(end_tile::<D>);
+
+        (*c_device).base.render_flags = Some(render_flags::<D>);
+        (*c_device).base.set_default_colorspaces = Some(set_default_colorspaces::<D>);
+
+        (*c_device).base.begin_layer = Some(begin_layer::<D>);
+        (*c_device).base.end_layer = Some(end_layer::<D>);
 
         Device::from_raw(c_device.cast(), ptr::null_mut())
     }
@@ -777,5 +814,51 @@ unsafe extern "C" fn begin_tile<D: NativeDevice>(
 unsafe extern "C" fn end_tile<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
     with_rust_device::<D, _>(dev, |dev| {
         dev.end_tile();
+    });
+}
+
+unsafe extern "C" fn render_flags<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    set: c_int,
+    clear: c_int,
+) {
+    with_rust_device::<D, _>(dev, |dev| {
+        dev.render_flags(
+            DeviceFlag::from_bits(set as u32).unwrap(),
+            DeviceFlag::from_bits(clear as u32).unwrap(),
+        );
+    });
+}
+
+unsafe extern "C" fn set_default_colorspaces<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    dcs: *mut fz_default_colorspaces,
+) {
+    with_rust_device::<D, _>(dev, |dev| {
+        let dcs = DefaultColorspaces { inner: dcs };
+
+        dev.set_default_colorspaces(&dcs);
+
+        mem::forget(dcs);
+    });
+}
+
+unsafe extern "C" fn begin_layer<D: NativeDevice>(
+    _ctx: *mut fz_context,
+    dev: *mut fz_device,
+    layer_name: *const c_char,
+) {
+    with_rust_device::<D, _>(dev, |dev| {
+        let name = unsafe { CStr::from_ptr(layer_name) }.to_str().unwrap();
+
+        dev.begin_layer(name);
+    });
+}
+
+unsafe extern "C" fn end_layer<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
+    with_rust_device::<D, _>(dev, |dev| {
+        dev.end_layer();
     });
 }

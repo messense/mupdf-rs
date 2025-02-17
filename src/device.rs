@@ -1,6 +1,7 @@
 use std::ptr;
 use std::{ffi::CString, num::NonZero};
 
+use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
@@ -33,6 +34,54 @@ pub enum BlendMode {
     Saturation = FZ_BLEND_SATURATION as u32,
     Color = FZ_BLEND_COLOR as u32,
     Luminosity = FZ_BLEND_LUMINOSITY as u32,
+}
+
+bitflags! {
+    pub struct DeviceFlag: u32 {
+        const MASK = FZ_DEVFLAG_MASK as _;
+        const COLOR = FZ_DEVFLAG_COLOR as _;
+        const UNCACHEABLE = FZ_DEVFLAG_UNCACHEABLE as _;
+        const FILLCOLOR_UNDEFINED = FZ_DEVFLAG_FILLCOLOR_UNDEFINED as _;
+        const STROKECOLOR_UNDEFINED = FZ_DEVFLAG_STROKECOLOR_UNDEFINED as _;
+        const STARTCAP_UNDEFINED = FZ_DEVFLAG_STARTCAP_UNDEFINED as _;
+        const DASHCAP_UNDEFINED = FZ_DEVFLAG_DASHCAP_UNDEFINED as _;
+        const ENDCAP_UNDEFINED = FZ_DEVFLAG_ENDCAP_UNDEFINED as _;
+        const LINEJOIN_UNDEFINED = FZ_DEVFLAG_LINEJOIN_UNDEFINED as _;
+        const MITERLIMIT_UNDEFINED = FZ_DEVFLAG_MITERLIMIT_UNDEFINED as _;
+        const LINEWIDTH_UNDEFINED = FZ_DEVFLAG_LINEWIDTH_UNDEFINED as _;
+        const BBOX_DEFINED = FZ_DEVFLAG_BBOX_DEFINED as _;
+        const GRIDFIT_AS_TILED = FZ_DEVFLAG_GRIDFIT_AS_TILED as _;
+        // will probably be released in 1.26.x
+        // const DASH_PATTERN_UNDEFINED = FZ_DEVFLAG_DASH_PATTERN_UNDEFINED as _;
+    }
+}
+
+pub struct DefaultColorspaces {
+    pub(crate) inner: *mut fz_default_colorspaces,
+}
+
+impl DefaultColorspaces {
+    pub fn gray(&self) -> Colorspace {
+        unsafe { Colorspace::from_raw((*self.inner).gray) }
+    }
+
+    pub fn rgb(&self) -> Colorspace {
+        unsafe { Colorspace::from_raw((*self.inner).rgb) }
+    }
+
+    pub fn cmyk(&self) -> Colorspace {
+        unsafe { Colorspace::from_raw((*self.inner).cmyk) }
+    }
+
+    pub fn oi(&self) -> Colorspace {
+        unsafe { Colorspace::from_raw((*self.inner).oi) }
+    }
+}
+
+impl Drop for DefaultColorspaces {
+    fn drop(&mut self) {
+        unsafe { fz_drop_default_colorspaces(context(), self.inner) }
+    }
 }
 
 pub struct Function {
