@@ -11,13 +11,8 @@ use core::{
 };
 
 /// This function allocates a new device and returns a pointer to it if no error occured. For the
-/// required structure of `T` check the example below.
-///
-/// The pointer `errptr` points to is expected to be null at the time this function is called.
-/// If an error occurs this inner pointer will be set to the error and null returned from this
-/// function. Was this inner pointer non-null before this function was called a new device will be
-/// allocated but the function will assume that an error has occured and will return null. This device
-/// will not be freed. It will, however, not cause unsafe behavior either.
+/// required structure of `T` check the example below. If an error occurs the pointer `errptr` points
+/// to will be set to to a pointer pointing to the error and null returned from this function.
 ///
 /// # Safety
 ///
@@ -55,10 +50,6 @@ pub unsafe fn mupdf_new_derived_device<T>(
     };
 
     let device = mupdf_new_device_of_size(ctx, SIZE, errptr);
-    if !(*errptr).is_null() {
-        return ptr::null_mut();
-    }
-
     let label = Memento_label(device.cast(), label.as_ptr());
     label.cast()
 }
