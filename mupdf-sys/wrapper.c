@@ -3205,3 +3205,17 @@ fz_bitmap *mupdf_new_bitmap_from_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupd
     }
     return bitmap;
 }
+
+int32_t mupdf_highlight_selection(fz_context *ctx, fz_stext_page *page, fz_point a, fz_point b, fz_quad *quads, int max_quads, mupdf_error_t **errptr)
+{
+	int count = 0;
+	fz_try(ctx)
+	{
+		count = fz_highlight_selection(ctx, page, a, b, quads, max_quads);
+	}
+	fz_catch(ctx)
+	{
+		mupdf_save_error(ctx, errptr);
+	}
+	return count;
+}
