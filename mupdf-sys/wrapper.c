@@ -2640,6 +2640,20 @@ fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect cl
     return device;
 }
 
+fz_device *mupdf_new_device_of_size(fz_context *ctx, int size, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        device = fz_new_device_of_size(ctx, size);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
+
 fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;

@@ -8,8 +8,8 @@ use std::{
 use mupdf_sys::*;
 
 use crate::{
-    context, BlendMode, ColorParams, Colorspace, Device, Function, Image, Matrix, Path, Rect,
-    Shade, StrokeState, Text,
+    context, BlendMode, ColorParams, Colorspace, Device, Error, Function, Image, Matrix, Path,
+    Rect, Shade, StrokeState, Text,
 };
 
 use super::{DefaultColorspaces, DeviceFlag, Metatext, Structure};
@@ -360,9 +360,10 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     }
 }
 
-pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
-    unsafe {
-        let c_device = mupdf_new_derived_device::<CDevice<D>>(context(), c"RustDevice".as_ptr());
+pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
+    let ret = unsafe {
+        let c_device: *mut CDevice<D> =
+            ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"));
         ptr::write(&raw mut (*c_device).rust_device, device);
 
         (*c_device).base.close_device = Some(close_device::<D>);
@@ -407,7 +408,8 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Device {
         (*c_device).base.end_metatext = Some(end_metatext::<D>);
 
         Device::from_raw(c_device.cast(), ptr::null_mut())
-    }
+    };
+    Ok(ret)
 }
 
 #[repr(C)]
@@ -956,7 +958,7 @@ mod test {
         }
 
         let mut ndev = Test::default();
-        let dev = Device::from_native(&mut ndev);
+        let dev = Device::from_native(&mut ndev).unwrap();
 
         dev.begin_layer("begin layer name").unwrap();
         assert_eq!(ndev.begin_layer, 1);
@@ -984,7 +986,7 @@ mod test {
         let detector = proof.clone();
         assert_eq!(Rc::strong_count(&proof), 2, "setup failed");
 
-        let dev = Device::from_native(DropDevice(detector));
+        let dev = Device::from_native(DropDevice(detector)).unwrap();
         assert_eq!(Rc::strong_count(&proof), 2, "dropped too early");
         drop(dev);
         assert_eq!(Rc::strong_count(&proof), 1, "not dropped");

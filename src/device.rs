@@ -182,7 +182,7 @@ impl Device {
         Self { dev, list }
     }
 
-    pub fn from_native<D: NativeDevice>(device: D) -> Self {
+    pub fn from_native<D: NativeDevice>(device: D) -> Result<Self, Error> {
         native::create(device)
     }
 
