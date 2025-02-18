@@ -5,10 +5,7 @@
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
-use core::{
-    ffi::{c_int, CStr},
-    ptr,
-};
+use core::ffi::{c_int, CStr};
 
 /// This function allocates a new device and returns a pointer to it if no error occured. For the
 /// required structure of `T` check the example below. If an error occurs the pointer `errptr` points
