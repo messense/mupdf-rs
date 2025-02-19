@@ -46,13 +46,13 @@ impl PdfPage {
         subtype: PdfAnnotationType,
     ) -> Result<PdfAnnotation, Error> {
         unsafe {
-            let annot = ffi_try!(mupdf_pdf_create_annot(
+            ffi_try!(mupdf_pdf_create_annot(
                 context(),
                 self.as_mut_ptr(),
                 subtype as i32
-            ));
-            Ok(PdfAnnotation::from_raw(annot))
+            ))
         }
+        .map(|annot| unsafe { PdfAnnotation::from_raw(annot) })
     }
 
     pub fn delete_annotation(&mut self, annot: &PdfAnnotation) -> Result<(), Error> {
@@ -61,9 +61,8 @@ impl PdfPage {
                 context(),
                 self.as_mut_ptr(),
                 annot.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn annotations(&self) -> AnnotationIter {
@@ -72,13 +71,11 @@ impl PdfPage {
     }
 
     pub fn update(&mut self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_update_page(context(), self.as_mut_ptr())) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_update_page(context(), self.as_mut_ptr())) }
     }
 
     pub fn redact(&mut self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.as_mut_ptr())) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.as_mut_ptr())) }
     }
 
     pub fn object(&self) -> PdfObject {
@@ -101,9 +98,8 @@ impl PdfPage {
                 context(),
                 self.as_mut_ptr(),
                 rotate
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn media_box(&self) -> Result<Rect, Error> {
@@ -128,14 +124,13 @@ impl PdfPage {
                 context(),
                 self.as_mut_ptr(),
                 crop_box.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn ctm(&self) -> Result<Matrix, Error> {
-        let m = unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.as_ptr() as *mut _)) };
-        Ok(m.into())
+        unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.as_ptr() as *mut _)) }
+            .map(fz_matrix::into)
     }
 
     pub fn filter(&mut self, mut opt: PdfFilterOptions) -> Result<(), Error> {
@@ -146,8 +141,6 @@ impl PdfPage {
                 &mut opt.inner as *mut _
             ))
         }
-
-        Ok(())
     }
 }
 

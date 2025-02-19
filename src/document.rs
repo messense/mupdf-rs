@@ -58,8 +58,8 @@ impl Document {
 
     pub fn open(filename: &str) -> Result<Self, Error> {
         let c_name = CString::new(filename)?;
-        let inner = unsafe { ffi_try!(mupdf_open_document(context(), c_name.as_ptr())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_open_document(context(), c_name.as_ptr())) }
+            .map(|inner| Self { inner })
     }
 
     pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
@@ -67,48 +67,44 @@ impl Document {
         let len = bytes.len();
         let mut buf = Buffer::with_capacity(len);
         buf.write_all(bytes)?;
-        let inner = unsafe {
+        unsafe {
             ffi_try!(mupdf_open_document_from_bytes(
                 context(),
                 buf.inner,
                 c_magic.as_ptr()
             ))
-        };
-        Ok(Self { inner })
+        }
+        .map(|inner| Self { inner })
     }
 
     pub fn recognize(magic: &str) -> Result<bool, Error> {
         let c_magic = CString::new(magic)?;
-        let ret = unsafe { ffi_try!(mupdf_recognize_document(context(), c_magic.as_ptr())) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_recognize_document(context(), c_magic.as_ptr())) }
     }
 
     pub fn needs_password(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_needs_password(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_needs_password(context(), self.inner)) }
     }
 
     pub fn authenticate(&mut self, password: &str) -> Result<bool, Error> {
         let c_pass = CString::new(password)?;
-        let ret = unsafe {
+        unsafe {
             ffi_try!(mupdf_authenticate_password(
                 context(),
                 self.inner,
                 c_pass.as_ptr()
             ))
-        };
-        Ok(ret)
+        }
     }
 
     pub fn page_count(&self) -> Result<i32, Error> {
-        let count = unsafe { ffi_try!(mupdf_document_page_count(context(), self.inner)) };
-        Ok(count)
+        unsafe { ffi_try!(mupdf_document_page_count(context(), self.inner)) }
     }
 
     pub fn metadata(&self, name: MetadataName) -> Result<String, Error> {
         let c_key = CString::new(name.to_str())?;
         let info_ptr =
-            unsafe { ffi_try!(mupdf_lookup_metadata(context(), self.inner, c_key.as_ptr())) };
+            unsafe { ffi_try!(mupdf_lookup_metadata(context(), self.inner, c_key.as_ptr())) }?;
         if info_ptr.is_null() {
             return Ok(String::new());
         }
@@ -122,7 +118,7 @@ impl Document {
 
     pub fn resolve_link(&self, uri: &str) -> Result<Option<Location>, Error> {
         let c_uri = CString::new(uri)?;
-        let loc = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) };
+        let loc = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) }?;
         if loc.page >= 0 {
             return Ok(Some(Location {
                 chapter: loc.chapter,
@@ -133,8 +129,7 @@ impl Document {
     }
 
     pub fn is_reflowable(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_is_document_reflowable(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_is_document_reflowable(context(), self.inner)) }
     }
 
     pub fn is_pdf(&self) -> bool {
@@ -182,22 +177,22 @@ impl Document {
         } else {
             end_page
         };
+        let cookie_ptr = if let Some(ck) = cookie {
+            ck.inner
+        } else {
+            ptr::null_mut()
+        };
         unsafe {
-            let cookie_ptr = if let Some(ck) = cookie {
-                ck.inner
-            } else {
-                ptr::null_mut()
-            };
-            let inner = ffi_try!(mupdf_convert_to_pdf(
+            ffi_try!(mupdf_convert_to_pdf(
                 context(),
                 self.inner,
                 start_page as _,
                 end_page as _,
                 rotate as _,
                 cookie_ptr
-            ));
-            Ok(PdfDocument::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { PdfDocument::from_raw(inner) })
     }
 
     pub fn layout(&mut self, width: f32, height: f32, em: f32) -> Result<(), Error> {
@@ -208,15 +203,14 @@ impl Document {
                 width,
                 height,
                 em
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn load_page(&self, page_no: i32) -> Result<Page, Error> {
-        let fz_page = unsafe { ffi_try!(mupdf_load_page(context(), self.inner, page_no)) };
-        // SAFETY: We're trusting the FFI layer here to provide a valid pointer
-        unsafe { Page::from_raw(fz_page) }
+        unsafe { ffi_try!(mupdf_load_page(context(), self.inner, page_no)) }
+            // SAFETY: We're trusting the FFI layer here to provide a valid pointer
+            .and_then(|fz_page| unsafe { Page::from_raw(fz_page) })
     }
 
     pub fn pages(&self) -> Result<PageIter, Error> {
@@ -228,13 +222,11 @@ impl Document {
     }
 
     pub fn output_intent(&self) -> Result<Option<Colorspace>, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_document_output_intent(context(), self.inner));
-            if inner.is_null() {
-                return Ok(None);
-            }
-            Ok(Some(Colorspace::from_raw(inner)))
+        let inner = unsafe { ffi_try!(mupdf_document_output_intent(context(), self.inner)) }?;
+        if inner.is_null() {
+            return Ok(None);
         }
+        Ok(Some(unsafe { Colorspace::from_raw(inner) }))
     }
 
     unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Vec<Outline> {
@@ -277,7 +269,7 @@ impl Document {
     }
 
     pub fn outlines(&self) -> Result<Vec<Outline>, Error> {
-        let outline = unsafe { ffi_try!(mupdf_load_outline(context(), self.inner)) };
+        let outline = unsafe { ffi_try!(mupdf_load_outline(context(), self.inner)) }?;
         if outline.is_null() {
             return Ok(Vec::new());
         }

@@ -15,26 +15,26 @@ impl Image {
     }
 
     pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_image_from_pixmap(context(), pixmap.inner)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_image_from_pixmap(context(), pixmap.inner)) }
+            .map(|inner| Self { inner })
     }
 
     pub fn from_file(filename: &str) -> Result<Self, Error> {
         let c_filename = CString::new(filename)?;
-        let inner = unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) }
+            .map(|inner| Self { inner })
     }
 
     pub fn from_display_list(list: &DisplayList, width: f32, height: f32) -> Result<Self, Error> {
-        let inner = unsafe {
+        unsafe {
             ffi_try!(mupdf_new_image_from_display_list(
                 context(),
                 list.inner,
                 width,
                 height
             ))
-        };
-        Ok(Self { inner })
+        }
+        .map(|inner| Self { inner })
     }
 
     pub fn width(&self) -> u32 {
@@ -75,10 +75,8 @@ impl Image {
     }
 
     pub fn to_pixmap(&self) -> Result<Pixmap, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_get_pixmap_from_image(context(), self.inner));
-            Ok(Pixmap::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_get_pixmap_from_image(context(), self.inner)) }
+            .map(|inner| unsafe { Pixmap::from_raw(inner) })
     }
 
     pub fn interpolate(&self) -> bool {

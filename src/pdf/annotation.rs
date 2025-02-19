@@ -65,9 +65,9 @@ impl PdfAnnotation {
     }
 
     pub fn r#type(&self) -> Result<PdfAnnotationType, Error> {
-        let subtype = unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner)) };
-        let typ = PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown);
-        Ok(typ)
+        unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner)) }.map(|subtype| {
+            PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown)
+        })
     }
 
     pub fn is_hot(&self) -> bool {
@@ -79,14 +79,12 @@ impl PdfAnnotation {
     }
 
     pub fn author(&self) -> Result<Option<&str>, Error> {
-        unsafe {
-            let ptr = ffi_try!(mupdf_pdf_annot_author(context(), self.inner));
-            if ptr.is_null() {
-                return Ok(None);
-            }
-            let c_str = CStr::from_ptr(ptr);
-            Ok(Some(c_str.to_str().unwrap()))
+        let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner)) }?;
+        if ptr.is_null() {
+            return Ok(None);
         }
+        let c_str = unsafe { CStr::from_ptr(ptr) };
+        Ok(Some(c_str.to_str().unwrap()))
     }
 
     pub fn set_author(&mut self, author: &str) -> Result<(), Error> {
@@ -96,9 +94,8 @@ impl PdfAnnotation {
                 context(),
                 self.inner,
                 c_author.as_ptr()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn filter(&mut self, mut opt: PdfFilterOptions) -> Result<(), Error> {
@@ -109,8 +106,6 @@ impl PdfAnnotation {
                 &mut opt.inner as *mut _
             ))
         }
-
-        Ok(())
     }
 }
 

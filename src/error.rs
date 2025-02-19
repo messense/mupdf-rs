@@ -55,12 +55,12 @@ macro_rules! ffi_try {
         let mut err = ptr::null_mut();
         // SAFETY: Upheld by the caller of the macro
         let res = $func($($arg),+, (&mut err) as *mut *mut ::mupdf_sys::mupdf_error_t);
-        if let Some(err) = ::core::ptr::NonNull::new(err) {
-            // SAFETY: We're trusting the FFI call to provide us with a valid ptr if it is not
-            // null.
-            return Err($crate::ffi_error(err).into());
-        }
-        res
+        ::core::ptr::NonNull::new(err)
+            .map_or(Ok(res), |err| Err(
+                // SAFETY: We're trusting the FFI call to provide us with a valid ptr if it is not
+                // null.
+                $crate::Error::MuPdf($crate::ffi_error(err))
+            ))
     });
 }
 

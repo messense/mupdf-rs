@@ -174,15 +174,15 @@ impl Rect {
 
     pub fn adjust_for_stroke(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Self, Error> {
         let r = (*self).into();
-        let new_rect = unsafe {
+        unsafe {
             ffi_try!(mupdf_adjust_rect_for_stroke(
                 context(),
                 r,
                 stroke.inner,
                 ctm.into()
             ))
-        };
-        Ok(new_rect.into())
+        }
+        .map(fz_rect::into)
     }
 }
 

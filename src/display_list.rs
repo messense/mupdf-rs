@@ -1,11 +1,10 @@
 use std::ffi::CString;
-use std::slice;
 
 use mupdf_sys::*;
 
 use crate::{
-    context, Colorspace, Cookie, Device, Error, Image, Matrix, Pixmap, Quad, Rect, TextPage,
-    TextPageOptions,
+    array::FzArray, context, rust_vec_from_ffi_ptr, Colorspace, Cookie, Device, Error, Image,
+    Matrix, Pixmap, Quad, Rect, TextPage, TextPageOptions,
 };
 
 #[derive(Debug)]
@@ -19,8 +18,8 @@ impl DisplayList {
     }
 
     pub fn new(media_box: Rect) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_display_list(context(), media_box.into())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_display_list(context(), media_box.into())) }
+            .map(|inner| Self { inner })
     }
 
     pub fn bounds(&self) -> Rect {
@@ -30,26 +29,26 @@ impl DisplayList {
 
     pub fn to_pixmap(&self, ctm: &Matrix, cs: &Colorspace, alpha: bool) -> Result<Pixmap, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_display_list_to_pixmap(
+            ffi_try!(mupdf_display_list_to_pixmap(
                 context(),
                 self.inner,
                 ctm.into(),
                 cs.inner,
                 alpha
-            ));
-            Ok(Pixmap::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { Pixmap::from_raw(inner) })
     }
 
     pub fn to_text_page(&self, opts: TextPageOptions) -> Result<TextPage, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_display_list_to_text_page(
+            ffi_try!(mupdf_display_list_to_text_page(
                 context(),
                 self.inner,
                 opts.bits() as _
-            ));
-            Ok(TextPage::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { TextPage::from_raw(inner) })
     }
 
     pub fn to_image(&self, width: f32, height: f32) -> Result<Image, Error> {
@@ -65,9 +64,8 @@ impl DisplayList {
                 ctm.into(),
                 area.into(),
                 ptr::null_mut()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn run_with_cookie(
@@ -85,43 +83,28 @@ impl DisplayList {
                 ctm.into(),
                 area.into(),
                 cookie.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn is_empty(&self) -> bool {
         unsafe { fz_display_list_is_empty(context(), self.inner) > 0 }
     }
 
-    pub fn search(&self, needle: &str, hit_max: u32) -> Result<Vec<Quad>, Error> {
-        struct Quads(*mut fz_quad);
-
-        impl Drop for Quads {
-            fn drop(&mut self) {
-                if !self.0.is_null() {
-                    unsafe { fz_free(context(), self.0 as _) };
-                }
-            }
-        }
-
+    pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
         unsafe {
-            let quads = Quads(ffi_try!(mupdf_search_display_list(
+            ffi_try!(mupdf_search_display_list(
                 context(),
                 self.inner,
                 c_needle.as_ptr(),
                 hit_max as _,
                 &mut hit_count
-            )));
-            if hit_count == 0 {
-                return Ok(Vec::new());
-            }
-            let items = slice::from_raw_parts(quads.0, hit_count as usize);
-            Ok(items.iter().map(|quad| (*quad).into()).collect())
+            ))
         }
+        .and_then(|quads| unsafe { rust_vec_from_ffi_ptr(quads, hit_count) })
     }
 }
 
@@ -153,7 +136,7 @@ mod test {
         let hits = list.search("Dummy", 1).unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(
-            hits,
+            &*hits,
             [Quad {
                 ul: Point {
                     x: 56.8,

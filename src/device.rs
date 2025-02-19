@@ -187,11 +187,12 @@ impl Device {
     }
 
     pub fn from_pixmap_with_clip(pixmap: &Pixmap, clip: IRect) -> Result<Self, Error> {
-        let dev = unsafe { ffi_try!(mupdf_new_draw_device(context(), pixmap.inner, clip.into())) };
-        Ok(Self {
-            dev,
-            list: ptr::null_mut(),
-        })
+        unsafe { ffi_try!(mupdf_new_draw_device(context(), pixmap.inner, clip.into())) }.map(
+            |dev| Self {
+                dev,
+                list: ptr::null_mut(),
+            },
+        )
     }
 
     pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
@@ -199,22 +200,21 @@ impl Device {
     }
 
     pub fn from_display_list(list: &DisplayList) -> Result<Self, Error> {
-        let dev = unsafe { ffi_try!(mupdf_new_display_list_device(context(), list.inner)) };
-        Ok(Self {
+        unsafe { ffi_try!(mupdf_new_display_list_device(context(), list.inner)) }.map(|dev| Self {
             dev,
             list: list.inner,
         })
     }
 
     pub fn from_text_page(page: &TextPage, opts: TextPageOptions) -> Result<Self, Error> {
-        let dev = unsafe {
+        unsafe {
             ffi_try!(mupdf_new_stext_device(
                 context(),
                 page.inner,
                 opts.bits() as _
             ))
-        };
-        Ok(Self {
+        }
+        .map(|dev| Self {
             dev,
             list: ptr::null_mut(),
         })
@@ -242,9 +242,8 @@ impl Device {
                 color.as_ptr(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -269,9 +268,8 @@ impl Device {
                 color.as_ptr(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn clip_path(&self, path: &Path, even_odd: bool, ctm: &Matrix) -> Result<(), Error> {
@@ -282,9 +280,8 @@ impl Device {
                 path.inner,
                 even_odd,
                 ctm.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn clip_stroke_path(
@@ -300,9 +297,8 @@ impl Device {
                 path.inner,
                 stroke.inner,
                 ctm.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn fill_text(
@@ -324,9 +320,8 @@ impl Device {
                 color.as_ptr(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -351,14 +346,12 @@ impl Device {
                 color.as_ptr(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn clip_text(&self, text: &Text, ctm: &Matrix) -> Result<(), Error> {
         unsafe { ffi_try!(mupdf_clip_text(context(), self.dev, text.inner, ctm.into())) }
-        Ok(())
     }
 
     pub fn clip_stroke_text(
@@ -374,9 +367,8 @@ impl Device {
                 text.inner,
                 stroke.inner,
                 ctm.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn ignore_text(&self, text: &Text, ctm: &Matrix) -> Result<(), Error> {
@@ -386,9 +378,8 @@ impl Device {
                 self.dev,
                 text.inner,
                 ctm.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn fill_shade(
@@ -406,9 +397,8 @@ impl Device {
                 ctm.into(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn fill_image(
@@ -426,9 +416,8 @@ impl Device {
                 ctm.into(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn fill_image_mask(
@@ -450,9 +439,8 @@ impl Device {
                 color.as_ptr(),
                 alpha,
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn clip_image_mask(&self, image: &Image, ctm: &Matrix) -> Result<(), Error> {
@@ -462,16 +450,12 @@ impl Device {
                 self.dev,
                 image.inner,
                 ctm.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn pop_clip(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pop_clip(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pop_clip(context(), self.dev)) }
     }
 
     pub fn begin_mask(
@@ -491,9 +475,8 @@ impl Device {
                 cs.inner,
                 bc.as_ptr(),
                 cp.into()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn end_mask(&self, f: Option<&Function>) -> Result<(), Error> {
@@ -502,9 +485,8 @@ impl Device {
                 context(),
                 self.dev,
                 f.map_or(ptr::null_mut(), |f| f.inner)
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn begin_group(
@@ -526,16 +508,12 @@ impl Device {
                 knockout,
                 blend_mode as _,
                 alpha
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn end_group(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_end_group(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_end_group(context(), self.dev)) }
     }
 
     pub fn begin_tile(
@@ -547,7 +525,7 @@ impl Device {
         ctm: &Matrix,
         id: Option<NonZero<i32>>,
     ) -> Result<Option<NonZero<i32>>, Error> {
-        let i = unsafe {
+        unsafe {
             ffi_try!(mupdf_begin_tile(
                 context(),
                 self.dev,
@@ -558,30 +536,21 @@ impl Device {
                 ctm.into(),
                 id.map_or(0, NonZero::get)
             ))
-        };
-        Ok(NonZero::new(i))
+        }
+        .map(NonZero::new)
     }
 
     pub fn end_tile(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_end_tile(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_end_tile(context(), self.dev)) }
     }
 
     pub fn begin_layer(&self, name: &str) -> Result<(), Error> {
         let c_name = CString::new(name)?;
-        unsafe {
-            ffi_try!(mupdf_begin_layer(context(), self.dev, c_name.as_ptr()));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_begin_layer(context(), self.dev, c_name.as_ptr())) }
     }
 
     pub fn end_layer(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_end_layer(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_end_layer(context(), self.dev)) }
     }
 
     pub fn begin_structure(&self, standard: Structure, raw: &str, idx: i32) -> Result<(), Error> {
@@ -593,16 +562,12 @@ impl Device {
                 standard as _,
                 c_raw.as_ptr(),
                 idx as _
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn end_structure(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_end_structure(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_end_structure(context(), self.dev)) }
     }
 
     pub fn begin_metatext(&self, meta: Metatext, text: &str) -> Result<(), Error> {
@@ -613,16 +578,12 @@ impl Device {
                 self.dev,
                 meta as _,
                 c_text.as_ptr()
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn end_metatext(&self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_end_metatext(context(), self.dev));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_end_metatext(context(), self.dev)) }
     }
 }
 

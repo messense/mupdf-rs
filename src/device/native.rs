@@ -363,7 +363,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
 pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
     let ret = unsafe {
         let c_device: *mut CDevice<D> =
-            ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"));
+            ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"))?;
         ptr::write(&raw mut (*c_device).rust_device, device);
 
         (*c_device).base.close_device = Some(close_device::<D>);

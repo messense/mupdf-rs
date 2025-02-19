@@ -15,8 +15,8 @@ pub struct Bitmap {
 
 impl Bitmap {
     pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_bitmap_from_pixmap(context(), pixmap.inner)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_bitmap_from_pixmap(context(), pixmap.inner)) }
+            .map(|inner| Self { inner })
     }
 
     /// Width of the region in pixels.
