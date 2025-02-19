@@ -13,8 +13,7 @@ pub struct Cookie {
 
 impl Cookie {
     pub fn new() -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_cookie(context())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_cookie(context())) }.map(|inner| Self { inner })
     }
 
     /// Abort rendering

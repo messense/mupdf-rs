@@ -48,8 +48,7 @@ impl PdfObject {
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) }.map(|inner| Self { inner })
     }
 
     pub fn new_null() -> PdfObject {
@@ -67,138 +66,107 @@ impl PdfObject {
     }
 
     pub fn new_int(i: i32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_int(context(), i));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_int(context(), i)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_real(f: f32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_real(context(), f));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_real(context(), f)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_string(s: &str) -> Result<PdfObject, Error> {
         let c_str = CString::new(s)?;
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr()));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_string(context(), c_str.as_ptr())) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_name(name: &str) -> Result<PdfObject, Error> {
         let c_name = CString::new(name)?;
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr()));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_name(context(), c_name.as_ptr())) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn is_indirect(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_indirect(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_indirect(context(), self.inner)) }
     }
 
     pub fn is_null(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_null(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_null(context(), self.inner)) }
     }
 
     pub fn is_bool(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_bool(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_bool(context(), self.inner)) }
     }
 
     pub fn is_int(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_int(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_int(context(), self.inner)) }
     }
 
     pub fn is_real(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_real(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_real(context(), self.inner)) }
     }
 
     pub fn is_number(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_number(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_number(context(), self.inner)) }
     }
 
     pub fn is_string(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_string(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_string(context(), self.inner)) }
     }
 
     pub fn is_name(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_name(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_name(context(), self.inner)) }
     }
 
     pub fn is_array(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_array(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_array(context(), self.inner)) }
     }
 
     pub fn is_dict(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_dict(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_dict(context(), self.inner)) }
     }
 
     pub fn is_stream(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_is_stream(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_is_stream(context(), self.inner)) }
     }
 
     pub fn as_bool(&self) -> Result<bool, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_to_bool(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_to_bool(context(), self.inner)) }
     }
 
     pub fn as_int(&self) -> Result<i32, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_to_int(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_to_int(context(), self.inner)) }
     }
 
     pub fn as_float(&self) -> Result<f32, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_to_float(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_to_float(context(), self.inner)) }
     }
 
     pub fn as_indirect(&self) -> Result<i32, Error> {
-        let ret = unsafe { ffi_try!(mupdf_pdf_to_indirect(context(), self.inner)) };
-        Ok(ret)
+        unsafe { ffi_try!(mupdf_pdf_to_indirect(context(), self.inner)) }
     }
 
     pub fn as_name(&self) -> Result<&[u8], Error> {
-        unsafe {
-            let name_ptr = ffi_try!(mupdf_pdf_to_name(context(), self.inner));
-            let c_name = CStr::from_ptr(name_ptr);
-            Ok(c_name.to_bytes())
-        }
+        let name_ptr = unsafe { ffi_try!(mupdf_pdf_to_name(context(), self.inner)) }?;
+        let c_name = unsafe { CStr::from_ptr(name_ptr) };
+        Ok(c_name.to_bytes())
     }
 
     pub fn as_string(&self) -> Result<&str, Error> {
-        unsafe {
-            let str_ptr = ffi_try!(mupdf_pdf_to_string(context(), self.inner));
-            let c_str = CStr::from_ptr(str_ptr);
-            let string = c_str.to_str().unwrap();
-            Ok(string)
-        }
+        let str_ptr = unsafe { ffi_try!(mupdf_pdf_to_string(context(), self.inner)) }?;
+        let c_str = unsafe { CStr::from_ptr(str_ptr) };
+        Ok(c_str.to_str().unwrap())
     }
 
     pub fn as_bytes(&self) -> Result<&[u8], Error> {
         let mut len = 0;
-        unsafe {
-            let ptr = ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len));
-            let byte_slice = slice::from_raw_parts(ptr, len);
-            Ok(byte_slice)
-        }
+        let ptr = unsafe { ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len)) }?;
+        Ok(unsafe { slice::from_raw_parts(ptr, len) })
     }
 
     pub fn resolve(&self) -> Result<Option<Self>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_resolve_indirect(context(), self.inner)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_resolve_indirect(context(), self.inner)) }?;
         if inner.is_null() {
             return Ok(None);
         }
@@ -206,7 +174,7 @@ impl PdfObject {
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_read_stream(context(), self.inner)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_read_stream(context(), self.inner)) }?;
         let buf = unsafe { Buffer::from_raw(inner) };
         let buf_len = buf.len();
         let mut reader = BufReader::new(buf);
@@ -216,7 +184,7 @@ impl PdfObject {
     }
 
     pub fn read_raw_stream(&self) -> Result<Vec<u8>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_read_raw_stream(context(), self.inner)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_read_raw_stream(context(), self.inner)) }?;
         let buf = unsafe { Buffer::from_raw(inner) };
         let buf_len = buf.len();
         let mut reader = BufReader::new(buf);
@@ -226,10 +194,7 @@ impl PdfObject {
     }
 
     pub fn write_object(&mut self, obj: &PdfObject) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_write_object(context(), self.inner, obj.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_write_object(context(), self.inner, obj.inner)) }
     }
 
     pub fn write_stream_buffer(&mut self, buf: &Buffer) -> Result<(), Error> {
@@ -239,9 +204,8 @@ impl PdfObject {
                 self.inner,
                 buf.inner,
                 0
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn write_stream_string(&mut self, string: &str) -> Result<(), Error> {
@@ -256,9 +220,8 @@ impl PdfObject {
                 self.inner,
                 buf.inner,
                 1
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn write_raw_stream_string(&mut self, string: &str) -> Result<(), Error> {
@@ -267,7 +230,7 @@ impl PdfObject {
     }
 
     pub fn get_array(&self, index: i32) -> Result<Option<Self>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_array_get(context(), self.inner, index)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_array_get(context(), self.inner, index)) }?;
         if inner.is_null() {
             return Ok(None);
         }
@@ -275,19 +238,18 @@ impl PdfObject {
     }
 
     pub fn dict_len(&self) -> Result<usize, Error> {
-        let size = unsafe { ffi_try!(mupdf_pdf_dict_len(context(), self.inner)) };
-        Ok(size as usize)
+        unsafe { ffi_try!(mupdf_pdf_dict_len(context(), self.inner)) }.map(|size| size as usize)
     }
 
     pub fn get_dict_val(&self, idx: i32) -> Result<Option<Self>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_val(context(), self.inner, idx)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_val(context(), self.inner, idx)) }?;
         if inner.is_null() {
             return Ok(None);
         }
         Ok(Some(Self { inner }))
     }
     pub fn get_dict_key(&self, idx: i32) -> Result<Option<Self>, Error> {
-        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_key(context(), self.inner, idx)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_key(context(), self.inner, idx)) }?;
         if inner.is_null() {
             return Ok(None);
         }
@@ -296,7 +258,7 @@ impl PdfObject {
 
     pub fn get_dict<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
         let key = key.into_pdf_dict_key()?;
-        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, key.inner)) };
+        let inner = unsafe { ffi_try!(mupdf_pdf_dict_get(context(), self.inner, key.inner)) }?;
         if inner.is_null() {
             return Ok(None);
         }
@@ -311,7 +273,7 @@ impl PdfObject {
                 self.inner,
                 key.inner
             ))
-        };
+        }?;
         if inner.is_null() {
             return Ok(None);
         }
@@ -320,8 +282,7 @@ impl PdfObject {
 
     #[allow(clippy::len_without_is_empty)]
     pub fn len(&self) -> Result<usize, Error> {
-        let size = unsafe { ffi_try!(mupdf_pdf_array_len(context(), self.inner)) };
-        Ok(size as usize)
+        unsafe { ffi_try!(mupdf_pdf_array_len(context(), self.inner)) }.map(|size| size as usize)
     }
 
     pub fn array_put(&mut self, index: i32, value: Self) -> Result<(), Error> {
@@ -331,23 +292,16 @@ impl PdfObject {
                 self.inner,
                 index,
                 value.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn array_push(&mut self, value: Self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_array_push(context(), self.inner, value.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_array_push(context(), self.inner, value.inner)) }
     }
 
     pub fn array_delete(&mut self, index: i32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_array_delete(context(), self.inner, index));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_array_delete(context(), self.inner, index)) }
     }
 
     pub fn dict_put<K: IntoPdfDictKey>(&mut self, key: K, value: Self) -> Result<(), Error> {
@@ -358,27 +312,22 @@ impl PdfObject {
                 self.inner,
                 key_obj.inner,
                 value.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn dict_delete<K: IntoPdfDictKey>(&mut self, key: K) -> Result<(), Error> {
         let key_obj = key.into_pdf_dict_key()?;
-        unsafe {
-            ffi_try!(mupdf_pdf_dict_delete(context(), self.inner, key_obj.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_dict_delete(context(), self.inner, key_obj.inner)) }
     }
 
     fn print(&self, tight: bool, ascii: bool) -> Result<String, Error> {
-        unsafe {
-            let ptr = ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii));
-            let c_str = CStr::from_ptr(ptr);
-            let s = c_str.to_string_lossy().into_owned();
-            fz_free(context(), ptr as _);
-            Ok(s)
-        }
+        let ptr =
+            unsafe { ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii)) }?;
+        let c_str = unsafe { CStr::from_ptr(ptr) };
+        let s = c_str.to_string_lossy().into_owned();
+        unsafe { fz_free(context(), ptr as _) };
+        Ok(s)
     }
 
     pub fn document(&self) -> Option<PdfDocument> {
@@ -392,10 +341,7 @@ impl PdfObject {
     }
 
     pub fn page_ctm(&self) -> Result<Matrix, Error> {
-        let matrix =
-            unsafe { ffi_try!(mupdf_pdf_page_obj_transform(context(), self.inner)).into() };
-
-        Ok(matrix)
+        unsafe { ffi_try!(mupdf_pdf_page_obj_transform(context(), self.inner)) }.map(Into::into)
     }
 }
 

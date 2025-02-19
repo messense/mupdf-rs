@@ -64,8 +64,8 @@ impl Font {
 
     pub fn new_with_index(name: &str, index: i32) -> Result<Self, Error> {
         let c_name = CString::new(name)?;
-        let inner = unsafe { ffi_try!(mupdf_new_font(context(), c_name.as_ptr(), index)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_font(context(), c_name.as_ptr(), index)) }
+            .map(|inner| Self { inner })
     }
 
     pub fn from_bytes(name: &str, font_data: &[u8]) -> Result<Self, Error> {
@@ -75,15 +75,15 @@ impl Font {
     pub fn from_bytes_with_index(name: &str, index: i32, font_data: &[u8]) -> Result<Self, Error> {
         let c_name = CString::new(name)?;
         let buffer = Buffer::from_bytes(font_data)?;
-        let inner = unsafe {
+        unsafe {
             ffi_try!(mupdf_new_font_from_buffer(
                 context(),
                 c_name.as_ptr(),
                 index,
                 buffer.into_inner()
             ))
-        };
-        Ok(Self { inner })
+        }
+        .map(|inner| Self { inner })
     }
 
     pub fn name(&self) -> &str {
@@ -117,13 +117,11 @@ impl Font {
     }
 
     pub fn encode_character(&self, unicode: i32) -> Result<i32, Error> {
-        let glyph = unsafe { ffi_try!(mupdf_encode_character(context(), self.inner, unicode)) };
-        Ok(glyph)
+        unsafe { ffi_try!(mupdf_encode_character(context(), self.inner, unicode)) }
     }
 
     pub fn advance_glyph_with_wmode(&self, glyph: i32, wmode: bool) -> Result<f32, Error> {
-        let advance = unsafe { ffi_try!(mupdf_advance_glyph(context(), self.inner, glyph, wmode)) };
-        Ok(advance)
+        unsafe { ffi_try!(mupdf_advance_glyph(context(), self.inner, glyph, wmode)) }
     }
 
     pub fn advance_glyph(&self, glyph: i32) -> Result<f32, Error> {
@@ -131,18 +129,18 @@ impl Font {
     }
 
     pub fn outline_glyph_with_ctm(&self, glyph: i32, ctm: &Matrix) -> Result<Option<Path>, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_outline_glyph(
+        let inner = unsafe {
+            ffi_try!(mupdf_outline_glyph(
                 context(),
                 self.inner,
                 glyph,
                 ctm.into()
-            ));
-            if inner.is_null() {
-                return Ok(None);
-            }
-            Ok(Some(Path::from_raw(inner)))
+            ))
+        }?;
+        if inner.is_null() {
+            return Ok(None);
         }
+        Ok(Some(unsafe { Path::from_raw(inner) }))
     }
 
     pub fn outline_glyph(&self, glyph: i32) -> Result<Option<Path>, Error> {

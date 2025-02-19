@@ -254,10 +254,8 @@ impl PdfDocument {
         let len = bytes.len();
         let mut buf = Buffer::with_capacity(len);
         buf.write_all(bytes)?;
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_open_document_from_bytes(context(), buf.inner));
-            Ok(Self::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_open_document_from_bytes(context(), buf.inner)) }
+            .map(|inner| unsafe { Self::from_raw(inner) })
     }
 
     pub fn new_null(&self) -> PdfObject {
@@ -285,85 +283,64 @@ impl PdfDocument {
     }
 
     pub fn new_indirect(&self, num: i32, gen: i32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_indirect(context(), self.inner, num, gen));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_indirect(context(), self.inner, num, gen)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_array(&self) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_array(context(), self.inner, 0));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_array(context(), self.inner, 0)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_dict(&self) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_dict(context(), self.inner, 0));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_dict(context(), self.inner, 0)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_graft_map(&self) -> Result<PdfGraftMap, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_new_graft_map(context(), self.inner));
-            Ok(PdfGraftMap::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_new_graft_map(context(), self.inner)) }
+            .map(|inner| unsafe { PdfGraftMap::from_raw(inner) })
     }
 
     pub fn new_object_from_str(&self, src: &str) -> Result<PdfObject, Error> {
         let c_src = CString::new(src)?;
         unsafe {
-            let inner = ffi_try!(mupdf_pdf_obj_from_str(
+            ffi_try!(mupdf_pdf_obj_from_str(
                 context(),
                 self.inner,
                 c_src.as_ptr()
-            ));
-            Ok(PdfObject::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn graft_object(&self, obj: &PdfObject) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn create_object(&mut self) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_create_object(context(), self.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_create_object(context(), self.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn delete_object(&mut self, num: i32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_delete_object(context(), self.inner, num));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_delete_object(context(), self.inner, num)) }
     }
 
     pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn add_font(&mut self, font: &Font) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_add_font(context(), self.inner, font.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_add_font(context(), self.inner, font.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn add_cjk_font(
@@ -374,16 +351,16 @@ impl PdfDocument {
         serif: bool,
     ) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_pdf_add_cjk_font(
+            ffi_try!(mupdf_pdf_add_cjk_font(
                 context(),
                 self.inner,
                 font.inner,
                 ordering as i32,
                 wmode as i32,
                 serif
-            ));
-            Ok(PdfObject::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn add_simple_font(
@@ -392,14 +369,14 @@ impl PdfDocument {
         encoding: SimpleFontEncoding,
     ) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_pdf_add_simple_font(
+            ffi_try!(mupdf_pdf_add_simple_font(
                 context(),
                 self.inner,
                 font.inner,
                 encoding as i32
-            ));
-            Ok(PdfObject::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn has_unsaved_changes(&self) -> bool {
@@ -422,54 +399,39 @@ impl PdfDocument {
                 self.inner,
                 c_name.as_ptr(),
                 options.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn enable_js(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_enable_js(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_enable_js(context(), self.inner)) }
     }
 
     pub fn disable_js(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_disable_js(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_disable_js(context(), self.inner)) }
     }
 
     pub fn is_js_supported(&self) -> Result<bool, Error> {
-        let supported = unsafe { ffi_try!(mupdf_pdf_js_supported(context(), self.inner)) };
-        Ok(supported)
+        unsafe { ffi_try!(mupdf_pdf_js_supported(context(), self.inner)) }
     }
 
     pub fn calculate_form(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_calculate_form(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_calculate_form(context(), self.inner)) }
     }
 
     pub fn trailer(&self) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_trailer(context(), self.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_trailer(context(), self.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn catalog(&self) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_catalog(context(), self.inner));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_catalog(context(), self.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn count_objects(&self) -> Result<u32, Error> {
-        let count = unsafe { ffi_try!(mupdf_pdf_count_objects(context(), self.inner)) };
-        Ok(count as u32)
+        unsafe { ffi_try!(mupdf_pdf_count_objects(context(), self.inner)) }
+            .map(|count| count as u32)
     }
 
     pub fn has_acro_form(&self) -> Result<bool, Error> {
@@ -507,13 +469,13 @@ impl PdfDocument {
 
     fn write_with_options(&self, options: PdfWriteOptions) -> Result<Buffer, Error> {
         unsafe {
-            let buf = ffi_try!(mupdf_pdf_write_document(
+            ffi_try!(mupdf_pdf_write_document(
                 context(),
                 self.inner,
                 options.inner
-            ));
-            Ok(Buffer::from_raw(buf))
+            ))
         }
+        .map(|buf| unsafe { Buffer::from_raw(buf) })
     }
 
     pub fn write_to_with_options<W: Write>(
@@ -530,10 +492,8 @@ impl PdfDocument {
     }
 
     pub fn find_page(&self, page_no: i32) -> Result<PdfObject, Error> {
-        unsafe {
-            let inner = ffi_try!(mupdf_pdf_lookup_page_obj(context(), self.inner, page_no));
-            Ok(PdfObject::from_raw(inner))
-        }
+        unsafe { ffi_try!(mupdf_pdf_lookup_page_obj(context(), self.inner, page_no)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
     pub fn new_page_at<T: Into<Size>>(&mut self, page_no: i32, size: T) -> Result<PdfPage, Error> {
@@ -546,7 +506,7 @@ impl PdfDocument {
                 size.width,
                 size.height
             ))
-        };
+        }?;
         let inner = NonNull::new(inner).ok_or(Error::UnexpectedNullPtr)?;
         Ok(unsafe { PdfPage::from_raw(inner) })
     }
@@ -562,16 +522,12 @@ impl PdfDocument {
                 self.inner,
                 page_no,
                 page.inner
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn delete_page(&mut self, page_no: i32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no)) }
     }
 
     pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {

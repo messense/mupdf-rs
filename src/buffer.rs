@@ -20,8 +20,8 @@ impl FromStr for Buffer {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let c_str = CString::new(s)?;
-        let inner = unsafe { ffi_try!(mupdf_buffer_from_str(context(), c_str.as_ptr())) };
-        Ok(Self { inner, offset: 0 })
+        unsafe { ffi_try!(mupdf_buffer_from_str(context(), c_str.as_ptr())) }
+            .map(|inner| Self { inner, offset: 0 })
     }
 }
 
@@ -39,8 +39,8 @@ impl Buffer {
 
     pub fn from_base64(str: &str) -> Result<Self, Error> {
         let c_str = CString::new(str)?;
-        let inner = unsafe { ffi_try!(mupdf_buffer_from_base64(context(), c_str.as_ptr())) };
-        Ok(Self { inner, offset: 0 })
+        unsafe { ffi_try!(mupdf_buffer_from_base64(context(), c_str.as_ptr())) }
+            .map(|inner| Self { inner, offset: 0 })
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
@@ -78,7 +78,7 @@ impl Buffer {
                 buf.as_mut_ptr(),
                 len
             ))
-        };
+        }?;
         self.offset += read_len as usize;
         Ok(read_len)
     }
@@ -92,7 +92,7 @@ impl Buffer {
                 buf.as_ptr(),
                 len
             ))
-        };
+        }?;
         Ok(len)
     }
 }

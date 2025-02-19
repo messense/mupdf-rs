@@ -14,13 +14,13 @@ impl PdfGraftMap {
 
     pub fn graft_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe {
-            let inner = ffi_try!(mupdf_pdf_graft_mapped_object(
+            ffi_try!(mupdf_pdf_graft_mapped_object(
                 context(),
                 self.inner,
                 obj.inner
-            ));
-            Ok(PdfObject::from_raw(inner))
+            ))
         }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 }
 

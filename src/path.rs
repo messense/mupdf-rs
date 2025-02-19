@@ -119,13 +119,11 @@ impl Path {
     }
 
     pub fn new() -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_path(context())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_path(context())) }.map(|inner| Self { inner })
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_clone_path(context(), self.inner)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_clone_path(context(), self.inner)) }.map(|inner| Self { inner })
     }
 
     pub fn walk<W: PathWalker>(&self, walker: W) -> Result<(), Error> {
@@ -146,7 +144,7 @@ impl Path {
                 self.inner,
                 &c_walker,
                 raw_ptr.cast()
-            ));
+            ))?;
             drop(Box::from_raw(raw_ptr));
         }
         Ok(())
@@ -158,17 +156,11 @@ impl Path {
     }
 
     pub fn move_to(&mut self, x: f32, y: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_moveto(context(), self.inner, x, y));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_moveto(context(), self.inner, x, y)) }
     }
 
     pub fn line_to(&mut self, x: f32, y: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_lineto(context(), self.inner, x, y));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_lineto(context(), self.inner, x, y)) }
     }
 
     pub fn curve_to(
@@ -190,63 +182,44 @@ impl Path {
                 cy2,
                 ex,
                 ey
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn curve_to_v(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_curvetov(context(), self.inner, cx, cy, ex, ey));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_curvetov(context(), self.inner, cx, cy, ex, ey)) }
     }
 
     pub fn curve_to_y(&mut self, cx: f32, cy: f32, ex: f32, ey: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_curvetoy(context(), self.inner, cx, cy, ex, ey));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_curvetoy(context(), self.inner, cx, cy, ex, ey)) }
     }
 
     pub fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_rectto(context(), self.inner, x1, y1, x2, y2));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_rectto(context(), self.inner, x1, y1, x2, y2)) }
     }
 
     pub fn close(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_closepath(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_closepath(context(), self.inner)) }
     }
 
     pub fn transform(&mut self, mat: &Matrix) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_transform_path(context(), self.inner, mat.into()));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_transform_path(context(), self.inner, mat.into())) }
     }
 
     pub fn bounds(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Rect, Error> {
-        let rect = unsafe {
+        unsafe {
             ffi_try!(mupdf_bound_path(
                 context(),
                 self.inner,
                 stroke.inner,
                 ctm.into()
             ))
-        };
-        Ok(rect.into())
+        }
+        .map(Into::into)
     }
 
     pub fn trim(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_trim_path(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_trim_path(context(), self.inner)) }
     }
 }
 

@@ -42,9 +42,8 @@ impl Pixmap {
         h: i32,
         alpha: bool,
     ) -> Result<Self, Error> {
-        let ctx = context();
-        let inner = unsafe { ffi_try!(mupdf_new_pixmap(ctx, cs.inner, x, y, w, h, alpha)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_pixmap(context(), cs.inner, x, y, w, h, alpha)) }
+            .map(|inner| Self { inner })
     }
 
     /// Create an empty pixmap of size and origin given by the rectangle.
@@ -168,10 +167,7 @@ impl Pixmap {
 
     /// Initialize the samples area with 0x00
     pub fn clear(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_clear_pixmap(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_clear_pixmap(context(), self.inner)) }
     }
 
     /// Initialize the samples area
@@ -180,10 +176,7 @@ impl Pixmap {
     ///
     /// * `value` - values from 0 to 255 are valid. Each color byte of each pixel will be set to this value, while alpha will be set to 255 (non-transparent) if present
     pub fn clear_with(&mut self, value: i32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_clear_pixmap_with_value(context(), self.inner, value));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_clear_pixmap_with_value(context(), self.inner, value)) }
     }
 
     pub fn save_as(&self, filename: &str, format: ImageFormat) -> Result<(), Error> {
@@ -194,16 +187,12 @@ impl Pixmap {
                 self.inner,
                 c_filename.as_ptr(),
                 format as i32
-            ));
+            ))
         }
-        Ok(())
     }
 
     pub fn invert(&mut self) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_invert_pixmap(context(), self.inner));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_invert_pixmap(context(), self.inner)) }
     }
 
     /// Apply a gamma factor to a pixmap, i.e. lighten or darken it.
@@ -214,30 +203,23 @@ impl Pixmap {
     ///
     /// * `gamma` - gamma = 1.0 does nothing, gamma < 1.0 lightens, gamma > 1.0 darkens the image.
     pub fn gamma(&mut self, gamma: f32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_gamma_pixmap(context(), self.inner, gamma));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_gamma_pixmap(context(), self.inner, gamma)) }
     }
 
     /// Tint pixmap with color
     pub fn tint(&mut self, black: i32, white: i32) -> Result<(), Error> {
-        unsafe {
-            ffi_try!(mupdf_tint_pixmap(context(), self.inner, black, white));
-        }
-        Ok(())
+        unsafe { ffi_try!(mupdf_tint_pixmap(context(), self.inner, black, white)) }
     }
 
     fn get_image_data(&self, format: ImageFormat) -> Result<Buffer, Error> {
-        let buf = unsafe {
-            let inner = ffi_try!(mupdf_pixmap_get_image_data(
+        unsafe {
+            ffi_try!(mupdf_pixmap_get_image_data(
                 context(),
                 self.inner,
                 format as i32
-            ));
-            Buffer::from_raw(inner)
-        };
-        Ok(buf)
+            ))
+        }
+        .map(|inner| unsafe { Buffer::from_raw(inner) })
     }
 
     pub fn write_to<W: Write>(&self, w: &mut W, format: ImageFormat) -> Result<u64, Error> {
@@ -246,8 +228,7 @@ impl Pixmap {
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_clone_pixmap(context(), self.inner)) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_clone_pixmap(context(), self.inner)) }.map(|inner| Self { inner })
     }
 }
 

@@ -53,7 +53,7 @@ impl StrokeState {
         dash: &[f32],
     ) -> Result<Self, Error> {
         let dash_len = dash.len() as i32;
-        let inner = unsafe {
+        unsafe {
             ffi_try!(mupdf_new_stroke_state(
                 context(),
                 start_cap as fz_linecap,
@@ -66,8 +66,8 @@ impl StrokeState {
                 dash.as_ptr(),
                 dash_len
             ))
-        };
-        Ok(Self { inner })
+        }
+        .map(|inner| Self { inner })
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {

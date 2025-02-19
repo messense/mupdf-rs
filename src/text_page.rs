@@ -37,10 +37,8 @@ impl TextPage {
     }
 
     pub fn to_text(&self) -> Result<String, Error> {
-        let mut buf = unsafe {
-            let inner = ffi_try!(mupdf_stext_page_to_text(context(), self.inner));
-            Buffer::from_raw(inner)
-        };
+        let inner = unsafe { ffi_try!(mupdf_stext_page_to_text(context(), self.inner)) }?;
+        let mut buf = unsafe { Buffer::from_raw(inner) };
         let mut text = String::new();
         buf.read_to_string(&mut text)?;
         Ok(text)
@@ -57,7 +55,7 @@ impl TextPage {
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
-        let quads = unsafe {
+        unsafe {
             ffi_try!(mupdf_search_stext_page(
                 context(),
                 self.inner,
@@ -65,9 +63,8 @@ impl TextPage {
                 hit_max as _,
                 &mut hit_count
             ))
-        };
-
-        unsafe { rust_vec_from_ffi_ptr(quads, hit_count) }
+        }
+        .and_then(|quads| unsafe { rust_vec_from_ffi_ptr(quads, hit_count) })
     }
 
     pub fn highlight_selection(
@@ -78,7 +75,7 @@ impl TextPage {
     ) -> Result<i32, Error> {
         let (ptr, len): (*const fz_quad, _) = rust_slice_to_ffi_ptr(quads)?;
 
-        Ok(unsafe {
+        unsafe {
             ffi_try!(mupdf_highlight_selection(
                 context(),
                 self.inner,
@@ -87,7 +84,7 @@ impl TextPage {
                 ptr as *mut fz_quad,
                 len
             ))
-        })
+        }
     }
 }
 

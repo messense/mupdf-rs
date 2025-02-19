@@ -13,20 +13,19 @@ pub struct Text {
 
 impl Text {
     pub fn new() -> Result<Self, Error> {
-        let inner = unsafe { ffi_try!(mupdf_new_text(context())) };
-        Ok(Self { inner })
+        unsafe { ffi_try!(mupdf_new_text(context())) }.map(|inner| Self { inner })
     }
 
     pub fn bounds(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Rect, Error> {
-        let rect = unsafe {
+        unsafe {
             ffi_try!(mupdf_bound_text(
                 context(),
                 self.inner,
                 stroke.inner,
                 ctm.into()
             ))
-        };
-        Ok(rect.into())
+        }
+        .map(fz_rect::into)
     }
 
     pub fn spans(&self) -> TextSpanIter {

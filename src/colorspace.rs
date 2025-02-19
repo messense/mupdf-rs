@@ -109,7 +109,7 @@ impl Colorspace {
                 out.as_mut_ptr(),
                 via,
                 params.into()
-            ));
+            ))?;
             out.set_len(to_n);
             Ok(out)
         }
@@ -138,7 +138,7 @@ impl Colorspace {
                 out.as_mut_ptr(),
                 via,
                 params.into()
-            ));
+            ))?;
             Ok(n)
         }
     }
