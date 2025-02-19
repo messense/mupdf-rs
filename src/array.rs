@@ -121,3 +121,8 @@ impl<T> Iterator for FzIter<T> {
         Some(ret)
     }
 }
+
+// SAFETY: This is esentially just a `Box<[T], fz_calloc>`. If that's safe to impl, then this is as
+// well. It's only not automatically derived to make us think for a second, not inherently unsafe.
+unsafe impl<T> Send for FzArray<T> where T: Send {}
+unsafe impl<T> Sync for FzArray<T> where T: Sync {}
