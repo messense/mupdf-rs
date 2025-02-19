@@ -2640,6 +2640,20 @@ fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect cl
     return device;
 }
 
+fz_device *mupdf_new_device_of_size(fz_context *ctx, int size, mupdf_error_t **errptr)
+{
+    fz_device *device = NULL;
+    fz_try(ctx)
+    {
+        device = fz_new_device_of_size(ctx, size);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return device;
+}
+
 fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
@@ -2863,6 +2877,54 @@ void mupdf_end_layer(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
     }
 }
 
+void mupdf_begin_structure(fz_context *ctx, fz_device *device, fz_structure standard, const char *raw, int idx, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_begin_structure(ctx, device, standard, raw, idx);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_end_structure(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_structure(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_begin_metatext(fz_context *ctx, fz_device *device, fz_metatext meta, const char *text, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_begin_metatext(ctx, device, meta, text);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_end_metatext(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_end_metatext(ctx, device);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 void mupdf_begin_mask(fz_context *ctx, fz_device *device, fz_rect area, bool luminosity, fz_colorspace *cs, const float *color, fz_color_params cp, mupdf_error_t **errptr)
 {
     fz_try(ctx)
@@ -2875,11 +2937,11 @@ void mupdf_begin_mask(fz_context *ctx, fz_device *device, fz_rect area, bool lum
     }
 }
 
-void mupdf_end_mask(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
+void mupdf_end_mask(fz_context *ctx, fz_device *device, fz_function *fn, mupdf_error_t **errptr)
 {
     fz_try(ctx)
     {
-        fz_end_mask(ctx, device);
+        fz_end_mask_tr(ctx, device, fn);
     }
     fz_catch(ctx)
     {
