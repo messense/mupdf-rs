@@ -14,4 +14,4 @@ Rust binding to [mupdf](https://github.com/ArtifexSoftware/mupdf)
 
 ## License
 
-This work is released under the GPLv3 license. A copy of the license is provided in the [LICENSE](./LICENSE) file.
+This work is released under the AGPL-3.0 license. A copy of the license is provided in the [LICENSE](./LICENSE) file.
