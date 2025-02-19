@@ -190,8 +190,6 @@ unsafe fn rust_vec_from_ffi_ptr<R: FFIAnalogue>(
     ptr: *mut R::FFIType,
     len: i32,
 ) -> Result<FzArray<R>, Error> {
-    println!("being called with ptr {ptr:?}, len {len}");
-
     let Some(ptr) = NonNull::new(ptr) else {
         return Err(Error::UnexpectedNullPtr);
     };
