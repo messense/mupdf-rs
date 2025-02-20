@@ -1,3 +1,4 @@
+use mupdf::page::StextPage;
 use mupdf::pdf::PdfDocument;
 use mupdf::{Colorspace, Error, ImageFormat, Matrix, TextPageOptions};
 
@@ -96,5 +97,23 @@ fn test_issue_86_invalid_utf8() {
         // Validate JSON parsing
         let parsed_json: Result<serde_json::Value, _> = serde_json::from_str(&json.unwrap());
         assert!(parsed_json.is_ok());
+    }
+}
+
+#[test]
+#[cfg(feature = "serde")]
+fn test_issue_i32_box() {
+    let doc = PdfDocument::open("tests/files/i32-box.pdf").unwrap();
+    for (idx, page) in doc.pages().unwrap().enumerate() {
+        let page = page.unwrap();
+        let text = page.to_text();
+        assert!(text.is_ok());
+        println!("page: {idx}, text: {}", text.unwrap());
+
+        let json = page.stext_page_as_json_from_page(1.0);
+        assert!(json.is_ok());
+
+        let stext_page: Result<StextPage, _> = serde_json::from_str(json.unwrap().as_str());
+        assert!(stext_page.is_ok());
     }
 }
