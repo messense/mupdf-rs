@@ -374,8 +374,8 @@ pub struct Font {
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 pub struct BBox {
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
     pub w: u32,
     pub h: u32,
 }
@@ -386,8 +386,8 @@ pub struct Line {
     pub wmode: u32,
     pub bbox: BBox,
     pub font: Font,
-    pub x: u32,
-    pub y: u32,
+    pub x: i32,
+    pub y: i32,
     pub text: String,
 }
 
