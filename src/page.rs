@@ -252,7 +252,7 @@ impl Page {
         }?;
         let mut buf = unsafe { Buffer::from_raw(inner) };
         let mut res = String::new();
-        buf.read_to_string(&mut res).unwrap();
+        buf.read_to_string(&mut res)?;
         Ok(res)
     }
 

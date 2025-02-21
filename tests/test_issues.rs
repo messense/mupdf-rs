@@ -117,3 +117,11 @@ fn test_issue_i32_box() {
         assert!(stext_page.is_ok());
     }
 }
+
+#[test]
+fn test_issue_no_json() {
+    let doc = PdfDocument::open("tests/files/no-json.pdf").unwrap();
+    let page = doc.load_page(0).unwrap();
+    let json = page.stext_page_as_json_from_page(1.0);
+    assert!(json.is_err());
+}
