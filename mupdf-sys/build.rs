@@ -158,7 +158,7 @@ fn build_libmupdf() {
     add_lib("LEPTONICA", "lept");
 
     #[cfg(feature = "sys-lib-tesseract")]
-    add_lib("TESSARACT", "tessaract");
+    add_lib("TESSERACT", "tesseract");
 
     //
     // The mupdf Makefile does not do a very good job of detecting
