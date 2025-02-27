@@ -1,13 +1,16 @@
-use std::convert::TryInto;
+use core::slice;
+use std::os::raw::c_void;
+use std::{convert::TryInto, ffi::c_int};
 use std::ffi::CString;
 use std::io::Read;
 use std::marker::PhantomData;
-use std::ptr;
+use std::ptr::{self, NonNull};
 
 use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
+use crate::FFIAnalogue;
 use crate::{
     array::FzArray, context, rust_slice_to_ffi_ptr, rust_vec_from_ffi_ptr, Buffer, Error, Image,
     Matrix, Point, Quad, Rect, WriteMode,
@@ -67,6 +70,96 @@ impl TextPage {
         .and_then(|quads| unsafe { rust_vec_from_ffi_ptr(quads, hit_count) })
     }
 
+    /// Search through the page, finding all instances of `needle` and processing them through
+    /// `cb`.
+    /// Note that the `&[Quad]` given to `cb` in its invocation lives only during the time that
+    /// `cb` is being evaluated. That means the following won't work or compile:
+    ///
+    /// ```compile_fail
+    /// # use mupdf::{TextPage, Quad, text_page::SearchHitResponse};
+    /// # let text_page: TextPage = todo!();
+    /// let mut quads: Vec<&Quad> = Vec::new();
+    /// text_page.search_cb("search term", &mut quads, |v, quads: &[Quad]| {
+    ///     v.extend(quads);
+    ///     SearchHitResponse::ContinueSearch
+    /// }).unwrap();
+    /// ```
+    ///
+    /// But the following will:
+    /// ```no_run
+    /// # use mupdf::{TextPage, Quad, text_page::SearchHitResponse};
+    /// # let text_page: TextPage = todo!();
+    /// let mut quads: Vec<Quad> = Vec::new();
+    /// text_page.search_cb("search term", &mut quads, |v, quads: &[Quad]| {
+    ///     v.extend(quads.iter().cloned());
+    ///     SearchHitResponse::ContinueSearch
+    /// }).unwrap();
+    /// ```
+    pub fn search_cb<T, F>(&self, needle: &str, data: &mut T , cb: F) -> Result<u32, Error>
+    where
+        T: ?Sized,
+        F: Fn(&mut T, &[Quad]) -> SearchHitResponse,
+    {
+        // This struct allows us to wrap both the callback that the user gave us and the data so
+        // that we can pass it into the ffi callback nicely
+        struct FnWithData<'parent, T: ?Sized, F> where F: Fn(&mut T, &[Quad]) -> SearchHitResponse {
+            data: &'parent mut T,
+            f: F,
+        }
+
+        let mut opaque = FnWithData { data, f: cb };
+
+        // And then here's the `fn` that we'll pass in - it has to be an fn, not capturing context,
+        // because it needs to be unsafe extern "C". to be used with FFI.
+        unsafe extern "C" fn ffi_cb<T, F>(
+            _ctx: *mut fz_context,
+            data: *mut c_void,
+            num_quads: c_int,
+            hit_bbox: *mut fz_quad
+        ) -> c_int
+        where
+            T: ?Sized,
+            F: Fn(&mut T, &[Quad]) -> SearchHitResponse,
+            Quad: FFIAnalogue<FFIType = fz_quad>,
+        {
+            // This is upheld by our `FFIAnalogue` bound above
+            let quad_ptr = hit_bbox.cast::<Quad>();
+            let Some(nn) = NonNull::new(quad_ptr) else {
+                return SearchHitResponse::ContinueSearch as c_int;
+            };
+
+            // This guarantee is upheld by mupdf - they're giving us a pointer to the same type we
+            // gave them.
+            let data = data.cast::<FnWithData<'_, T, F>>();
+
+            let Ok(len) = usize::try_from(num_quads) else {
+                return SearchHitResponse::ContinueSearch as c_int;
+            };
+
+            // But if they like gave us a -1 for number of results or whatever, give up on
+            // decoding.
+            let slice = unsafe { slice::from_raw_parts_mut(nn.as_ptr(), len) };
+
+            // Get the function and the data
+            let f = unsafe { &(*data).f };
+            let data = unsafe { &mut (*data).data };
+
+            // And call the function with the data
+            f(data, slice) as c_int
+        }
+
+        let c_needle = CString::new(needle)?;
+        unsafe {
+            ffi_try!(mupdf_search_stext_page_cb(
+                context(),
+                self.inner,
+                c_needle.as_ptr(),
+                Some(ffi_cb::<T, F>),
+                &raw mut opaque as *mut c_void
+            ))
+        }.map(|count| count as u32)
+    }
+
     pub fn highlight_selection(
         &mut self,
         a: Point,
@@ -96,6 +189,12 @@ impl Drop for TextPage {
             }
         }
     }
+}
+
+#[repr(i32)]
+pub enum SearchHitResponse {
+    ContinueSearch = 0,
+    AbortSearch = 1
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
@@ -262,7 +361,7 @@ impl<'a> Iterator for TextCharIter<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{Document, TextPageOptions};
+    use crate::{text_page::SearchHitResponse, Document, TextPageOptions};
 
     #[test]
     fn test_text_page_search() {
@@ -278,19 +377,59 @@ mod test {
             [Quad {
                 ul: Point {
                     x: 56.8,
-                    y: 69.32512
+                    y: 69.32953
                 },
                 ur: Point {
-                    x: 115.85405,
-                    y: 69.32512
+                    x: 115.85159,
+                    y: 69.32953
                 },
                 ll: Point {
                     x: 56.8,
-                    y: 87.311844
+                    y: 80.50292
                 },
                 lr: Point {
-                    x: 115.85405,
-                    y: 87.311844
+                    x: 115.85159,
+                    y: 80.50292
+                }
+
+            }]
+        );
+
+        let hits = text_page.search("Not Found", 1).unwrap();
+        assert_eq!(hits.len(), 0);
+    }
+
+    #[test]
+    fn test_text_page_cb_search() {
+        use crate::{Point, Quad};
+
+        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
+        let mut hits = Vec::with_capacity(1);
+        text_page.search_cb("Dummy", &mut hits, |acc, hits| {
+            acc.extend(hits.iter().cloned());
+            SearchHitResponse::ContinueSearch
+        }).unwrap();
+        assert_eq!(hits.len(), 1);
+        assert_eq!(
+            &*hits,
+            [Quad {
+                ul: Point {
+                    x: 56.8,
+                    y: 69.32953
+                },
+                ur: Point {
+                    x: 115.85159,
+                    y: 69.32953
+                },
+                ll: Point {
+                    x: 56.8,
+                    y: 80.50292
+                },
+                lr: Point {
+                    x: 115.85159,
+                    y: 80.50292
                 }
             }]
         );
