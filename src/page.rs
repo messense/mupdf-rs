@@ -50,7 +50,7 @@ impl Page {
         &self,
         ctm: &Matrix,
         cs: &Colorspace,
-        alpha: f32,
+        alpha: bool,
         show_extras: bool,
     ) -> Result<Pixmap, Error> {
         unsafe {
