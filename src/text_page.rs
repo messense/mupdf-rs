@@ -1,10 +1,11 @@
-use core::slice;
-use std::os::raw::c_void;
-use std::{convert::TryInto, ffi::c_int};
-use std::ffi::CString;
-use std::io::Read;
-use std::marker::PhantomData;
-use std::ptr::{self, NonNull};
+use std::{
+    convert::TryInto,
+    ffi::{c_int, c_void, CString},
+    io::Read,
+    marker::PhantomData,
+    ptr::{self, NonNull},
+    slice,
+};
 
 use bitflags::bitflags;
 use mupdf_sys::*;
@@ -12,8 +13,7 @@ use num_enum::TryFromPrimitive;
 
 use crate::FFIAnalogue;
 use crate::{
-    context, rust_slice_to_ffi_ptr, Buffer, Error, Image,
-    Matrix, Point, Quad, Rect, WriteMode,
+    context, rust_slice_to_ffi_ptr, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode,
 };
 
 bitflags! {
@@ -88,14 +88,17 @@ impl TextPage {
     ///     SearchHitResponse::ContinueSearch
     /// }).unwrap();
     /// ```
-    pub fn search_cb<T, F>(&self, needle: &str, data: &mut T , cb: F) -> Result<u32, Error>
+    pub fn search_cb<T, F>(&self, needle: &str, data: &mut T, cb: F) -> Result<u32, Error>
     where
         T: ?Sized,
         F: Fn(&mut T, &[Quad]) -> SearchHitResponse,
     {
         // This struct allows us to wrap both the callback that the user gave us and the data so
         // that we can pass it into the ffi callback nicely
-        struct FnWithData<'parent, T: ?Sized, F> where F: Fn(&mut T, &[Quad]) -> SearchHitResponse {
+        struct FnWithData<'parent, T: ?Sized, F>
+        where
+            F: Fn(&mut T, &[Quad]) -> SearchHitResponse,
+        {
             data: &'parent mut T,
             f: F,
         }
@@ -108,7 +111,7 @@ impl TextPage {
             _ctx: *mut fz_context,
             data: *mut c_void,
             num_quads: c_int,
-            hit_bbox: *mut fz_quad
+            hit_bbox: *mut fz_quad,
         ) -> c_int
         where
             T: ?Sized,
@@ -154,7 +157,8 @@ impl TextPage {
                 Some(ffi_cb::<T, F>),
                 &raw mut opaque as *mut c_void
             ))
-        }.map(|count| count as u32)
+        }
+        .map(|count| count as u32)
     }
 
     pub fn highlight_selection(
@@ -191,7 +195,7 @@ impl Drop for TextPage {
 #[repr(i32)]
 pub enum SearchHitResponse {
     ContinueSearch = 0,
-    AbortSearch = 1
+    AbortSearch = 1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
@@ -388,7 +392,6 @@ mod test {
                     x: 115.85159,
                     y: 80.50292
                 }
-
             }]
         );
 
@@ -398,18 +401,18 @@ mod test {
 
     #[test]
     fn test_text_page_cb_search() {
-        use crate::{Point, Quad};
-
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
         let mut sum_x = 0.0;
-        let num_hits = text_page.search_cb("Dummy", &mut sum_x, |acc, hits| {
-            for q in hits {
-                *acc += q.ul.x + q.ur.x + q.ll.x + q.lr.x;
-            }
-            SearchHitResponse::ContinueSearch
-        }).unwrap();
+        let num_hits = text_page
+            .search_cb("Dummy", &mut sum_x, |acc, hits| {
+                for q in hits {
+                    *acc += q.ul.x + q.ur.x + q.ll.x + q.lr.x;
+                }
+                SearchHitResponse::ContinueSearch
+            })
+            .unwrap();
         assert_eq!(num_hits, 1);
         assert_eq!(sum_x, 56.8 + 115.85159 + 56.8 + 115.85159);
 
