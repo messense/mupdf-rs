@@ -54,20 +54,13 @@ impl TextPage {
         }
     }
 
-    pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
-        let c_needle = CString::new(needle)?;
-        let hit_max = if hit_max < 1 { 16 } else { hit_max };
-        let mut hit_count = 0;
-        unsafe {
-            ffi_try!(mupdf_search_stext_page(
-                context(),
-                self.inner,
-                c_needle.as_ptr(),
-                hit_max as _,
-                &mut hit_count
-            ))
-        }
-        .and_then(|quads| unsafe { rust_vec_from_ffi_ptr(quads, hit_count) })
+    pub fn search(&self, needle: &str) -> Result<Vec<Quad>, Error> {
+        let mut vec = Vec::new();
+        self.search_cb(needle, &mut vec, |v, quads| {
+            v.extend(quads.iter().cloned());
+            SearchHitResponse::ContinueSearch
+        })?;
+        Ok(vec)
     }
 
     /// Search through the page, finding all instances of `needle` and processing them through
@@ -132,16 +125,20 @@ impl TextPage {
             // gave them.
             let data = data.cast::<FnWithData<'_, T, F>>();
 
+            // But if they like gave us a -1 for number of results or whatever, give up on
+            // decoding.
             let Ok(len) = usize::try_from(num_quads) else {
                 return SearchHitResponse::ContinueSearch as c_int;
             };
 
-            // But if they like gave us a -1 for number of results or whatever, give up on
-            // decoding.
+            // SAFETY: We've ensure nn is not null, and we're trusting the FFI layer for the other
+            // invariants (about actually holding the data, etc)
             let slice = unsafe { slice::from_raw_parts_mut(nn.as_ptr(), len) };
 
             // Get the function and the data
+            // SAFETY: Trusting that the FFI layer actually gave us this ptr
             let f = unsafe { &(*data).f };
+            // SAFETY: Trusting that the FFI layer actually gave us this ptr
             let data = unsafe { &mut (*data).data };
 
             // And call the function with the data
