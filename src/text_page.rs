@@ -12,7 +12,7 @@ use num_enum::TryFromPrimitive;
 
 use crate::FFIAnalogue;
 use crate::{
-    array::FzArray, context, rust_slice_to_ffi_ptr, rust_vec_from_ffi_ptr, Buffer, Error, Image,
+    context, rust_slice_to_ffi_ptr, Buffer, Error, Image,
     Matrix, Point, Quad, Rect, WriteMode,
 };
 
@@ -367,7 +367,7 @@ mod test {
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
-        let hits = text_page.search("Dummy", 1).unwrap();
+        let hits = text_page.search("Dummy").unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(
             &*hits,
@@ -392,7 +392,7 @@ mod test {
             }]
         );
 
-        let hits = text_page.search("Not Found", 1).unwrap();
+        let hits = text_page.search("Not Found").unwrap();
         assert_eq!(hits.len(), 0);
     }
 
@@ -403,35 +403,17 @@ mod test {
         let doc = Document::open("tests/files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
-        let mut hits = Vec::with_capacity(1);
-        text_page.search_cb("Dummy", &mut hits, |acc, hits| {
-            acc.extend(hits.iter().cloned());
+        let mut sum_x = 0.0;
+        let num_hits = text_page.search_cb("Dummy", &mut sum_x, |acc, hits| {
+            for q in hits {
+                *acc += q.ul.x + q.ur.x + q.ll.x + q.lr.x;
+            }
             SearchHitResponse::ContinueSearch
         }).unwrap();
-        assert_eq!(hits.len(), 1);
-        assert_eq!(
-            &*hits,
-            [Quad {
-                ul: Point {
-                    x: 56.8,
-                    y: 69.32953
-                },
-                ur: Point {
-                    x: 115.85159,
-                    y: 69.32953
-                },
-                ll: Point {
-                    x: 56.8,
-                    y: 80.50292
-                },
-                lr: Point {
-                    x: 115.85159,
-                    y: 80.50292
-                }
-            }]
-        );
+        assert_eq!(num_hits, 1);
+        assert_eq!(sum_x, 56.8 + 115.85159 + 56.8 + 115.85159);
 
-        let hits = text_page.search("Not Found", 1).unwrap();
+        let hits = text_page.search("Not Found").unwrap();
         assert_eq!(hits.len(), 0);
     }
 }
