@@ -43,9 +43,21 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
+const CPU_FLAGS: &[(&str, &str)] = &[
+    ("sse4.1", "HAVE_SSE4_1"),
+    ("avx", "HAVE_AVX"),
+    ("avx2", "HAVE_AVX2"),
+    ("fma", "HAVE_FMA"),
+    ("neon", "HAVE_NEON")
+];
+
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
     use std::process::Command;
+
+    let features_var = std::env::var("CARGO_CFG_TARGET_FEATURE")
+        .expect("We need cargo to build this");
+    let target_features = features_var.split(',').collect::<Vec<_>>();
 
     let profile = match &*env::var("PROFILE").unwrap_or("debug".to_owned()) {
         "bench" | "release" => "release",
@@ -116,6 +128,12 @@ fn build_libmupdf() {
         "HAVE_CURL=no".to_owned(),
         "verbose=yes".to_owned(),
     ];
+
+    for (feature, flag) in CPU_FLAGS {
+        if target_features.contains(feature) {
+            make_flags.push(format!("{flag}=yes"));
+        }
+    }
 
     // this may be unused if none of the features below are enabled
     #[allow(unused_variables, unused_mut)]
@@ -256,6 +274,7 @@ fn build_libmupdf() {
         if cfg!(not(feature = "js")) {
             cl_env.push("/DFZ_ENABLE_JS#0".to_string());
         }
+
         // Enable parallel compilation
         cl_env.push("/MP".to_string());
         let d = msbuild
