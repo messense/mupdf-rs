@@ -48,15 +48,15 @@ const CPU_FLAGS: &[(&str, &str)] = &[
     ("avx", "HAVE_AVX"),
     ("avx2", "HAVE_AVX2"),
     ("fma", "HAVE_FMA"),
-    ("neon", "HAVE_NEON")
+    ("neon", "HAVE_NEON"),
 ];
 
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
     use std::process::Command;
 
-    let features_var = std::env::var("CARGO_CFG_TARGET_FEATURE")
-        .expect("We need cargo to build this");
+    let features_var =
+        std::env::var("CARGO_CFG_TARGET_FEATURE").expect("We need cargo to build this");
     let target_features = features_var.split(',').collect::<Vec<_>>();
 
     let profile = match &*env::var("PROFILE").unwrap_or("debug".to_owned()) {
