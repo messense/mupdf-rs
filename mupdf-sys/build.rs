@@ -492,7 +492,9 @@ fn main() {
             Ok(sdk) => {
                 let mut sysroot = PathBuf::from(sdk);
                 sysroot.push("upstream/emscripten/cache/sysroot");
-                bindings = bindings.clang_arg(format!("--sysroot={}", sysroot.display()));
+                bindings = bindings
+                    .clang_arg(format!("--sysroot={}", sysroot.display()))
+                    .clang_arg("-fvisibility=default");
             }
             Err(env::VarError::NotPresent) => {
                 panic!("Using emscripten requires the EMSDK environment variable to be set");
