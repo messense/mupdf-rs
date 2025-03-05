@@ -189,9 +189,20 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
+    let feature_cflags = CPU_FLAGS
+        .iter()
+        .map(|(f, _)| f)
+        .filter(|f| target_features.contains(f))
+        .map(|f| format!("-m{f}"))
+        .collect::<Vec<_>>()
+        .join(",");
+
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
-    make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
+    make_flags.push(format!(
+        "XCFLAGS={},{feature_cflags}",
+        c_flags.to_string_lossy()
+    ));
     make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
 
     // Enable parallel compilation
