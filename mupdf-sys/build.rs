@@ -267,7 +267,6 @@ fn build_libmupdf() {
             })
             .to_string(),
         );
-        println!("----------- USING PLATFORM TOOLSET: {}", platform_toolset);
         let d = msbuild
             .args(&[
                 "platform\\win32\\mupdf.sln",
