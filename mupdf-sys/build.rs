@@ -199,7 +199,7 @@ fn build_libmupdf() {
 
     #[cfg(target_arch = "x86_64")]
     {
-        make_flags.push("-DARCH_HAS_SSE=1");
+        make_flags.push("-DARCH_HAS_SSE=1".to_owned());
         make_flags.push("XCFLAGS='-msse4.1'".to_owned());
     }
 
