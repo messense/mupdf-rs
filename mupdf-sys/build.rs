@@ -199,7 +199,6 @@ fn build_libmupdf() {
 
     #[cfg(target_arch = "x86_64")]
     {
-        make_flags.push("-DARCH_HAS_SSE=1".to_owned());
         make_flags.push("XCFLAGS='-msse4.1'".to_owned());
     }
 
@@ -514,6 +513,10 @@ fn main() {
     build.file("wrapper.c").include("./mupdf/include");
     if cfg!(target_os = "android") {
         build.flag("-DHAVE_ANDROID").flag_if_supported("-std=c99");
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        build.flag("-DARCH_HAS_SSE=1");
     }
     build.compile("libmupdf-wrapper.a");
 
