@@ -48,7 +48,7 @@ const CPU_FLAGS: &[(&str, &str)] = &[
     ("avx", "HAVE_AVX"),
     ("avx2", "HAVE_AVX2"),
     ("fma", "HAVE_FMA"),
-    ("neon", "HAVE_NEON"),
+    // ("neon", "HAVE_NEON"),
 ];
 
 #[cfg(not(target_env = "msvc"))]
@@ -189,21 +189,32 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
-    let feature_cflags = CPU_FLAGS
+    #[cfg_attr(not(target_arch = "x86_64"), allow(unused_mut))]
+    let mut feature_cflags = CPU_FLAGS
         .iter()
         .map(|(f, _)| f)
         .filter(|f| target_features.contains(f))
         .map(|f| format!("-m{f}"))
-        .collect::<Vec<_>>()
-        .join(",");
+        .collect::<Vec<_>>();
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        make_flags.push("-DARCH_HAS_SSE=1");
+        make_flags.push("XCFLAGS='-msse4.1'".to_owned());
+    }
+
+    println!("cargo::warning using feature_cflags {feature_cflags:?}");
 
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
     make_flags.push(format!(
-        "XCFLAGS={},{feature_cflags}",
-        c_flags.to_string_lossy()
+        "XCFLAGS={} {}",
+        c_flags.to_string_lossy(),
+        feature_cflags.join(" ")
     ));
     make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
+
+    println!("cargo::warning=using make_flags {make_flags:?}");
 
     // Enable parallel compilation
     if let Ok(n) = std::thread::available_parallelism() {
