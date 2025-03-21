@@ -201,7 +201,7 @@ fn build_libmupdf() {
         make_flags.push("XCFLAGS='-msse4.1'".to_owned());
     }
 
-    println!("cargo::warning using feature_cflags {feature_cflags:?}");
+    println!("cargo::warning=using feature_cflags {feature_cflags:?}");
 
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
