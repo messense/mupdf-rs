@@ -189,8 +189,7 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
-    #[cfg_attr(not(target_arch = "x86_64"), allow(unused_mut))]
-    let mut feature_cflags = CPU_FLAGS
+    let feature_cflags = CPU_FLAGS
         .iter()
         .map(|(f, _)| f)
         .filter(|f| target_features.contains(f))
