@@ -209,6 +209,8 @@ fn build_libmupdf() {
 
 #[cfg(target_env = "msvc")]
 fn build_libmupdf() {
+    use cc::windows_registry::find_vs_version;
+
     let target = env::var("TARGET").expect("TARGET not found in environment");
     let msvc_platform = if target.contains("x86_64") {
         "x64"
@@ -258,12 +260,20 @@ fn build_libmupdf() {
         }
         // Enable parallel compilation
         cl_env.push("/MP".to_string());
+        let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or(
+            (match find_vs_version() {
+                Ok(cc::windows_registry::VsVers::Vs17) => "v143",
+                _ => "v142",
+            })
+            .to_string(),
+        );
         let d = msbuild
             .args(&[
                 "platform\\win32\\mupdf.sln",
                 "/target:libmupdf",
                 &format!("/p:Configuration={}", profile),
                 &format!("/p:Platform={}", msvc_platform),
+                &format!("/p:PlatformToolset={}", platform_toolset),
             ])
             .current_dir(&build_dir)
             .env("CL", cl_env.join(" "))
