@@ -3281,3 +3281,16 @@ int32_t mupdf_highlight_selection(fz_context *ctx, fz_stext_page *page, fz_point
 	}
 	return count;
 }
+
+int32_t mupdf_search_stext_page_cb(fz_context *ctx, fz_stext_page *page, const char *needle, fz_search_callback_fn *cb, void *opaque, mupdf_error_t **errptr) {
+	int32_t count = 0;
+	fz_try(ctx)
+	{
+		count = fz_search_stext_page_cb(ctx, page, needle, cb, opaque);
+	}
+	fz_catch(ctx)
+	{
+		mupdf_save_error(ctx, errptr);
+	}
+	return count;
+}

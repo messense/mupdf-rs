@@ -43,9 +43,21 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
+const CPU_FLAGS: &[(&str, &str)] = &[
+    ("sse4.1", "HAVE_SSE4_1"),
+    ("avx", "HAVE_AVX"),
+    ("avx2", "HAVE_AVX2"),
+    ("fma", "HAVE_FMA"),
+    // ("neon", "HAVE_NEON"),
+];
+
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
     use std::process::Command;
+
+    let features_var =
+        std::env::var("CARGO_CFG_TARGET_FEATURE").expect("We need cargo to build this");
+    let target_features = features_var.split(',').collect::<Vec<_>>();
 
     let profile = match &*env::var("PROFILE").unwrap_or("debug".to_owned()) {
         "bench" | "release" => "release",
@@ -117,6 +129,12 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
+    for (feature, flag) in CPU_FLAGS {
+        if target_features.contains(feature) {
+            make_flags.push(format!("{flag}=yes"));
+        }
+    }
+
     // this may be unused if none of the features below are enabled
     #[allow(unused_variables, unused_mut)]
     let mut add_lib = |cflags_name: &'static str, pkgcfg_name: &'static str| {
@@ -171,10 +189,30 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
+    let feature_cflags = CPU_FLAGS
+        .iter()
+        .map(|(f, _)| f)
+        .filter(|f| target_features.contains(f))
+        .map(|f| format!("-m{f}"))
+        .collect::<Vec<_>>();
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        make_flags.push("XCFLAGS='-msse4.1'".to_owned());
+    }
+
+    println!("cargo::warning=using feature_cflags {feature_cflags:?}");
+
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
-    make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
+    make_flags.push(format!(
+        "XCFLAGS={} {}",
+        c_flags.to_string_lossy(),
+        feature_cflags.join(" ")
+    ));
     make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
+
+    println!("cargo::warning=using make_flags {make_flags:?}");
 
     // Enable parallel compilation
     if let Ok(n) = std::thread::available_parallelism() {
@@ -258,6 +296,7 @@ fn build_libmupdf() {
         if cfg!(not(feature = "js")) {
             cl_env.push("/DFZ_ENABLE_JS#0".to_string());
         }
+
         // Enable parallel compilation
         cl_env.push("/MP".to_string());
         let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or(
@@ -483,6 +522,10 @@ fn main() {
     build.file("wrapper.c").include("./mupdf/include");
     if cfg!(target_os = "android") {
         build.flag("-DHAVE_ANDROID").flag_if_supported("-std=c99");
+    }
+    #[cfg(target_arch = "x86_64")]
+    {
+        build.flag("-DARCH_HAS_SSE=1");
     }
     build.compile("libmupdf-wrapper.a");
 
