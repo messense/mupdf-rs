@@ -8,7 +8,7 @@ fn test_issue_16_pixmap_to_png() {
     let page = document.load_page(0).unwrap();
     let matrix = Matrix::new_scale(72f32 / 72f32, 72f32 / 72f32);
     let pixmap = page
-        .to_pixmap(&matrix, &Colorspace::device_rgb(), 0.0, true)
+        .to_pixmap(&matrix, &Colorspace::device_rgb(), false, true)
         .unwrap();
     pixmap
         .save_as("tests/output/test.png", ImageFormat::PNG)

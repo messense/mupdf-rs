@@ -56,8 +56,21 @@ impl Document {
         Self { inner: ptr }
     }
 
-    pub fn open(filename: &str) -> Result<Self, Error> {
-        let c_name = CString::new(filename)?;
+    pub fn open<P: AsRef<std::path::Path>>(p: P) -> Result<Self, Error> {
+        // Must be UTF8 on Windows
+        #[cfg(windows)]
+        let raw = match <&str>::try_from(p.as_ref().as_os_str()) {
+            Ok(s) => s,
+            Err(e) => {
+                use std::io::{self, ErrorKind};
+                let err = Error::Io(io::Error::new(ErrorKind::Other, e));
+                return Err(err);
+            }
+        };
+
+        #[cfg(not(windows))]
+        let raw = p.as_ref().as_os_str().as_encoded_bytes();
+        let c_name = CString::new(raw)?;
         unsafe { ffi_try!(mupdf_open_document(context(), c_name.as_ptr())) }
             .map(|inner| Self { inner })
     }

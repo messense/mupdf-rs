@@ -722,7 +722,7 @@ fz_rect mupdf_bound_page(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
     return rect;
 }
 
-fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_colorspace *cs, float alpha, bool show_extras, mupdf_error_t **errptr)
+fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_colorspace *cs, bool alpha, bool show_extras, mupdf_error_t **errptr)
 {
     fz_pixmap *pixmap = NULL;
     fz_try(ctx)
