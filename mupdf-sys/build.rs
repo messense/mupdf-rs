@@ -63,6 +63,7 @@ fn build_libmupdf() {
     cp_r(&mupdf_src_dir, &build_dir, &[".git"]);
 
     let mut build = cc::Build::new();
+
     #[cfg(not(feature = "xps"))]
     build.define("FZ_ENABLE_XPS", Some("0"));
     #[cfg(not(feature = "svg"))]
@@ -160,7 +161,6 @@ fn build_libmupdf() {
     #[cfg(feature = "sys-lib-tesseract")]
     add_lib("TESSERACT", "tesseract");
 
-    //
     // The mupdf Makefile does not do a very good job of detecting
     // and acting on cross-compilation, so we'll let the `cc` crate do it.
     let c_compiler = build.get_compiler();
@@ -315,12 +315,12 @@ fn build_libmupdf() {
 }
 
 #[derive(Debug)]
-struct Callback {
+struct DocsCallbacks {
     types: regex::Regex,
     full_names: std::cell::RefCell<std::collections::HashMap<String, String>>,
 }
 
-impl Default for Callback {
+impl Default for DocsCallbacks {
     fn default() -> Self {
         Self {
             types: regex::RegexBuilder::new("fz_[a-z_*]+")
@@ -332,7 +332,7 @@ impl Default for Callback {
     }
 }
 
-impl bindgen::callbacks::ParseCallbacks for Callback {
+impl bindgen::callbacks::ParseCallbacks for DocsCallbacks {
     fn item_name(&self, original_item_name: &str) -> Option<String> {
         self.full_names
             .borrow_mut()
@@ -448,9 +448,14 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
         }
         Some(output)
     }
+}
 
+#[derive(Debug)]
+struct ZerocopyCallbacks;
+
+impl bindgen::callbacks::ParseCallbacks for ZerocopyCallbacks {
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
-        static ZEROCOPY_TYPES: [&str; 2] = ["fz_point", "fz_quad"];
+        const ZEROCOPY_TYPES: [&str; 2] = ["fz_point", "fz_quad"];
 
         if ZEROCOPY_TYPES.contains(&info.name) {
             [
@@ -468,6 +473,8 @@ impl bindgen::callbacks::ParseCallbacks for Callback {
 }
 
 fn main() {
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+
     if fs::read_dir("mupdf").map_or(true, |d| d.count() == 0) {
         println!("The `mupdf` directory is empty, did you forget to pull the submodules?");
         println!("Try `git submodule update --init --recursive`");
@@ -481,12 +488,34 @@ fn main() {
 
     let mut build = cc::Build::new();
     build.file("wrapper.c").include("./mupdf/include");
-    if cfg!(target_os = "android") {
-        build.flag("-DHAVE_ANDROID").flag_if_supported("-std=c99");
+    if os == "android" {
+        build
+            .define("HAVE_ANDROID", None)
+            .flag_if_supported("-std=c99");
     }
-    build.compile("libmupdf-wrapper.a");
+    build.compile("mupdf-wrapper");
 
-    let bindings = bindgen::Builder::default()
+    let mut bindings = bindgen::Builder::default();
+
+    if os == "emscripten" {
+        match env::var("EMSDK") {
+            Ok(sdk) => {
+                let mut sysroot = PathBuf::from(sdk);
+                sysroot.push("upstream/emscripten/cache/sysroot");
+                bindings = bindings
+                    .clang_arg(format!("--sysroot={}", sysroot.display()))
+                    .clang_arg("-fvisibility=default");
+            }
+            Err(env::VarError::NotPresent) => {
+                panic!("Using emscripten requires the EMSDK environment variable to be set");
+            }
+            Err(e) => {
+                panic!("Invalid EMSDK environment variable: {}", e);
+            }
+        };
+    }
+
+    let bindings = bindings
         .clang_arg("-I./mupdf/include")
         .header("wrapper.h")
         .header("wrapper.c")
@@ -503,13 +532,14 @@ fn main() {
         .allowlist_var("PDF_.*")
         .allowlist_var("UCDN_.*")
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
-        .parse_callbacks(Box::new(Callback::default()))
+        .parse_callbacks(Box::new(DocsCallbacks::default()))
+        .parse_callbacks(Box::new(ZerocopyCallbacks))
         .size_t_is_usize(true)
         .generate()
         .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
+    let out_path = PathBuf::from(env::var_os("OUT_DIR").unwrap());
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
