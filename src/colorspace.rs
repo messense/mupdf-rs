@@ -214,9 +214,9 @@ mod test {
             )
             .unwrap();
         assert_eq!(n, 3);
-        assert!((0.6..0.7).contains(&gray[0]));
-        assert!((0.6..0.7).contains(&gray[1]));
-        assert!((0.6..0.7).contains(&gray[2]));
+        assert!((0.58..0.62).contains(&gray[0]));
+        assert!((0.58..0.62).contains(&gray[1]));
+        assert!((0.58..0.62).contains(&gray[2]));
         assert_eq!(gray[3], 0.0);
     }
 }
