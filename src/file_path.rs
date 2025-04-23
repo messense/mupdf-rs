@@ -1,3 +1,4 @@
+use std::fmt::{self, Debug, Formatter};
 use std::mem::transmute;
 
 use std::ffi::OsStr;
@@ -19,6 +20,27 @@ impl FilePath {
 
     pub fn as_bytes(&self) -> &[u8] {
         self.as_ref()
+    }
+}
+
+impl Debug for FilePath {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        #[cfg(windows)]
+        {
+            Debug::fmt(&self.0, f)
+        }
+
+        #[cfg(not(windows))]
+        {
+            use std::fmt::Write;
+
+            f.write_char('"')?;
+            for chunk in self.0.utf8_chunks() {
+                write!(f, "{}", chunk.valid().escape_debug())?;
+                write!(f, "{}", chunk.invalid().escape_ascii())?;
+            }
+            f.write_char('"')
+        }
     }
 }
 
@@ -91,5 +113,34 @@ impl AsRef<OsStr> for FilePath {
         {
             OsStr::from_bytes(&self.0)
         }
+    }
+}
+
+#[cfg(any(windows, unix, target_os = "wasi"))]
+impl AsRef<std::path::Path> for FilePath {
+    fn as_ref(&self) -> &std::path::Path {
+        std::path::Path::new(self)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::FilePath;
+
+    fn assert_debug<P: AsRef<FilePath> + ?Sized>(name: &P, debug: &str) {
+        assert_eq!(format!("{:?}", name.as_ref()), debug);
+    }
+
+    #[test]
+    fn test_debug() {
+        assert_debug("abc def.txt", r#""abc def.txt""#);
+        assert_debug("path/to/a/file.pdf", r#""path/to/a/file.pdf""#);
+        assert_debug("bell\x0b.wav", r#""bell\u{b}.wav""#);
+
+        #[cfg(not(windows))]
+        assert_debug(
+            b"a non utf-\x9d path".as_slice(),
+            r#""a non utf-\x9d path""#,
+        );
     }
 }
