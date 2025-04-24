@@ -1,12 +1,15 @@
-use std::fmt::{self, Debug, Formatter};
+use std::fmt::{self, Debug, Formatter, Write};
 use std::mem::transmute;
 
-use std::ffi::OsStr;
+#[cfg(any(windows, unix, target_os = "wasi"))]
+use std::{ffi::OsStr, path::Path};
 
 #[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
 #[cfg(target_os = "wasi")]
 use std::os::wasi::ffi::OsStrExt;
+
+use crate::Error;
 
 /// Path to a file, required to be UTF-8 on windows
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -25,22 +28,18 @@ impl FilePath {
 
 impl Debug for FilePath {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        f.write_char('"')?;
+
         #[cfg(windows)]
-        {
-            Debug::fmt(&self.0, f)
-        }
+        write!(f, "{}", self.0.escape_debug())?;
 
         #[cfg(not(windows))]
-        {
-            use std::fmt::Write;
-
-            f.write_char('"')?;
-            for chunk in self.0.utf8_chunks() {
-                write!(f, "{}", chunk.valid().escape_debug())?;
-                write!(f, "{}", chunk.invalid().escape_ascii())?;
-            }
-            f.write_char('"')
+        for chunk in self.0.utf8_chunks() {
+            write!(f, "{}", chunk.valid().escape_debug())?;
+            write!(f, "{}", chunk.invalid().escape_ascii())?;
         }
+
+        f.write_char('"')
     }
 }
 
@@ -81,7 +80,7 @@ impl AsRef<FilePath> for OsStr {
 }
 
 #[cfg(any(unix, target_os = "wasi"))]
-impl AsRef<FilePath> for std::path::Path {
+impl AsRef<FilePath> for Path {
     fn as_ref(&self) -> &FilePath {
         self.as_os_str().as_ref()
     }
@@ -104,7 +103,7 @@ impl AsRef<[u8]> for FilePath {
 #[cfg(any(windows, unix, target_os = "wasi"))]
 impl AsRef<OsStr> for FilePath {
     fn as_ref(&self) -> &OsStr {
-        #[cfg(any(windows))]
+        #[cfg(windows)]
         {
             self.0.as_ref()
         }
@@ -117,9 +116,24 @@ impl AsRef<OsStr> for FilePath {
 }
 
 #[cfg(any(windows, unix, target_os = "wasi"))]
-impl AsRef<std::path::Path> for FilePath {
-    fn as_ref(&self) -> &std::path::Path {
-        std::path::Path::new(self)
+impl AsRef<Path> for FilePath {
+    fn as_ref(&self) -> &Path {
+        Path::new(self)
+    }
+}
+
+impl<'a> TryFrom<&'a OsStr> for &'a FilePath {
+    type Error = Error;
+    fn try_from(value: &'a OsStr) -> Result<Self, Self::Error> {
+        #[cfg(not(any(unix, target_os = "wasi")))]
+        {
+            Ok(value.to_str().ok_or(Error::InvalidUtf8)?.as_ref())
+        }
+
+        #[cfg(any(unix, target_os = "wasi"))]
+        {
+            Ok(value.as_ref())
+        }
     }
 }
 
