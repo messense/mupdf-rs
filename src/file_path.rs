@@ -17,7 +17,7 @@ use crate::Error;
 pub struct FilePath(#[cfg(windows)] str, #[cfg(not(windows))] [u8]);
 
 impl FilePath {
-    pub fn new<P: AsRef<FilePath>>(p: &P) -> &Self {
+    pub fn new<P: AsRef<FilePath> + ?Sized>(p: &P) -> &Self {
         p.as_ref()
     }
 
@@ -49,7 +49,7 @@ impl AsRef<FilePath> for str {
         // SAFETY: On windows FilePath is a str. As `self` is a str as well
         // and FilePath is repr(transparent) this is sound.
         unsafe {
-            transmute(self)
+            transmute::<&str, &FilePath>(self)
         }
 
         #[cfg(not(windows))]
@@ -68,7 +68,7 @@ impl AsRef<FilePath> for [u8] {
     fn as_ref(&self) -> &FilePath {
         // SAFETY: On non-windows FilePath is a byte slice. As `self` is a byte slice as well
         // and FilePath is repr(transparent) this is sound.
-        unsafe { transmute(self) }
+        unsafe { transmute::<&[u8], &FilePath>(self) }
     }
 }
 
@@ -134,6 +134,13 @@ impl<'a> TryFrom<&'a OsStr> for &'a FilePath {
         {
             Ok(value.as_ref())
         }
+    }
+}
+
+impl<'a> TryFrom<&'a Path> for &'a FilePath {
+    type Error = Error;
+    fn try_from(value: &'a Path) -> Result<Self, Self::Error> {
+        value.as_os_str().try_into()
     }
 }
 
