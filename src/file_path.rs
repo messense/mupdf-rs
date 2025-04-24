@@ -146,7 +146,14 @@ impl<'a> TryFrom<&'a Path> for &'a FilePath {
 
 #[cfg(test)]
 mod test {
+    use std::ffi::OsStr;
+
     use super::FilePath;
+
+    #[cfg(unix)]
+    use std::os::unix::ffi::OsStrExt;
+    #[cfg(target_os = "wasi")]
+    use std::os::wasi::ffi::OsStrExt;
 
     fn assert_debug<P: AsRef<FilePath> + ?Sized>(name: &P, debug: &str) {
         assert_eq!(format!("{:?}", name.as_ref()), debug);
@@ -163,5 +170,24 @@ mod test {
             b"a non utf-\x9d path".as_slice(),
             r#""a non utf-\x9d path""#,
         );
+    }
+
+    #[test]
+    fn test_try_from() {
+        assert_eq!(
+            <&FilePath>::try_from(OsStr::new("document.pdf")).unwrap(),
+            FilePath::new("document.pdf")
+        );
+
+        let non_utf8_path = <&FilePath>::try_from(OsStr::from_bytes(b"non utf-8 \x9d path"));
+
+        #[cfg(any(unix, target_os = "wasi"))]
+        assert_eq!(
+            non_utf8_path.unwrap(),
+            FilePath::new(b"non utf-8 \x9d path".as_slice())
+        );
+
+        #[cfg(not(any(unix, target_os = "wasi")))]
+        assert!(non_utf8_path.is_err());
     }
 }
