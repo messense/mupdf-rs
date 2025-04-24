@@ -1,6 +1,9 @@
 use mupdf::pdf::PdfDocument;
 use mupdf::{Colorspace, Error, ImageFormat, Matrix, TextPageOptions};
 
+#[cfg(feature = "serde")]
+use mupdf::page::StextPage;
+
 #[test]
 fn test_issue_16_pixmap_to_png() {
     let document = PdfDocument::open("tests/files/dummy.pdf").unwrap();
