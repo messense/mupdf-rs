@@ -150,11 +150,6 @@ mod test {
 
     use super::FilePath;
 
-    #[cfg(unix)]
-    use std::os::unix::ffi::OsStrExt;
-    #[cfg(target_os = "wasi")]
-    use std::os::wasi::ffi::OsStrExt;
-
     fn assert_debug<P: AsRef<FilePath> + ?Sized>(name: &P, debug: &str) {
         assert_eq!(format!("{:?}", name.as_ref()), debug);
     }
@@ -179,15 +174,42 @@ mod test {
             FilePath::new("document.pdf")
         );
 
-        let non_utf8_path = <&FilePath>::try_from(OsStr::from_bytes(b"non utf-8 \x9d path"));
-
         #[cfg(any(unix, target_os = "wasi"))]
-        assert_eq!(
-            non_utf8_path.unwrap(),
-            FilePath::new(b"non utf-8 \x9d path".as_slice())
-        );
+        {
+            #[cfg(unix)]
+            use std::os::unix::ffi::OsStrExt;
+            #[cfg(target_os = "wasi")]
+            use std::os::wasi::ffi::OsStrExt;
 
-        #[cfg(not(any(unix, target_os = "wasi")))]
-        assert!(non_utf8_path.is_err());
+            assert_eq!(
+                <&FilePath>::try_from(OsStr::from_bytes(b"non utf-8 \x9d path")).unwrap(),
+                FilePath::new(b"non utf-8 \x9d path".as_slice())
+            );
+        }
+
+        #[cfg(windows)]
+        {
+            use std::os::windows::ffi::OsStringExt;
+
+            let source = [
+                b'n' as u16,
+                b'o' as u16,
+                b'n' as u16,
+                b' ' as u16,
+                b'u' as u16,
+                b't' as u16,
+                b'f' as u16,
+                b'-' as u16,
+                b'8' as u16,
+                b' ' as u16,
+                0xd800,
+                b' ' as u16,
+                b'p' as u16,
+                b'a' as u16,
+                b't' as u16,
+                b'h' as u16,
+            ];
+            assert!(<&FilePath>::try_from(&*OsString::from_wide(&source)).is_err());
+        }
     }
 }
