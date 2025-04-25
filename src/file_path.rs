@@ -189,7 +189,7 @@ mod test {
 
         #[cfg(windows)]
         {
-            use std::os::windows::ffi::OsStringExt;
+            use std::{ffi::OsString, os::windows::ffi::OsStringExt};
 
             let source = [
                 b'n' as u16,
