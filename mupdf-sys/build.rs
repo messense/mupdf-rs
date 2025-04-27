@@ -43,12 +43,12 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
-const CPU_FLAGS: &[(&str, &str)] = &[
-    ("sse4.1", "HAVE_SSE4_1"),
-    ("avx", "HAVE_AVX"),
-    ("avx2", "HAVE_AVX2"),
-    ("fma", "HAVE_FMA"),
-    // ("neon", "HAVE_NEON"),
+const CPU_FLAGS: &[(&str, &[&str])] = &[
+    ("sse4.1", &["HAVE_SSE4_1", "ARCH_HAS_SSE"]),
+    ("avx", &["HAVE_AVX"]),
+    ("avx2", &["HAVE_AVX2"]),
+    ("fma", &["HAVE_FMA"]),
+    ("neon", &["HAVE_NEON", "ARCH_HAS_NEON"]),
 ];
 
 #[cfg(not(target_env = "msvc"))]
@@ -129,9 +129,14 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
-    for (feature, flag) in CPU_FLAGS {
-        if target_features.contains(feature) {
-            make_flags.push(format!("{flag}=yes"));
+    for (feature, flags) in CPU_FLAGS {
+        let value = if target_features.contains(feature) {
+            "1"
+        } else {
+            "0"
+        };
+        for flag in *flags {
+            make_flags.push(format!("{flag}={value}"));
         }
     }
 
@@ -196,12 +201,7 @@ fn build_libmupdf() {
         .map(|f| format!("-m{f}"))
         .collect::<Vec<_>>();
 
-    #[cfg(target_arch = "x86_64")]
-    {
-        make_flags.push("XCFLAGS='-msse4.1'".to_owned());
-    }
-
-    println!("cargo::warning=using feature_cflags {feature_cflags:?}");
+    println!("cargo::warning=using feature_cflags {c_flags:?}");
 
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
