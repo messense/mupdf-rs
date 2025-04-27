@@ -1,6 +1,6 @@
+use std::ffi::NulError;
 use std::fmt;
 use std::io;
-use std::ffi::NulError;
 use std::num::TryFromIntError;
 use std::ptr::NonNull;
 
@@ -73,7 +73,8 @@ pub enum Error {
     MuPdf(MuPdfError),
     Nul(NulError),
     IntConversion(TryFromIntError),
-    UnexpectedNullPtr
+    InvalidUtf8,
+    UnexpectedNullPtr,
 }
 
 impl fmt::Display for Error {
@@ -85,7 +86,11 @@ impl fmt::Display for Error {
             Error::MuPdf(ref err) => err.fmt(f),
             Error::Nul(ref err) => err.fmt(f),
             Error::IntConversion(ref err) => err.fmt(f),
-            Error::UnexpectedNullPtr => write!(f, "An FFI function call returned a null ptr when we expected a non-null ptr")
+            Error::InvalidUtf8 => f.write_str("string contained invalid utf-8"),
+            Error::UnexpectedNullPtr => write!(
+                f,
+                "An FFI function call returned a null ptr when we expected a non-null ptr"
+            ),
         }
     }
 }

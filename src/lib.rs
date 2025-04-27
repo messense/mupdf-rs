@@ -24,6 +24,8 @@ pub mod display_list;
 pub mod document;
 /// Easy creation of new documents
 pub mod document_writer;
+/// File paths
+pub mod file_path;
 /// Font
 pub mod font;
 /// Glyph
@@ -87,6 +89,7 @@ pub use document::{Document, MetadataName};
 pub use document_writer::DocumentWriter;
 pub(crate) use error::ffi_error;
 pub use error::Error;
+pub use file_path::FilePath;
 pub use font::{CjkFontOrdering, Font, SimpleFontEncoding, WriteMode};
 pub use glyph::Glyph;
 pub use image::Image;
