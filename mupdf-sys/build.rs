@@ -196,14 +196,12 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
-    println!("cargo::warning=using feature_cflags {c_flags:?}");
-
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
     make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
     make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy(),));
 
-    println!("cargo::warning=using make_flags {make_flags:?}");
+    // println!("cargo::warning=using make_flags {make_flags:?}");
 
     // Enable parallel compilation
     if let Ok(n) = std::thread::available_parallelism() {
