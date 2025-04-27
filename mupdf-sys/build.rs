@@ -43,12 +43,12 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
-const CPU_FLAGS: &[(&str, &[&str])] = &[
-    ("sse4.1", &["HAVE_SSE4_1", "ARCH_HAS_SSE"]),
-    ("avx", &["HAVE_AVX"]),
-    ("avx2", &["HAVE_AVX2"]),
-    ("fma", &["HAVE_FMA"]),
-    ("neon", &["HAVE_NEON", "ARCH_HAS_NEON"]),
+const CPU_FLAGS: &[(&str, &str, Option<&str>)] = &[
+    ("sse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
+    ("avx", "HAVE_AVX", None),
+    ("avx2", "HAVE_AVX2", None),
+    ("fma", "HAVE_FMA", None),
+    ("neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
 ];
 
 #[cfg(not(target_env = "msvc"))]
@@ -129,14 +129,16 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
-    for (feature, flags) in CPU_FLAGS {
-        let value = if target_features.contains(feature) {
-            "1"
-        } else {
-            "0"
-        };
-        for flag in *flags {
-            make_flags.push(format!("{flag}={value}"));
+    for (feature, flag, define) in CPU_FLAGS {
+        let contains = target_features.contains(feature);
+        if contains {
+            build.flag(format!("-m{feature}"));
+
+            make_flags.push(format!("{flag}=yes"));
+        }
+
+        if let Some(define) = define {
+            build.define(define, if contains { "1" } else { "0" });
         }
     }
 
@@ -194,23 +196,12 @@ fn build_libmupdf() {
     let cxx = cxx_compiler.path().to_string_lossy();
     let cxx_flags = cxx_compiler.cflags_env();
 
-    let feature_cflags = CPU_FLAGS
-        .iter()
-        .map(|(f, _)| f)
-        .filter(|f| target_features.contains(f))
-        .map(|f| format!("-m{f}"))
-        .collect::<Vec<_>>();
-
     println!("cargo::warning=using feature_cflags {c_flags:?}");
 
     make_flags.push(format!("CC={}", cc));
     make_flags.push(format!("CXX={}", cxx));
-    make_flags.push(format!(
-        "XCFLAGS={} {}",
-        c_flags.to_string_lossy(),
-        feature_cflags.join(" ")
-    ));
-    make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy()));
+    make_flags.push(format!("XCFLAGS={}", c_flags.to_string_lossy()));
+    make_flags.push(format!("XCXXFLAGS={}", cxx_flags.to_string_lossy(),));
 
     println!("cargo::warning=using make_flags {make_flags:?}");
 
