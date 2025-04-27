@@ -116,7 +116,7 @@ fn build_libmupdf() {
     for (feature, flag, make_flag, define) in CPU_FLAGS {
         let contains = target_features.contains(feature);
         if contains {
-            build.flag(flag);
+            build.flag_if_supported(flag);
 
             make_flags.push(format!("{make_flag}=yes"));
         }
