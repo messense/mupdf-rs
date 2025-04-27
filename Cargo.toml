@@ -11,6 +11,7 @@ repository = "https://github.com/messense/mupdf-rs"
 
 [features]
 default = ["js", "xps", "svg", "cbz", "img", "html", "epub", "system-fonts", "tesseract"]
+
 # Use system libs for all thirdparty libs
 sys-lib = ["mupdf-sys/sys-lib"]
 # Use system freetype
@@ -19,8 +20,12 @@ sys-lib-freetype = ["mupdf-sys/sys-lib-freetype"]
 sys-lib-gumbo = ["mupdf-sys/sys-lib-gumbo"]
 # Use system harfbuzz
 sys-lib-harfbuzz = ["mupdf-sys/sys-lib-harfbuzz"]
+# Use system jpegxr
+sys-lib-jpegxr = ["mupdf-sys/sys-lib-jpegxr"]
 # Use system jbig2dec
 sys-lib-jbig2dec = ["mupdf-sys/sys-lib-jbig2dec"]
+# Use system lcms2
+sys-lib-lcms2 = ["mupdf-sys/sys-lib-lcms2"]
 # Use system libjpeg
 sys-lib-libjpeg = ["mupdf-sys/sys-lib-libjpeg"]
 # Use system openjpeg
@@ -31,7 +36,14 @@ sys-lib-zlib = ["mupdf-sys/sys-lib-zlib"]
 sys-lib-leptonica = ["mupdf-sys/sys-lib-leptonica"]
 # Use system tesseract
 sys-lib-tesseract = ["mupdf-sys/sys-lib-tesseract"]
-tesseract = ["mupdf-sys/tesseract"]
+# Use system zxing-cpp
+sys-lib-zxingcpp = ["mupdf-sys/sys-lib-zxingcpp"]
+# Use system brotli
+sys-lib-brotli = ["mupdf-sys/sys-lib-brotli"]
+
+all-fonts = ["mupdf-sys/all-fonts"]
+system-fonts = ["font-kit"]
+
 js = ["mupdf-sys/js"]
 xps = ["mupdf-sys/xps"]
 svg = ["mupdf-sys/svg"]
@@ -39,8 +51,10 @@ cbz = ["mupdf-sys/cbz"]
 img = ["mupdf-sys/img"]
 html = ["mupdf-sys/html"]
 epub = ["mupdf-sys/epub"]
-all-fonts = ["mupdf-sys/all-fonts"]
-system-fonts = ["font-kit"]
+tesseract = ["mupdf-sys/tesseract"]
+zxingcpp = ["mupdf-sys/zxingcpp"]
+libarchive = ["mupdf-sys/libarchive"]
+
 # Derive Serialize/Deserialize for a few structs
 serde = ["dep:serde"]
 

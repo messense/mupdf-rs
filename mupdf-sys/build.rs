@@ -79,36 +79,20 @@ fn build_libmupdf() {
     build.define("FZ_ENABLE_JS", Some("0"));
 
     #[cfg(not(feature = "all-fonts"))]
-    {
-        SKIP_FONTS.iter().for_each(|font| {
-            build.define(font, None);
-        });
-    }
+    SKIP_FONTS.iter().for_each(|font| {
+        build.define(font, None);
+    });
 
     let mut make_flags = vec![
         "libs".to_owned(),
         format!("build={}", profile),
         format!("OUT={}", &build_dir_str),
-        #[cfg(feature = "sys-lib-freetype")]
-        "USE_SYSTEM_FREETYPE=yes".to_owned(),
-        #[cfg(feature = "sys-lib-gumbo")]
-        "USE_SYSTEM_GUMBO=yes".to_owned(),
-        #[cfg(feature = "sys-lib-harfbuzz")]
-        "USE_SYSTEM_HARFBUZZ=yes".to_owned(),
-        #[cfg(feature = "sys-lib-jbig2dec")]
-        "USE_SYSTEM_JBIG2DEC=yes".to_owned(),
-        #[cfg(feature = "sys-lib-libjpeg")]
-        "USE_SYSTEM_LIBJPEG=yes".to_owned(),
-        #[cfg(feature = "sys-lib-openjpeg")]
-        "USE_SYSTEM_OPENJPEG=yes".to_owned(),
-        #[cfg(feature = "sys-lib-zlib")]
-        "USE_SYSTEM_ZLIB=yes".to_owned(),
-        #[cfg(feature = "sys-lib-leptonica")]
-        "USE_SYSTEM_LEPTONICA=yes".to_owned(),
         #[cfg(not(feature = "tesseract"))]
         "USE_TESSERACT=no".to_owned(),
-        #[cfg(feature = "sys-lib-tesseract")]
-        "USE_SYSTEM_TESSERACT=yes".to_owned(),
+        #[cfg(not(feature = "libarchive"))]
+        "USE_LIBARCHIVE=no".to_owned(),
+        #[cfg(not(feature = "zxingcpp"))]
+        "USE_ZXINGCPP=no".to_owned(),
         #[cfg(feature = "sys-lib")]
         "USE_SYSTEM_LIBS=yes".to_owned(),
         "HAVE_X11=no".to_owned(),
@@ -119,48 +103,72 @@ fn build_libmupdf() {
 
     // this may be unused if none of the features below are enabled
     #[allow(unused_variables, unused_mut)]
-    let mut add_lib = |cflags_name: &'static str, pkgcfg_name: &'static str| {
-        make_flags.push(format!(
-            "SYS_{cflags_name}_CFLAGS={}",
-            pkg_config::probe_library(pkgcfg_name)
+    let mut add_lib = |cflags_name: &'static str, pkgcfg_names: &[&str]| {
+        make_flags.push(format!("USE_SYSTEM_{cflags_name}=yes"));
+        for pkgcfg_name in pkgcfg_names {
+            let cflags = pkg_config::probe_library(pkgcfg_name)
                 .unwrap()
                 .include_paths
                 .iter()
                 .map(|p| format!("-I{}", p.display()))
                 .collect::<Vec<_>>()
-                .join(" ")
-        ));
+                .join(" ");
+            make_flags.push(format!("SYS_{cflags_name}_CFLAGS={cflags}"));
+        }
     };
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-freetype"))]
-    add_lib("FREETYPE", "freetype2");
+    add_lib("FREETYPE", &["freetype2"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-gumbo"))]
-    add_lib("GUMBO", "gumbo");
+    add_lib("GUMBO", &["gumbo"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-harfbuzz"))]
-    add_lib("HARFBUZZ", "harfbuzz");
+    add_lib("HARFBUZZ", &["harfbuzz"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-jbig2dec"))]
-    add_lib("JBIG2DEC", "jbig2dec");
+    add_lib("JBIG2DEC", &["jbig2dec"]);
+
+    // Exluded from sys-lib feature
+    #[cfg(feature = "sys-lib-jpegxr")]
+    add_lib("JPEGXR", &["jpegxr"]);
+
+    // Exluded from sys-lib feature
+    #[cfg(feature = "sys-lib-lcms2")]
+    add_lib("LCMS2", &["lcms2"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-libjpeg"))]
-    add_lib("LIBJPEG", "libjpeg");
+    add_lib("LIBJPEG", &["libjpeg"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-openjpeg"))]
-    add_lib("OPENJPEG", "libopenjp2");
+    add_lib("OPENJPEG", &["libopenjp2"]);
 
     #[cfg(any(feature = "sys-lib", feature = "sys-lib-zlib"))]
-    add_lib("ZLIB", "zlib");
+    add_lib("ZLIB", &["zlib"]);
 
-    // leptonica and tesseract excluded from sys-lib feature
-    #[cfg(feature = "sys-lib-leptonica")]
-    add_lib("LEPTONICA", "lept");
+    #[cfg(feature = "tesseract")]
+    {
+        #[cfg(any(feature = "sys-lib", feature = "sys-lib-leptonica"))]
+        add_lib("LEPTONICA", &["lept"]);
 
-    #[cfg(feature = "sys-lib-tesseract")]
-    add_lib("TESSERACT", "tesseract");
+        #[cfg(any(feature = "sys-lib", feature = "sys-lib-tesseract"))]
+        add_lib("TESSERACT", &["tesseract"]);
+    }
 
-    //
+    #[cfg(all(
+        feature = "zxingcpp",
+        any(feature = "sys-lib", feature = "sys-lib-zxingcpp")
+    ))]
+    // zint is required as well, but it (or distro for that matter,
+    // i checked debian, fedora and arch) distribute a pkg-config file
+    add_lib("ZXINGCPP", &["zxing"]);
+
+    #[cfg(feature = "libarchive")]
+    add_lib("LIBARCHIVE", &["libarchive"]);
+
+    #[cfg(any(feature = "sys-lib", feature = "sys-lib-brotli"))]
+    add_lib("BROTLI", &["libbrotlidec", "libbrotlienc"]);
+
     // The mupdf Makefile does not do a very good job of detecting
     // and acting on cross-compilation, so we'll let the `cc` crate do it.
     let c_compiler = build.get_compiler();
