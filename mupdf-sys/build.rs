@@ -512,7 +512,14 @@ fn main() {
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
-    println!("cargo:rustc-link-lib=c++");
+
+    if let Ok(ref target_os) = env::var("CARGO_CFG_TARGET_OS") {
+        if target_os == "linux" {
+            println!("cargo:rustc-link-arg=-lc++");
+        } else if target_os == "macos" {
+            println!("cargo:rustc-link-lib=c++");
+        }
+    }
 
     build_libmupdf();
 
