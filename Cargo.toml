@@ -9,7 +9,7 @@ readme = "README.md"
 repository = "https://github.com/messense/mupdf-rs"
 
 [features]
-default = ["js", "xps", "svg", "cbz", "img", "html", "epub", "system-fonts", "tesseract"]
+default = ["js", "xps", "svg", "cbz", "img", "html", "epub", "system-fonts"]
 
 # Use system libs for all thirdparty libs
 sys-lib = ["mupdf-sys/sys-lib"]

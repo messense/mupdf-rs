@@ -26,6 +26,21 @@ impl DocumentWriter {
         .map(|inner| Self { inner })
     }
 
+    #[cfg(feature = "tesseract")]
+    pub fn new_pdfocr_writer(path: &str, options: &str) -> Result<Self, Error> {
+        let c_path = CString::new(path)?;
+        let c_options = CString::new(options)?;
+
+        unsafe {
+            ffi_try!(mupdf_new_pdfocr_writer(
+                context(),
+                c_path.as_ptr(),
+                c_options.as_ptr()
+            ))
+        }
+        .map(|inner| Self { inner })
+    }
+
     pub fn begin_page(&mut self, media_box: Rect) -> Result<Device, Error> {
         unsafe {
             ffi_try!(mupdf_document_writer_begin_page(

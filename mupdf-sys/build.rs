@@ -99,8 +99,8 @@ fn build_libmupdf() {
         "libs".to_owned(),
         format!("build={}", profile),
         format!("OUT={}", &build_dir_str),
-        #[cfg(not(feature = "tesseract"))]
-        "USE_TESSERACT=no".to_owned(),
+        #[cfg(feature = "tesseract")]
+        "USE_TESSERACT=yes".to_owned(),
         #[cfg(not(feature = "libarchive"))]
         "USE_LIBARCHIVE=no".to_owned(),
         #[cfg(not(feature = "zxingcpp"))]
