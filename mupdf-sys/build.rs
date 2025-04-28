@@ -514,7 +514,7 @@ fn main() {
     println!("cargo:rerun-if-changed=wrapper.c");
 
     if std::env::var_os("CARGO_CFG_WINDOWS").is_none() {
-        println!("cargo:rustc-link-lib=c++");
+        println!("cargo:rustc-link-arg=-lc++");
     }
 
     build_libmupdf();
