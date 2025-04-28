@@ -512,7 +512,7 @@ fn main() {
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
-    println!("cargo:rustc-link-arg=-lc++");
+    println!("cargo:rustc-link-lib=c++");
 
     build_libmupdf();
 
