@@ -43,21 +43,12 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
-#[cfg(not(target_arch = "aarch64"))]
 const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
     ("fma", "-mfma", "HAVE_FMA", None),
-];
-
-#[cfg(target_arch = "aarch64")]
-const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
-    ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
-    ("avx", "-mavx", "HAVE_AVX", None),
-    ("avx2", "-mavx2", "HAVE_AVX2", None),
-    ("fma", "-mfma", "HAVE_FMA", None),
-    ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
+    //("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
 ];
 
 #[cfg(not(target_env = "msvc"))]
