@@ -107,6 +107,7 @@ fn build_libmupdf() {
         "USE_ZXINGCPP=no".to_owned(),
         #[cfg(feature = "sys-lib")]
         "USE_SYSTEM_LIBS=yes".to_owned(),
+        "USE_ARGUMENT_FILE=yes".to_owned(),
         "HAVE_X11=no".to_owned(),
         "HAVE_GLUT=no".to_owned(),
         "HAVE_CURL=no".to_owned(),
