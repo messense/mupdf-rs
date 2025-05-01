@@ -514,10 +514,12 @@ fn main() {
     println!("cargo:rerun-if-changed=wrapper.c");
 
     if let Ok(ref target_os) = env::var("CARGO_CFG_TARGET_OS") {
-        if target_os == "macos" {
-            println!("cargo:rustc-link-lib=c++");
-        } else {
-            println!("cargo:rustc-link-lib=stdc++");
+        if target_os != "windows" {
+            if target_os == "macos" {
+                println!("cargo:rustc-link-lib=c++");
+            } else {
+                println!("cargo:rustc-link-lib=stdc++");
+            }
         }
     }
 
