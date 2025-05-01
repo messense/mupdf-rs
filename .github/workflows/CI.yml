@@ -38,11 +38,7 @@ jobs:
           submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
-<<<<<<< HEAD
       - run: sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang
-=======
-      - run: sudo apt update && sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang gcc g++
->>>>>>> 2f92b06 (Fix typo)
         if: matrix.os == 'ubuntu-latest'
       - name: Install LLVM
         if: matrix.os == 'windows-2019'
@@ -100,11 +96,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
-<<<<<<< HEAD
       - run: sudo apt-get -y install libfontconfig1-dev llvm libc++abi-dev clang
-=======
-      - run: sudo apt update && sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang gcc g++
->>>>>>> 2f92b06 (Fix typo)
       - name: cargo test --features serde
         run: |
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --features serde
@@ -122,11 +114,7 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
-<<<<<<< HEAD
       - run: sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang
-=======
-      - run: sudo apt update && sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang gcc g++
->>>>>>> 2f92b06 (Fix typo)
       - run: cargo test --features serde
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --error-exitcode=1 --track-origins=yes"
