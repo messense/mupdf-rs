@@ -74,7 +74,7 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: ${{matrix.sys}}
-          install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git
+          install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git python3
 
       - uses: actions/checkout@v3
         with:
