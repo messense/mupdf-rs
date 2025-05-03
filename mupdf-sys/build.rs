@@ -117,11 +117,9 @@ fn build_libmupdf() {
     ];
 
     let mut cpu_flags = DEFAULT_CPU_FLAGS.to_vec();
-    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
 
-    if target_arch == "aarch64" {
-        cpu_flags.extend(AARCH64_CPU_FLAGS);
-    }
+    #[cfg(target_arch = "aarch64")]
+    cpu_flags.extend(AARCH64_CPU_FLAGS);
 
     for (feature, flag, make_flag, define) in cpu_flags {
         let contains = target_features.contains(&feature);
