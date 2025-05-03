@@ -11,7 +11,11 @@ pub struct DocumentWriter {
 }
 
 impl DocumentWriter {
-    pub fn new<P: AsRef<FilePath> + ?Sized>(filename: &P, format: &str, options: &str) -> Result<Self, Error> {
+    pub fn new<P: AsRef<FilePath> + ?Sized>(
+        filename: &P,
+        format: &str,
+        options: &str,
+    ) -> Result<Self, Error> {
         let c_filename = CString::new(filename.as_ref().as_bytes())?;
         let c_format = CString::new(format)?;
         let c_options = CString::new(options)?;
@@ -27,7 +31,10 @@ impl DocumentWriter {
     }
 
     #[cfg(feature = "tesseract")]
-    pub fn new_pdfocr_writer<P: AsRef<FilePath> + ?Sized>(path: &P, options: &str) -> Result<Self, Error> {
+    pub fn new_pdfocr_writer<P: AsRef<FilePath> + ?Sized>(
+        path: &P,
+        options: &str,
+    ) -> Result<Self, Error> {
         let c_path = CString::new(path.as_ref().as_bytes())?;
         let c_options = CString::new(options)?;
 
