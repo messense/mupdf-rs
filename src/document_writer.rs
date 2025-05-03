@@ -3,7 +3,7 @@ use std::ptr;
 
 use mupdf_sys::*;
 
-use crate::{context, Device, Error, Rect};
+use crate::{context, Device, Error, FilePath, Rect};
 
 #[derive(Debug)]
 pub struct DocumentWriter {
@@ -11,8 +11,8 @@ pub struct DocumentWriter {
 }
 
 impl DocumentWriter {
-    pub fn new(filename: &str, format: &str, options: &str) -> Result<Self, Error> {
-        let c_filename = CString::new(filename)?;
+    pub fn new<P: AsRef<FilePath> + ?Sized>(filename: &P, format: &str, options: &str) -> Result<Self, Error> {
+        let c_filename = CString::new(filename.as_ref().as_bytes())?;
         let c_format = CString::new(format)?;
         let c_options = CString::new(options)?;
         unsafe {
@@ -27,8 +27,8 @@ impl DocumentWriter {
     }
 
     #[cfg(feature = "tesseract")]
-    pub fn new_pdfocr_writer(path: &str, options: &str) -> Result<Self, Error> {
-        let c_path = CString::new(path)?;
+    pub fn new_pdfocr_writer<P: AsRef<FilePath> + ?Sized>(path: &P, options: &str) -> Result<Self, Error> {
+        let c_path = CString::new(path.as_ref().as_bytes())?;
         let c_options = CString::new(options)?;
 
         unsafe {

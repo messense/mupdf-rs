@@ -48,7 +48,7 @@ const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
     ("fma", "-mfma", "HAVE_FMA", None),
-    //("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
+    ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
 ];
 
 #[cfg(not(target_env = "msvc"))]
