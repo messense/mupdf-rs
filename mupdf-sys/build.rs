@@ -47,12 +47,11 @@ const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
-    ("fma", "-mfma", "HAVE_FMA", None),    
+    ("fma", "-mfma", "HAVE_FMA", None),
 ];
 
-const AARCH64_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
-    ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
-];
+const AARCH64_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] =
+    &[("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))];
 
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
@@ -121,7 +120,7 @@ fn build_libmupdf() {
     let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
 
     if target_arch == "aarch64" {
-        cpu_flags.extend(AARCH64_CPU_FLAGS);        
+        cpu_flags.extend(AARCH64_CPU_FLAGS);
     }
 
     for (feature, flag, make_flag, define) in cpu_flags {
