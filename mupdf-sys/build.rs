@@ -50,6 +50,7 @@ const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("fma", "-mfma", "HAVE_FMA", None),
 ];
 
+#[allow(dead_code)]
 const AARCH64_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] =
     &[("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))];
 
@@ -116,6 +117,7 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
+    #[allow(unused_mut)]
     let mut cpu_flags = DEFAULT_CPU_FLAGS.to_vec();
 
     #[cfg(target_arch = "aarch64")]
