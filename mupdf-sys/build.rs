@@ -43,16 +43,13 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
-const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
+const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
     ("fma", "-mfma", "HAVE_FMA", None),
+    // ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))
 ];
-
-#[allow(dead_code)]
-const AARCH64_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] =
-    &[("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))];
 
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
@@ -117,14 +114,8 @@ fn build_libmupdf() {
         "verbose=yes".to_owned(),
     ];
 
-    #[allow(unused_mut)]
-    let mut cpu_flags = DEFAULT_CPU_FLAGS.to_vec();
-
-    #[cfg(target_arch = "aarch64")]
-    cpu_flags.extend(AARCH64_CPU_FLAGS);
-
-    for (feature, flag, make_flag, define) in cpu_flags {
-        let contains = target_features.contains(&feature);
+    for (feature, flag, make_flag, define) in CPU_FLAGS {
+        let contains = target_features.contains(feature);
         if contains {
             build.flag_if_supported(flag);
 
