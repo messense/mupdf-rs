@@ -101,7 +101,7 @@ jobs:
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --features serde
         env:
           RUSTFLAGS: -Zsanitizer=address
-          LSAN_OPTIONS: report_objects=1
+          LSAN_OPTIONS: report_objects=1:suppressions=lsan_suppressions.txt
 
   valgrind:
     name: Valgrind
