@@ -48,7 +48,7 @@ const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
     ("fma", "-mfma", "HAVE_FMA", None),
-    // ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))
+    ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
 ];
 
 #[cfg(not(target_env = "msvc"))]
@@ -116,14 +116,18 @@ fn build_libmupdf() {
 
     for (feature, flag, make_flag, define) in CPU_FLAGS {
         let contains = target_features.contains(feature);
-        if contains {
-            build.flag_if_supported(flag);
+        let mut supported = false;
 
-            make_flags.push(format!("{make_flag}=yes"));
+        if contains {
+            if let Ok(true) = build.is_flag_supported(flag) {
+                build.flag(flag);
+                make_flags.push(format!("{make_flag}=yes"));
+                supported = true;
+            }
         }
 
         if let Some(define) = define {
-            build.define(define, if contains { "1" } else { "0" });
+            build.define(define, if contains && supported { "1" } else { "0" });
         }
     }
 
