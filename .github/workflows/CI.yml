@@ -95,15 +95,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
-      - run: sudo apt-get -y install llvm gperf libfreetype-dev libexpat-dev
-      - name: Compile fontconfig 2.16.0
-        run: |
-          curl "https://www.freedesktop.org/software/fontconfig/release/fontconfig-2.16.0.tar.xz" | tar xJf -
-          cd fontconfig-2.16.0
-          ./configure --sysconfdir=/etc --prefix=/usr
-          make
-          sudo make install
-          sudo ldconfig /usr/lib
+      - run: sudo apt-get -y install libfontconfig1-dev llvm
       - name: cargo test --features serde
         run: |
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --features serde
