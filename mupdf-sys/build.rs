@@ -127,7 +127,7 @@ fn build_libmupdf() {
         }
 
         if let Some(define) = define {
-            build.define(define, if contains && supported { "1" } else { "0" });
+            build.define(define, if contains { "1" } else { "0" });
         }
     }
 
