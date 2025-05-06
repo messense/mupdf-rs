@@ -44,8 +44,6 @@ impl Make {
         name: &str,
         pkg_config_names: &[&str],
     ) -> Result<()> {
-        self.make_bool(&format!("USE_SYSTEM_{name}"), true);
-
         let libs_enabled = feature_reason == SystemLib::Libs && cfg!(feature = "sys-lib");
         let feature_enabled = env::var_os(format!(
             "CARGO_FEATURE_SYS_LIB_{}",
@@ -53,6 +51,8 @@ impl Make {
         ))
         .is_some();
         let enabled = feature_reason == SystemLib::Always || libs_enabled || feature_enabled;
+
+        self.make_bool(&format!("USE_SYSTEM_{name}"), enabled);
         if !enabled {
             return Ok(());
         }
@@ -176,6 +176,9 @@ impl Make {
     }
 
     pub fn build(mut self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
+        #[cfg(windows)]
+        let build_dir = &build_dir.replace('\\', "/");
+
         self.make_var(
             "build",
             match target.build_profile() {
@@ -199,6 +202,8 @@ impl Make {
         if let Ok(n) = available_parallelism() {
             self.make_flags.push(format!("-j{n}").into());
         }
+
+        self.build.warnings(false);
 
         let c_compiler = self.build.get_compiler();
         self.make_var("CC", c_compiler.path());

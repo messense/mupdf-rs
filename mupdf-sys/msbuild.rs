@@ -39,7 +39,7 @@ impl Msbuild {
         };
 
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
-            Err("Could not find msbuild.exe. Do you have it installed?")?;
+            Err("Could not find msbuild.exe. Do you have it installed?")?
         };
         let status = msbuild
             .args([
