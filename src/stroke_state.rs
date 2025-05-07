@@ -122,8 +122,9 @@ impl StrokeState {
     pub fn dashes(&self) -> Vec<f32> {
         unsafe {
             let dash_len = (*self.inner).dash_len as usize;
+            let dash_ptr = (*self.inner).dash_list.as_ptr();
             let mut dash_list = Vec::with_capacity(dash_len);
-            dash_list.extend_from_slice(&(*self.inner).dash_list[0..dash_len]);
+            dash_list.extend_from_slice(std::slice::from_raw_parts(dash_ptr, dash_len));
             dash_list
         }
     }
