@@ -22,7 +22,7 @@ jobs:
           submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang
+      - run: sudo apt-get -y install libfontconfig1-dev
       - run: cargo clippy --tests --features serde -- -D warnings
 
   test:
@@ -38,7 +38,7 @@ jobs:
           submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
-      - run: sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang
+      - run: sudo apt-get -y install libfontconfig1-dev
         if: matrix.os == 'ubuntu-latest'
       - name: Install LLVM
         if: matrix.os == 'windows-2019'
@@ -74,7 +74,7 @@ jobs:
       - uses: msys2/setup-msys2@v2
         with:
           msystem: ${{matrix.sys}}
-          install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git python3 mingw-w64-clang-x86_64-libc++
+          install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git
 
       - uses: actions/checkout@v3
         with:
@@ -82,7 +82,6 @@ jobs:
           fetch-depth: 500
       - run: |
           rustc --version --verbose
-          set RUSTFLAGS=-C linker g++
           cargo test --features serde
 
   asan:
@@ -96,7 +95,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@nightly
         with:
           components: rust-src
-      - run: sudo apt-get -y install libfontconfig1-dev llvm libc++abi-dev clang
+      - run: sudo apt-get -y install libfontconfig1-dev llvm
       - name: cargo test --features serde
         run: |
           cargo test -Zbuild-std --target x86_64-unknown-linux-gnu --features serde
@@ -114,7 +113,7 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
-      - run: sudo apt-get -y install libfontconfig1-dev libc++abi-dev clang
+      - run: sudo apt-get -y install libfontconfig1-dev
       - run: cargo test --features serde
         env:
           CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_RUNNER: "valgrind --error-exitcode=1 --track-origins=yes"
