@@ -82,7 +82,7 @@ jobs:
           fetch-depth: 500
       - run: |
           rustc --version --verbose
-          cargo test --features serde
+          cargo test --features serde -j4 --release
 
   asan:
     name: Address Sanitizer
