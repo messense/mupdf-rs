@@ -31,10 +31,7 @@ impl DocumentWriter {
     }
 
     #[cfg(feature = "tesseract")]
-    pub fn new_pdfocr_writer<P: AsRef<FilePath> + ?Sized>(
-        path: &P,
-        options: &str,
-    ) -> Result<Self, Error> {
+    pub fn with_ocr<P: AsRef<FilePath> + ?Sized>(path: &P, options: &str) -> Result<Self, Error> {
         let c_path = CString::new(path.as_ref().as_bytes())?;
         let c_options = CString::new(options)?;
 

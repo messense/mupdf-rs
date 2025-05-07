@@ -43,6 +43,7 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
+#[allow(dead_code)]
 const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
     ("avx", "-mavx", "HAVE_AVX", None),
@@ -50,6 +51,7 @@ const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("fma", "-mfma", "HAVE_FMA", None),
 ];
 
+#[allow(dead_code)]
 const ARM_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] =
     &[("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))];
 
@@ -109,10 +111,13 @@ fn build_libmupdf() {
         "USE_ZXINGCPP=no".to_owned(),
         #[cfg(feature = "sys-lib")]
         "USE_SYSTEM_LIBS=yes".to_owned(),
-        "USE_ARGUMENT_FILE=yes".to_owned(),
         "HAVE_X11=no".to_owned(),
         "HAVE_GLUT=no".to_owned(),
         "HAVE_CURL=no".to_owned(),
+        // The parameter doesn't seem to have been implemented properly.
+        // - There's an error message about libmupdf.a.in not being found.
+        // - This will cause tests to fail under MYS2.
+        // "USE_ARGUMENT_FILE=yes".to_owned(),
         "verbose=yes".to_owned(),
     ];
 
@@ -524,12 +529,16 @@ fn main() {
     println!("cargo:rerun-if-changed=wrapper.c");
 
     if let Ok(ref target_os) = env::var("CARGO_CFG_TARGET_OS") {
-        if target_os != "windows" {
-            if target_os == "macos" {
-                println!("cargo:rustc-link-lib=c++");
-            } else {
-                println!("cargo:rustc-link-lib=stdc++");
-            }
+        if target_os == "windows" {
+            #[cfg(target_env = "msvc")]
+            println!("cargo:rustc-link-lib=msvcrt");
+
+            #[cfg(not(target_env = "msvc"))]
+            println!("cargo:rustc-link-lib=stdc++");
+        } else if target_os == "macos" {
+            println!("cargo:rustc-link-lib=c++");
+        } else {
+            println!("cargo:rustc-link-lib=stdc++");
         }
     }
 
