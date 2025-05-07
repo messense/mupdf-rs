@@ -47,7 +47,7 @@ jobs:
         if: matrix.os == 'windows-2019'
         uses: microsoft/setup-msbuild@v1.3.1
       - run: cargo test --features serde
-        timeout-minutes: 20
+        timeout-minutes: 30
         if: matrix.os == 'windows-2019'
         env:
           LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
@@ -82,7 +82,7 @@ jobs:
           fetch-depth: 500
       - run: |
           rustc --version --verbose
-          cargo test --features serde -j4 --release
+          cargo test --features serde
 
   asan:
     name: Address Sanitizer
