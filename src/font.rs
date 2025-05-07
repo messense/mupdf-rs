@@ -80,7 +80,7 @@ impl Font {
                 context(),
                 c_name.as_ptr(),
                 index,
-                buffer.into_inner()
+                buffer.inner
             ))
         }
         .map(|inner| Self { inner })
