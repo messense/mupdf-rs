@@ -246,7 +246,7 @@ fn build_libmupdf() {
 fn build_libmupdf() {
     use cc::windows_registry::find_vs_version;
 
-    // Patch geometry.c to compile on vs 2020
+    // Patch geometry.c to compile on vs 2022
     let file_path = "mupdf/source/fitz/geometry.c";
     let content = fs::read_to_string(file_path).expect("Failed to read geometry.c file");
     let patched_content = content.replace("NAN", "(0.0/0.0)");
