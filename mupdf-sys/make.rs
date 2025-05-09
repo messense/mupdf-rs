@@ -6,11 +6,11 @@ use std::{
     thread::available_parallelism,
 };
 
-use crate::{BuildProfile, Result, Target};
+use crate::{Result, Target};
 
 #[derive(Default)]
 pub struct Make {
-    build: cc::Build,
+    build: Box<cc::Build>,
     make_flags: Vec<OsString>,
 }
 
@@ -181,10 +181,12 @@ impl Make {
 
         self.make_var(
             "build",
-            match target.build_profile() {
-                BuildProfile::Debug => "debug",
-                BuildProfile::Release => "release",
-                BuildProfile::Small => "small",
+            if target.small_profile() {
+                "small"
+            } else if target.debug_profile() {
+                "debug"
+            } else {
+                "release"
             },
         );
 

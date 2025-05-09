@@ -1,5 +1,6 @@
 use std::env::{self, current_dir};
 use std::error::Error;
+use std::fs::remove_dir_all;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::{fs, result};
@@ -38,12 +39,20 @@ fn run() -> Result<()> {
     })?;
 
     let src_dir = current_dir().unwrap().join("mupdf");
-    let out_dir = PathBuf::from(env::var_os("OUT_DIR").unwrap());
+    let out_dir =
+        PathBuf::from(env::var_os("OUT_DIR").ok_or("Missing OUT_DIR environment variable")?);
 
     let build_dir = out_dir.join("build");
     let build_dir = build_dir.to_str().ok_or_else(|| {
         format!("Build dir path is required to be valid UTF-8, got {build_dir:?}")
     })?;
+
+    if let Err(e) = remove_dir_all(build_dir) {
+        println!(
+            "cargo:warning=Unable to clear {:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}",
+            build_dir
+        );
+    }
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
@@ -202,20 +211,13 @@ impl Target {
         })
     }
 
-    fn build_profile(&self) -> BuildProfile {
-        match &*self.opt_level {
-            _ if self.debug => BuildProfile::Debug,
-            "2" | "3" => BuildProfile::Release,
-            "s" | "z" => BuildProfile::Small,
-            _ => BuildProfile::Debug,
-        }
+    fn small_profile(&self) -> bool {
+        !self.debug && matches!(&*self.opt_level, "s" | "z")
     }
-}
 
-enum BuildProfile {
-    Debug,
-    Release,
-    Small,
+    fn debug_profile(&self) -> bool {
+        self.debug && !matches!(&*self.opt_level, "2" | "3")
+    }
 }
 
 #[cfg(feature = "zerocopy")]

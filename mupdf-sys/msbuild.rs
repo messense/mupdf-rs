@@ -2,7 +2,7 @@ use std::{env, path::Path};
 
 use cc::windows_registry::{self, find_vs_version};
 
-use crate::{BuildProfile, Result, Target};
+use crate::{Result, Target};
 
 #[derive(Default)]
 pub struct Msbuild {
@@ -14,12 +14,11 @@ impl Msbuild {
         self.cl.push(format!("/D{var}#{val}"));
     }
 
-    pub fn build(self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
-        let profile = target.build_profile();
-        let configuration = match profile {
-            BuildProfile::Debug => "Debug",
-            BuildProfile::Release => "Release",
-            BuildProfile::Small => "Small",
+    pub fn build(mut self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
+        let configuration = if target.debug_profile() {
+            "Debug"
+        } else {
+            "Release"
         };
 
         let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
@@ -35,8 +34,10 @@ impl Msbuild {
             "i686" => "Win32",
             "x86_64" => "x64",
             _ => Err("mupdf currently only supports Win32 and x64 with msvc\n\
-                Try compiling using mingw to compile for other architectures")?,
+                Try compiling using mingw to try other architectures")?,
         };
+
+        self.cl.push("/MP".to_owned());
 
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
             Err("Could not find msbuild.exe. Do you have it installed?")?
@@ -49,7 +50,6 @@ impl Msbuild {
                 &format!("/p:Configuration={configuration}"),
                 &format!("/p:Platform={platform}"),
                 &format!("/p:PlatformToolset={platform_toolset}"),
-                "/MP",
             ])
             .current_dir(src_dir)
             .env("CL", self.cl.join(" "))
@@ -69,7 +69,7 @@ impl Msbuild {
             _ => {}
         };
 
-        if matches!(profile, BuildProfile::Debug) {
+        if target.debug_profile() {
             println!("cargo:rustc-link-lib=dylib=ucrtd");
             println!("cargo:rustc-link-lib=dylib=vcruntimed");
             println!("cargo:rustc-link-lib=dylib=msvcrtd");
