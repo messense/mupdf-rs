@@ -7,15 +7,11 @@ use std::{fs, result};
 mod docs;
 use docs::DocsCallbacks;
 
-#[cfg(not(target_env = "msvc"))]
 mod make;
-#[cfg(not(target_env = "msvc"))]
-use make::Make as BuildTool;
+use make::Make;
 
-#[cfg(target_env = "msvc")]
 mod msbuild;
-#[cfg(target_env = "msvc")]
-use msbuild::Msbuild as BuildTool;
+use msbuild::Msbuild;
 
 pub type Result<T> = result::Result<T, Box<dyn Error>>;
 
@@ -52,10 +48,10 @@ fn run() -> Result<()> {
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
 
-    Build::default().run(&target, &src_dir, build_dir)?;
+    Build::new(&target).run(&target, &src_dir, build_dir)?;
     build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
 
-    generate_bindings(&out_dir.join("bindings.rs"))
+    generate_bindings(&target, &out_dir.join("bindings.rs"))
         .map_err(|e| format!("Unable to generate mupdf bindings using bindgen:\n  {e}"))?;
 
     Ok(())
@@ -71,8 +67,27 @@ fn build_wrapper(target: &Target) -> Result<()> {
     Ok(())
 }
 
-fn generate_bindings(path: &Path) -> Result<()> {
-    let builder = bindgen::builder()
+fn generate_bindings(target: &Target, path: &Path) -> Result<()> {
+    let mut builder = bindgen::builder();
+
+    if target.os == "emscripten" {
+        let sdk = env::var("EMSDK").map_err(|e| match e {
+            env::VarError::NotPresent => {
+                "Using emscripten requires the EMSDK environment variable to be set".to_owned()
+            }
+            _ => {
+                format!("Invalid EMSDK environment variable: {}", e)
+            }
+        })?;
+
+        let mut sysroot = PathBuf::from(sdk);
+        sysroot.push("upstream/emscripten/cache/sysroot");
+        builder = builder
+            .clang_arg(format!("--sysroot={}", sysroot.to_str().unwrap()))
+            .clang_arg("-fvisibility=default");
+    }
+
+    builder = builder
         .clang_arg("-Imupdf/include")
         .header("wrapper.h")
         .header("wrapper.c")
@@ -88,7 +103,9 @@ fn generate_bindings(path: &Path) -> Result<()> {
         .parse_callbacks(Box::new(DocsCallbacks::default()));
 
     #[cfg(feature = "zerocopy")]
-    let builder = builder.parse_callbacks(Box::new(ZerocopyDeriveCallbacks));
+    {
+        builder = builder.parse_callbacks(Box::new(ZerocopyDeriveCallbacks));
+    }
 
     builder
         .size_t_is_usize(true)
@@ -108,14 +125,29 @@ const FONTS: [&str; 6] = [
     "TOFU_SIL",
 ];
 
-#[derive(Default)]
-struct Build {
-    tool: BuildTool,
+enum Build {
+    Make(Make),
+    Msbuild(Msbuild),
 }
 
 impl Build {
+    fn new(target: &Target) -> Self {
+        if target.env == "msvc" {
+            Self::Msbuild(Msbuild::default())
+        } else {
+            Self::Make(Make::default())
+        }
+    }
+
+    fn define(&mut self, var: &str, val: &str) {
+        match self {
+            Self::Make(m) => m.define(var, val),
+            Self::Msbuild(m) => m.define(var, val),
+        };
+    }
+
     fn define_bool(&mut self, var: &str, val: bool) {
-        self.tool.define(var, if val { "1" } else { "0" });
+        self.define(var, if val { "1" } else { "0" });
     }
 
     fn fz_enable(&mut self, name: &str, enable: bool) {
@@ -135,16 +167,21 @@ impl Build {
             self.define_bool(font, cfg!(feature = "all-fonts"));
         }
 
-        self.tool.build(target, src_dir, build_dir)
+        match self {
+            Self::Make(m) => m.build(target, src_dir, build_dir),
+            Self::Msbuild(m) => m.build(target, src_dir, build_dir),
+        }
     }
 }
 
-#[allow(dead_code)]
 struct Target {
     debug: bool,
     opt_level: String,
+
     arch: String,
     os: String,
+    env: String,
+
     features: Vec<String>,
 }
 
@@ -153,8 +190,11 @@ impl Target {
         Ok(Self {
             debug: env::var_os("DEBUG").is_some_and(|s| s != "0" && s != "false"),
             opt_level: env::var("OPT_LEVEL")?,
+
             arch: env::var("CARGO_CFG_TARGET_ARCH")?,
             os: env::var("CARGO_CFG_TARGET_OS")?,
+            env: env::var("CARGO_CFG_TARGET_ENV")?,
+
             features: env::var("CARGO_CFG_TARGET_FEATURE")?
                 .split(',')
                 .map(str::to_owned)
