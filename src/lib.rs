@@ -62,7 +62,7 @@ pub mod size;
 pub mod stroke_state;
 
 /// System font loading
-#[cfg(feature = "system-fonts")]
+#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
 pub mod system_font;
 /// Text objects
 pub mod text;
