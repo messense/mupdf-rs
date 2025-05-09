@@ -43,13 +43,17 @@ fn cp_r(dir: &Path, dest: &Path, excluding_dir_names: &'static [&'static str]) {
     }
 }
 
-const CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
+#[allow(dead_code)]
+const DEFAULT_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] = &[
     ("sse4.1", "-msse4.1", "HAVE_SSE4_1", Some("ARCH_HAS_SSE")),
     ("avx", "-mavx", "HAVE_AVX", None),
     ("avx2", "-mavx2", "HAVE_AVX2", None),
     ("fma", "-mfma", "HAVE_FMA", None),
-    ("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON")),
 ];
+
+#[allow(dead_code)]
+const ARM_CPU_FLAGS: &[(&str, &str, &str, Option<&str>)] =
+    &[("neon", "-mfpu=neon", "HAVE_NEON", Some("ARCH_HAS_NEON"))];
 
 #[cfg(not(target_env = "msvc"))]
 fn build_libmupdf() {
@@ -99,8 +103,8 @@ fn build_libmupdf() {
         "libs".to_owned(),
         format!("build={}", profile),
         format!("OUT={}", &build_dir_str),
-        #[cfg(not(feature = "tesseract"))]
-        "USE_TESSERACT=no".to_owned(),
+        #[cfg(feature = "tesseract")]
+        "USE_TESSERACT=yes".to_owned(),
         #[cfg(not(feature = "libarchive"))]
         "USE_LIBARCHIVE=no".to_owned(),
         #[cfg(not(feature = "zxingcpp"))]
@@ -110,11 +114,22 @@ fn build_libmupdf() {
         "HAVE_X11=no".to_owned(),
         "HAVE_GLUT=no".to_owned(),
         "HAVE_CURL=no".to_owned(),
+        // The parameter doesn't seem to have been implemented properly.
+        // - There's an error message about libmupdf.a.in not being found.
+        // - This will cause tests to fail under MYS2.
+        // "USE_ARGUMENT_FILE=yes".to_owned(),
         "verbose=yes".to_owned(),
     ];
 
-    for (feature, flag, make_flag, define) in CPU_FLAGS {
-        let contains = target_features.contains(feature);
+    let mut cpu_flags = DEFAULT_CPU_FLAGS.to_vec();
+    let target_arch = env::var("CARGO_CFG_TARGET_ARCH").unwrap_or_default();
+
+    if target_arch == "arm" {
+        cpu_flags.extend(ARM_CPU_FLAGS);
+    }
+
+    for (feature, flag, make_flag, define) in cpu_flags {
+        let contains = target_features.contains(&feature);
         if contains {
             build.flag_if_supported(flag);
 
@@ -518,6 +533,20 @@ fn main() {
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
+
+    if let Ok(ref target_os) = env::var("CARGO_CFG_TARGET_OS") {
+        if target_os == "windows" {
+            #[cfg(target_env = "msvc")]
+            println!("cargo:rustc-link-lib=msvcrt");
+
+            #[cfg(not(target_env = "msvc"))]
+            println!("cargo:rustc-link-lib=stdc++");
+        } else if target_os == "macos" {
+            println!("cargo:rustc-link-lib=c++");
+        } else {
+            println!("cargo:rustc-link-lib=stdc++");
+        }
+    }
 
     build_libmupdf();
 

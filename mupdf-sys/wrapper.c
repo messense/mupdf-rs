@@ -3227,6 +3227,20 @@ fz_document_writer *mupdf_new_document_writer(fz_context *ctx, const char *filen
     return writer;
 }
 
+fz_document_writer *mupdf_new_pdfocr_writer(fz_context *ctx, const char *path, const char *options, mupdf_error_t **errptr)
+{
+    fz_document_writer *writer = NULL;
+    fz_try(ctx)
+    {
+        writer = fz_new_pdfocr_writer(ctx, path, options);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return writer;
+}
+
 fz_device *mupdf_document_writer_begin_page(fz_context *ctx, fz_document_writer *writer, fz_rect mediabox, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
