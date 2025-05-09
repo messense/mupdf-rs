@@ -1,6 +1,7 @@
 use std::env::{self, current_dir};
 use std::error::Error;
 use std::fs::remove_dir_all;
+use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::{fs, result};
@@ -48,10 +49,9 @@ fn run() -> Result<()> {
     })?;
 
     if let Err(e) = remove_dir_all(build_dir) {
-        println!(
-            "cargo:warning=Unable to clear {:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}",
-            build_dir
-        );
+        if e.kind() != ErrorKind::NotFound {
+            println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
+        }
     }
 
     println!("cargo:rerun-if-changed=wrapper.h");
