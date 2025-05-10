@@ -61,10 +61,13 @@ impl Msbuild {
                 None => "msbuild invocation failed".to_owned(),
             })?;
         }
+
         match platform {
-            "Win32" => println!("cargo:rustc-link-search=native={build_dir}/platform/win32/{platform}/{configuration}"),
-            "x64" => println!(
+            "Win32" => println!(
                 "cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}"
+            ),
+            "x64" => println!(
+                "cargo:rustc-link-search=native={build_dir}/platform/win32/x64/{configuration}"
             ),
             _ => {}
         };
