@@ -33,8 +33,11 @@ impl Msbuild {
         let platform = match &*target.arch {
             "i386" | "i586" | "i686" => "Win32",
             "x86_64" => "x64",
-            _ => Err("mupdf currently only supports Win32 and x64 with msvc\n\
-                Try compiling using mingw for other architectures")?,
+            _ => Err(format!(
+                "mupdf currently only supports Win32 and x64 with msvc\n\
+                Try compiling using mingw for potential {:?} support",
+                target.arch,
+            ))?,
         };
 
         self.cl.push("/MP".to_owned());
@@ -62,22 +65,13 @@ impl Msbuild {
             })?;
         }
 
-        match platform {
-            "Win32" => println!(
-                "cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}"
-            ),
-            "x64" => println!(
-                "cargo:rustc-link-search=native={build_dir}/platform/win32/x64/{configuration}"
-            ),
-            _ => {}
-        };
-
         if configuration == "Debug" {
             println!("cargo:rustc-link-lib=dylib=ucrtd");
             println!("cargo:rustc-link-lib=dylib=vcruntimed");
             println!("cargo:rustc-link-lib=dylib=msvcrtd");
         }
 
+        println!("cargo:rustc-link-search=native={build_dir}");
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
 
