@@ -49,7 +49,7 @@ impl Msbuild {
             .args([
                 r"platform\win32\mupdf.sln",
                 "/target:libmupdf",
-                &format!("/p:OutputPath={build_dir}"),
+                &format!("/p:OutDir={build_dir}\\"),
                 &format!("/p:Configuration={configuration}"),
                 &format!("/p:Platform={platform}"),
                 &format!("/p:PlatformToolset={platform_toolset}"),

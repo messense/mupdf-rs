@@ -207,14 +207,14 @@ impl Make {
 
         self.build.warnings(false);
 
-        let c_compiler = self.build.get_compiler();
-        self.make_var("CC", c_compiler.path());
-        self.make_var("XCFLAGS", c_compiler.cflags_env());
+        let compiler = self.build.get_compiler();
+        self.make_var("CC", compiler.path());
+        self.make_var("XCFLAGS", compiler.cflags_env());
 
         self.build.cpp(true);
-        let cxx_compiler = self.build.get_compiler();
-        self.make_var("CXX", cxx_compiler.path());
-        self.make_var("XCXXFLAGS", c_compiler.cflags_env());
+        let compiler = self.build.get_compiler();
+        self.make_var("CXX", compiler.path());
+        self.make_var("XCXXFLAGS", compiler.cflags_env());
 
         let make = if cfg!(any(
             target_os = "freebsd",

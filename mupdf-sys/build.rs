@@ -1,6 +1,6 @@
 use std::env::{self, current_dir};
 use std::error::Error;
-use std::fs::remove_dir_all;
+use std::fs::{create_dir, remove_dir_all};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -51,6 +51,12 @@ fn run() -> Result<()> {
     if let Err(e) = remove_dir_all(build_dir) {
         if e.kind() != ErrorKind::NotFound {
             println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
+        }
+    }
+
+    if let Err(e) = create_dir(build_dir) {
+        if e.kind() != ErrorKind::AlreadyExists {
+            Err(format!("Unable to create {build_dir:?}: {e}"))?;
         }
     }
 
