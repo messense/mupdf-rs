@@ -1,6 +1,7 @@
 use std::env::{self, current_dir};
 use std::error::Error;
-use std::fs::{create_dir, remove_dir_all};
+use std::ffi::OsStr;
+use std::fs::remove_dir_all;
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::process::exit;
@@ -22,6 +23,56 @@ fn main() {
         eprintln!("\n{e}");
         exit(1);
     }
+}
+
+fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
+    if let Err(e) = fs::create_dir(dst) {
+        if e.kind() != ErrorKind::AlreadyExists {
+            Err(format!("Unable to create {dst:?}: {e}"))?;
+        }
+    }
+
+    for entry in fs::read_dir(src)? {
+        let entry = entry?;
+        if ignore.contains(&&*entry.file_name()) {
+            continue;
+        }
+
+        let src_path = entry.path();
+        let dst_path = dst.join(entry.file_name());
+
+        let file_type = entry.file_type()?;
+
+        #[cfg(any(unix, windows))]
+        if file_type.is_symlink() {
+            let link = fs::read_link(&src_path)
+                .map_err(|e| format!("Couldn't read symlink {src_path:?}: {e}"))?;
+
+            #[cfg(unix)]
+            let err = std::os::unix::fs::symlink(&link, &dst_path);
+            #[cfg(windows)]
+            let err = if file_type.is_dir() {
+                std::os::windows::fs::symlink_dir(&link, &dst_path);
+            } else {
+                std::os::windows::fs::symlink_file(&link, &dst_path);
+            };
+
+            match err {
+                Ok(_) => continue,
+                Err(e) => println!(
+                    "cargo:warning=Couldn't create symlink {dst_path:?} pointing to {link:?}. This might increase the size of your target folder: {e}"
+                ),
+            }
+        }
+
+        if file_type.is_file() || fs::metadata(&src_path)?.is_file() {
+            fs::copy(&src_path, &dst_path)
+                .map_err(|e| format!("Couldn't copy {src_path:?} to {dst_path:?}: {e}"))?;
+        } else {
+            copy_recursive(&*src_path, &*dst_path, ignore)?;
+        }
+    }
+    Ok(())
 }
 
 fn run() -> Result<()> {
@@ -54,16 +105,12 @@ fn run() -> Result<()> {
         }
     }
 
-    if let Err(e) = create_dir(build_dir) {
-        if e.kind() != ErrorKind::AlreadyExists {
-            Err(format!("Unable to create {build_dir:?}: {e}"))?;
-        }
-    }
+    copy_recursive(&*src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
 
-    Build::new(&target).run(&target, &src_dir, build_dir)?;
+    Build::new(&target).run(&target, build_dir)?;
     build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
 
     generate_bindings(&target, &out_dir.join("bindings.rs"))
@@ -169,7 +216,7 @@ impl Build {
         self.define_bool(&format!("FZ_ENABLE_{name}"), enable);
     }
 
-    fn run(mut self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
+    fn run(mut self, target: &Target, build_dir: &str) -> Result<()> {
         self.fz_enable("XPS", cfg!(feature = "xps"));
         self.fz_enable("SVG", cfg!(feature = "svg"));
         self.fz_enable("CBZ", cfg!(feature = "cbz"));
@@ -183,8 +230,8 @@ impl Build {
         }
 
         match self {
-            Self::Make(m) => m.build(target, src_dir, build_dir),
-            Self::Msbuild(m) => m.build(target, src_dir, build_dir),
+            Self::Make(m) => m.build(target, build_dir),
+            Self::Msbuild(m) => m.build(target, build_dir),
         }
     }
 }

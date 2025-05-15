@@ -1,4 +1,4 @@
-use std::{env, path::Path};
+use std::env;
 
 use cc::windows_registry::{self, find_vs_version};
 
@@ -14,7 +14,7 @@ impl Msbuild {
         self.cl.push(format!("/D{var}#{val}"));
     }
 
-    pub fn build(mut self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
+    pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
         let configuration = if target.debug_profile() {
             "Debug"
         } else {
@@ -49,12 +49,11 @@ impl Msbuild {
             .args([
                 r"platform\win32\mupdf.sln",
                 "/target:libmupdf",
-                &format!("/p:OutDir={build_dir}\\"),
                 &format!("/p:Configuration={configuration}"),
                 &format!("/p:Platform={platform}"),
                 &format!("/p:PlatformToolset={platform_toolset}"),
             ])
-            .current_dir(src_dir)
+            .current_dir(build_dir)
             .env("CL", self.cl.join(" "))
             .status()
             .map_err(|e| format!("Failed to call msbuild: {e}"))?;

@@ -1,7 +1,6 @@
 use std::{
     env,
     ffi::{OsStr, OsString},
-    path::Path,
     process::Command,
     thread::available_parallelism,
 };
@@ -175,7 +174,7 @@ impl Make {
         );
     }
 
-    pub fn build(mut self, target: &Target, src_dir: &Path, build_dir: &str) -> Result<()> {
+    pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
         #[cfg(windows)]
         let build_dir = &build_dir.replace('\\', "/");
 
@@ -229,7 +228,7 @@ impl Make {
         let status = Command::new(make)
             .arg("libs")
             .args(&self.make_flags)
-            .current_dir(src_dir)
+            .current_dir(build_dir)
             .status()
             .map_err(|e| format!("Failed to call {make}: {e}"))?;
         if !status.success() {
