@@ -413,12 +413,7 @@ mod test {
     #[test]
     #[cfg(feature = "serde")]
     fn test_get_stext_page_as_json() {
-        let path_to_doc = std::env::current_dir()
-            .unwrap()
-            .join("tests")
-            .join("files")
-            .join("dummy.pdf");
-        let doc = Document::open(path_to_doc.to_str().unwrap()).unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page = doc.load_page(0).unwrap();
         match page.stext_page_as_json_from_page(1.0) {
             Ok(stext_json) => {
