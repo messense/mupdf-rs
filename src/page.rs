@@ -408,7 +408,7 @@ pub struct StextPage {
 
 #[cfg(test)]
 mod test {
-    use crate::{Document, Matrix};
+    use crate::{document::test_document, Document, Matrix};
 
     #[test]
     #[cfg(feature = "serde")]
@@ -445,7 +445,7 @@ mod test {
 
     #[test]
     fn test_page_to_svg() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let svg = page0.to_svg(&Matrix::IDENTITY).unwrap();
         assert!(!svg.is_empty());
@@ -453,7 +453,7 @@ mod test {
 
     #[test]
     fn test_page_to_html() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let html = page0.to_html().unwrap();
         assert!(!html.is_empty());
@@ -461,7 +461,7 @@ mod test {
 
     #[test]
     fn test_page_to_xhtml() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let xhtml = page0.to_xhtml().unwrap();
         assert!(!xhtml.is_empty());
@@ -469,7 +469,7 @@ mod test {
 
     #[test]
     fn test_page_to_xml() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let xml = page0.to_xml().unwrap();
         assert!(!xml.is_empty());
@@ -477,7 +477,7 @@ mod test {
 
     #[test]
     fn test_page_to_text() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text = page0.to_text().unwrap();
         assert!(!text.is_empty());
@@ -485,7 +485,7 @@ mod test {
 
     #[test]
     fn test_page_to_display_list() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let _dl = page0.to_display_list(true).unwrap();
         let _dl = page0.to_display_list(false).unwrap();
@@ -495,7 +495,7 @@ mod test {
     fn test_page_to_text_page() {
         use crate::TextPageOptions;
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let _tp = page0
             .to_text_page(TextPageOptions::PRESERVE_IMAGES)
@@ -506,7 +506,7 @@ mod test {
     fn test_page_links() {
         use crate::Link;
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let links_iter = page0.links().unwrap();
         let links: Vec<Link> = links_iter.collect();
@@ -515,7 +515,7 @@ mod test {
 
     #[test]
     fn test_page_separations() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let seps = page0.separations().unwrap();
         assert_eq!(seps.len(), 0);
@@ -525,7 +525,7 @@ mod test {
     fn test_page_search() {
         use crate::{Point, Quad};
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let hits = page0.search("Dummy", 1).unwrap();
         assert_eq!(hits.len(), 1);

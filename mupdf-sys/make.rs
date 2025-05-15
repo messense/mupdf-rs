@@ -195,6 +195,10 @@ impl Make {
         self.make_bool("HAVE_GLUT", false);
         self.make_bool("HAVE_CURL", false);
 
+        if target.arch == "wasm32" {
+            self.make_bool("HAVE_OBJCOPY", false);
+        }
+
         self.make_bool("verbose", true);
 
         self.libs()?;

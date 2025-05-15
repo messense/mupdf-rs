@@ -38,24 +38,30 @@ jobs:
           submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
+
       - run: sudo apt-get -y install libfontconfig1-dev
         if: matrix.os == 'ubuntu-latest'
-      - name: Install LLVM
-        if: matrix.os == 'windows-2019'
-        run: choco install -y llvm
-      - name: Setup msbuild
-        if: matrix.os == 'windows-2019'
-        uses: microsoft/setup-msbuild@v1.3.1
+
       - run: cargo test --features serde
-        timeout-minutes: 20
-        if: matrix.os == 'windows-2019'
-        env:
-          LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
-      - run: cargo test --features serde
-        if: matrix.os != 'windows-2019'
+
       - name: Test package mupdf-sys
         if: matrix.os == 'ubuntu-latest'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
+
+  test-wasm:
+    name: Test WASM Emscripten
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: "recursive"
+          fetch-depth: 500
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: mymindstorm/setup-emsdk@v14
+
+      - run: cargo test --target wasm32-unknown-emscripten --features serde
 
   test-msys:
     name: Test Suite (MSYS2)

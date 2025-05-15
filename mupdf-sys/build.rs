@@ -25,6 +25,52 @@ fn main() {
     }
 }
 
+fn run() -> Result<()> {
+    if fs::read_dir("mupdf").is_ok_and(|d| d.count() == 0) {
+        Err(
+            "The `mupdf` directory is empty, did you forget to pull the submodules?\n\
+            Try `git submodule update --init --recursive`",
+        )?
+    }
+
+    let target = Target::from_cargo().map_err(|e| {
+        format!(
+            "Unable to detect target: {e}\n\
+            Cargo is required to build mupdf"
+        )
+    })?;
+
+    let src_dir = current_dir().unwrap().join("mupdf");
+    let out_dir =
+        PathBuf::from(env::var_os("OUT_DIR").ok_or("Missing OUT_DIR environment variable")?);
+
+    let build_dir = out_dir.join("build");
+    let build_dir = build_dir.to_str().ok_or_else(|| {
+        format!("Build dir path is required to be valid UTF-8, got {build_dir:?}")
+    })?;
+
+    if let Err(e) = remove_dir_all(build_dir) {
+        if e.kind() != ErrorKind::NotFound {
+            println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
+        }
+    }
+
+    let sysroot = find_clang_sysroot(&target)?;
+
+    copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
+
+    println!("cargo:rerun-if-changed=wrapper.h");
+    println!("cargo:rerun-if-changed=wrapper.c");
+
+    Build::new(&target).run(&target, build_dir)?;
+    build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
+
+    generate_bindings(&target, &out_dir.join("bindings.rs"), sysroot)
+        .map_err(|e| format!("Unable to generate mupdf bindings using bindgen:\n  {e}"))?;
+
+    Ok(())
+}
+
 fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
     if let Err(e) = fs::create_dir(dst) {
         if e.kind() != ErrorKind::AlreadyExists {
@@ -75,50 +121,6 @@ fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
     Ok(())
 }
 
-fn run() -> Result<()> {
-    if fs::read_dir("mupdf").is_ok_and(|d| d.count() == 0) {
-        Err(
-            "The `mupdf` directory is empty, did you forget to pull the submodules?\n\
-            Try `git submodule update --init --recursive`",
-        )?
-    }
-
-    let target = Target::from_cargo().map_err(|e| {
-        format!(
-            "Unable to detect target: {e}\n\
-            Cargo is required to build mupdf"
-        )
-    })?;
-
-    let src_dir = current_dir().unwrap().join("mupdf");
-    let out_dir =
-        PathBuf::from(env::var_os("OUT_DIR").ok_or("Missing OUT_DIR environment variable")?);
-
-    let build_dir = out_dir.join("build");
-    let build_dir = build_dir.to_str().ok_or_else(|| {
-        format!("Build dir path is required to be valid UTF-8, got {build_dir:?}")
-    })?;
-
-    if let Err(e) = remove_dir_all(build_dir) {
-        if e.kind() != ErrorKind::NotFound {
-            println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
-        }
-    }
-
-    copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
-
-    println!("cargo:rerun-if-changed=wrapper.h");
-    println!("cargo:rerun-if-changed=wrapper.c");
-
-    Build::new(&target).run(&target, build_dir)?;
-    build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
-
-    generate_bindings(&target, &out_dir.join("bindings.rs"))
-        .map_err(|e| format!("Unable to generate mupdf bindings using bindgen:\n  {e}"))?;
-
-    Ok(())
-}
-
 fn build_wrapper(target: &Target) -> Result<()> {
     let mut build = cc::Build::new();
     build.file("wrapper.c").include("mupdf/include");
@@ -129,9 +131,7 @@ fn build_wrapper(target: &Target) -> Result<()> {
     Ok(())
 }
 
-fn generate_bindings(target: &Target, path: &Path) -> Result<()> {
-    let mut builder = bindgen::builder();
-
+fn find_clang_sysroot(target: &Target) -> Result<Option<String>> {
     if target.os == "emscripten" {
         let sdk = env::var("EMSDK").map_err(|e| match e {
             env::VarError::NotPresent => {
@@ -144,9 +144,22 @@ fn generate_bindings(target: &Target, path: &Path) -> Result<()> {
 
         let mut sysroot = PathBuf::from(sdk);
         sysroot.push("upstream/emscripten/cache/sysroot");
-        builder = builder
-            .clang_arg(format!("--sysroot={}", sysroot.to_str().unwrap()))
-            .clang_arg("-fvisibility=default");
+        let sysroot = sysroot.into_os_string().into_string().unwrap();
+        return Ok(Some(sysroot));
+    }
+
+    Ok(None)
+}
+
+fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> Result<()> {
+    let mut builder = bindgen::builder();
+
+    if let Some(sysroot) = sysroot {
+        builder = builder.clang_arg("--sysroot").clang_arg(sysroot);
+    }
+
+    if target.os == "emscripten" {
+        builder = builder.clang_arg("-fvisibility=default");
     }
 
     builder = builder
