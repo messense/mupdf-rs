@@ -52,9 +52,9 @@ fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
             let err = std::os::unix::fs::symlink(&link, &dst_path);
             #[cfg(windows)]
             let err = if file_type.is_dir() {
-                std::os::windows::fs::symlink_dir(&link, &dst_path);
+                std::os::windows::fs::symlink_dir(&link, &dst_path)
             } else {
-                std::os::windows::fs::symlink_file(&link, &dst_path);
+                std::os::windows::fs::symlink_file(&link, &dst_path)
             };
 
             match err {
@@ -69,7 +69,7 @@ fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
             fs::copy(&src_path, &dst_path)
                 .map_err(|e| format!("Couldn't copy {src_path:?} to {dst_path:?}: {e}"))?;
         } else {
-            copy_recursive(&*src_path, &*dst_path, ignore)?;
+            copy_recursive(&src_path, &dst_path, ignore)?;
         }
     }
     Ok(())
@@ -105,7 +105,7 @@ fn run() -> Result<()> {
         }
     }
 
-    copy_recursive(&*src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
+    copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
 
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
