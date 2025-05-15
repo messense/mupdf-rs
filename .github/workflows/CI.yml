@@ -56,6 +56,10 @@ jobs:
         with:
           submodules: "recursive"
           fetch-depth: 500
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32-unknown-emscripten
