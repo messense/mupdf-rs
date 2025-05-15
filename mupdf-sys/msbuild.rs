@@ -1,6 +1,6 @@
-use std::env;
+use std::{env, fs, path::Path};
 
-use cc::windows_registry::{self, find_vs_version};
+use cc::windows_registry::{self, find_vs_version, VsVers};
 
 use crate::{Result, Target};
 
@@ -15,20 +15,19 @@ impl Msbuild {
     }
 
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
+        self.cl.push("/MP".to_owned());
+
+        // work around https://developercommunity.visualstudio.com/t/NAN-is-no-longer-compile-time-constant-i/10688907
+        let file_path = Path::new(build_dir).join("source/fitz/geometry.c");
+        let content = fs::read_to_string(&file_path).expect("Failed to read geometry.c file");
+        let patched_content = content.replace("NAN", "(0.0/0.0)");
+        fs::write(&file_path, patched_content).expect("Failed to write patched geometry.c file");
+
         let configuration = if target.debug_profile() {
             "Debug"
         } else {
             "Release"
         };
-
-        let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
-            if find_vs_version() == Ok(cc::windows_registry::VsVers::Vs17) {
-                "v143"
-            } else {
-                "v142"
-            }
-            .to_owned()
-        });
 
         let platform = match &*target.arch {
             "i386" | "i586" | "i686" => "Win32",
@@ -40,7 +39,13 @@ impl Msbuild {
             ))?,
         };
 
-        self.cl.push("/MP".to_owned());
+        let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
+            match find_vs_version() {
+                Ok(VsVers::Vs17) => "v143",
+                _ => "v142",
+            }
+            .to_owned()
+        });
 
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
             Err("Could not find msbuild.exe. Do you have it installed?")?
@@ -64,13 +69,20 @@ impl Msbuild {
             })?;
         }
 
+        if platform == "x64" {
+            println!(
+                "cargo:rustc-link-search=native={build_dir}/platform/win32/x64/{configuration}"
+            );
+        } else {
+            println!("cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}");
+        }
+
         if configuration == "Debug" {
             println!("cargo:rustc-link-lib=dylib=ucrtd");
             println!("cargo:rustc-link-lib=dylib=vcruntimed");
             println!("cargo:rustc-link-lib=dylib=msvcrtd");
         }
 
-        println!("cargo:rustc-link-search=native={build_dir}");
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
 
