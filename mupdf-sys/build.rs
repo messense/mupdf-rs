@@ -138,7 +138,7 @@ fn find_clang_sysroot(target: &Target) -> Result<Option<String>> {
                 "Using emscripten requires the EMSDK environment variable to be set".to_owned()
             }
             _ => {
-                format!("Invalid EMSDK environment variable: {}", e)
+                format!("Invalid EMSDK environment variable: {e}")
             }
         })?;
 

@@ -40,7 +40,7 @@ impl ParseCallbacks for DocsCallbacks {
             return None;
         }
 
-        let name = format!("{}_{}", enum_name, original_variant_name);
+        let name = format!("{enum_name}_{original_variant_name}");
         self.full_names
             .borrow_mut()
             .insert(original_variant_name.to_owned(), name);
@@ -90,21 +90,21 @@ impl ParseCallbacks for DocsCallbacks {
             let mut line = self.types.replace_all(&line, |c: &regex::Captures| {
                 let name = &c[0];
                 if name.contains('*') {
-                    return format!("`{}`", name);
+                    return format!("`{name}`");
                 }
 
                 let full_names = self.full_names.borrow();
                 if let Some(full_name) = full_names.get(name) {
-                    return format!("[`{}`]({})", name, full_name);
+                    return format!("[`{name}`]({full_name})");
                 }
 
                 if let Some(short_name) = name.strip_suffix("s") {
                     if let Some(full_name) = full_names.get(short_name) {
-                        return format!("[`{}`]({})s", short_name, full_name);
+                        return format!("[`{short_name}`]({full_name})s");
                     }
                 }
 
-                format!("[`{}`]", name)
+                format!("[`{name}`]")
             });
 
             if let Some((first, rest)) = line.split_once(": ") {
