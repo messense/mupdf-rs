@@ -221,6 +221,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::unbuffered_bytes)]
     fn test_buffer_as_bytes() {
         let mut buf = Buffer::new();
         let n = buf.write("abc".as_bytes()).unwrap();
