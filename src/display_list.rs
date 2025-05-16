@@ -124,13 +124,13 @@ unsafe impl Sync for DisplayList {}
 
 #[cfg(test)]
 mod test {
-    use crate::Document;
+    use crate::{document::test_document, Document};
 
     #[test]
     fn test_display_list_search() {
         use crate::{Point, Quad};
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let list = page0.to_display_list(false).unwrap();
         let hits = list.search("Dummy", 1).unwrap();
@@ -162,10 +162,11 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn test_multi_threaded_display_list_search() {
         use crossbeam_utils::thread;
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let list = page0.to_display_list(false).unwrap();
 

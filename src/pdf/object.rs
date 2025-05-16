@@ -351,7 +351,7 @@ impl Write for PdfObject {
         let mut fz_buf = Buffer::with_capacity(len);
         fz_buf.write(buf)?;
         self.write_stream_buffer(&fz_buf)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
+            .map_err(io::Error::other)?;
         Ok(len)
     }
 

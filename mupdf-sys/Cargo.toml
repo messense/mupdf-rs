@@ -97,6 +97,8 @@ tesseract = []
 zxingcpp = []
 libarchive = []
 
+zerocopy = ["dep:zerocopy"]
+
 [build-dependencies]
 bindgen = { version = "0.71", default-features = false, features = ["runtime"] }
 cc = "1.0.50"
@@ -104,4 +106,5 @@ pkg-config = "0.3"
 regex = "1.11"
 
 [dependencies]
-zerocopy = { version = "0.8.17", features = ["derive"] }
+zerocopy = { version = "0.8.17", features = ["derive"], optional = true }
+

@@ -676,6 +676,8 @@ impl<'a> IntoIterator for &'a PdfDocument {
 
 #[cfg(test)]
 mod test {
+    use crate::document::test_document;
+
     use super::{PdfDocument, PdfWriteOptions, Permission};
 
     #[test]
@@ -695,7 +697,7 @@ mod test {
 
     #[test]
     fn test_open_pdf_document() {
-        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
         assert!(!doc.has_unsaved_changes());
         assert!(!doc.has_acro_form().unwrap());
         assert!(!doc.has_xfa_form().unwrap());
@@ -720,13 +722,8 @@ mod test {
 
     #[test]
     fn test_open_pdf_document_from_bytes() {
-        use std::fs;
-        use std::io::Read;
-
-        let mut bytes = Vec::new();
-        let mut file = fs::File::open("tests/files/dummy.pdf").unwrap();
-        file.read_to_end(&mut bytes).unwrap();
-        let doc = PdfDocument::from_bytes(&bytes).unwrap();
+        let bytes = include_bytes!("../../tests/files/dummy.pdf");
+        let doc = PdfDocument::from_bytes(bytes).unwrap();
         assert!(!doc.needs_password().unwrap());
     }
 
@@ -838,7 +835,7 @@ mod test {
 
     #[test]
     fn test_pdf_document_find_page() {
-        let doc = PdfDocument::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
         let _page = doc.find_page(0).unwrap();
     }
 }

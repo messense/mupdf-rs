@@ -99,15 +99,13 @@ impl Buffer {
 
 impl io::Read for Buffer {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
-        self.read_bytes(buf)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+        self.read_bytes(buf).map_err(io::Error::other)
     }
 }
 
 impl io::Write for Buffer {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        self.write_bytes(buf)
-            .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))
+        self.write_bytes(buf).map_err(io::Error::other)
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -223,6 +221,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::unbuffered_bytes)]
     fn test_buffer_as_bytes() {
         let mut buf = Buffer::new();
         let n = buf.write("abc".as_bytes()).unwrap();
