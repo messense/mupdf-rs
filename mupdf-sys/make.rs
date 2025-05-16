@@ -242,6 +242,13 @@ impl Make {
             })?;
         }
 
+        #[cfg(feature = "tesseract")]
+        if target.os == "macos" {
+            println!("cargo:rustc-link-lib=c++");
+        } else {
+            println!("cargo:rustc-link-lib=stdc++");
+        }
+
         println!("cargo:rustc-link-search=native={build_dir}");
         println!("cargo:rustc-link-lib=static=mupdf");
         println!("cargo:rustc-link-lib=static=mupdf-third");
