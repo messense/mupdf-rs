@@ -62,6 +62,9 @@ fn run() -> Result<()> {
     println!("cargo:rerun-if-changed=wrapper.h");
     println!("cargo:rerun-if-changed=wrapper.c");
 
+    #[cfg(feature = "tesseract")]
+    println!("cargo:rustc-flags=-l dylib=c++");
+
     Build::new(&target).run(&target, build_dir)?;
     build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
 
