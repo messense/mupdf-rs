@@ -362,13 +362,13 @@ impl<'a> Iterator for TextCharIter<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{text_page::SearchHitResponse, Document, TextPageOptions};
+    use crate::{document::test_document, text_page::SearchHitResponse, Document, TextPageOptions};
 
     #[test]
     fn test_text_page_search() {
         use crate::{Point, Quad};
 
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
         let hits = text_page.search("Dummy").unwrap();
@@ -401,7 +401,7 @@ mod test {
 
     #[test]
     fn test_text_page_cb_search() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
         let mut sum_x = 0.0;

@@ -17,7 +17,7 @@ jobs:
     name: Check
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
           fetch-depth: 500
@@ -33,29 +33,39 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-2019, windows-2022, windows-2025]
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
+
       - run: sudo apt-get -y install libfontconfig1-dev
         if: matrix.os == 'ubuntu-latest'
-      - name: Install LLVM
-        if: matrix.os == 'windows-2019'
-        run: choco install -y llvm
-      - name: Setup msbuild
-        if: matrix.os == 'windows-2019'
-        uses: microsoft/setup-msbuild@v1.3.1
+
       - run: cargo test --features serde
-        timeout-minutes: 20
-        if: matrix.os == 'windows-2019'
-        env:
-          LIBCLANG_PATH: "C:\\Program Files\\LLVM\\bin"
-      - run: cargo test --features serde
-        if: matrix.os != 'windows-2019'
+
       - name: Test package mupdf-sys
         if: matrix.os == 'ubuntu-latest'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
+
+  test-wasm:
+    name: Test Suite (Emscripten)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: "recursive"
+          fetch-depth: 500
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-emscripten
+      - uses: mymindstorm/setup-emsdk@v14
+
+      - run: cargo test --target wasm32-unknown-emscripten --config "target.wasm32-unknown-emscripten.runner = 'node'" --features serde
 
   test-msys:
     name: Test Suite (MSYS2)
@@ -76,7 +86,7 @@ jobs:
           msystem: ${{matrix.sys}}
           install: mingw-w64-${{matrix.env}}-rust mingw-w64-${{matrix.env}}-clang base base-devel unzip git
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
           fetch-depth: 500
@@ -88,7 +98,7 @@ jobs:
     name: Address Sanitizer
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
           fetch-depth: 500
@@ -107,7 +117,7 @@ jobs:
     name: Valgrind
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: "recursive"
           fetch-depth: 500
@@ -122,7 +132,7 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           components: rustfmt

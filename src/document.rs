@@ -336,6 +336,26 @@ impl<'a> IntoIterator for &'a mut Document {
 }
 
 #[cfg(test)]
+macro_rules! test_document {
+    ($root:literal, $path:literal as PdfDocument) => {{
+        #[cfg(not(target_arch = "wasm32"))]
+        let doc = PdfDocument::open(concat!("tests/", $path));
+        #[cfg(target_arch = "wasm32")]
+        let doc = PdfDocument::from_bytes(include_bytes!(concat!($root, "/tests/", $path)));
+        doc
+    }};
+    ($root:literal, $path:literal) => {{
+        #[cfg(not(target_arch = "wasm32"))]
+        let doc = Document::open(concat!("tests/", $path));
+        #[cfg(target_arch = "wasm32")]
+        let doc = Document::from_bytes(include_bytes!(concat!($root, "/tests/", $path)), $path);
+        doc
+    }};
+}
+#[cfg(test)]
+pub(crate) use test_document;
+
+#[cfg(test)]
 mod test {
     use super::{Document, MetadataName, Page};
 
@@ -350,13 +370,13 @@ mod test {
 
     #[test]
     fn test_document_open_html() {
-        let doc = Document::open("tests/files/dummy.html").unwrap();
+        let doc = test_document!("..", "files/dummy.html").unwrap();
         assert!(!doc.is_pdf());
     }
 
     #[test]
     fn test_document_load_page() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         assert!(doc.is_pdf());
         assert_eq!(doc.page_count().unwrap(), 1);
 
@@ -373,7 +393,7 @@ mod test {
 
     #[test]
     fn test_encrypted_document_load_page() {
-        let mut doc = Document::open("tests/files/dummy-encrypted.pdf").unwrap();
+        let mut doc = test_document!("..", "files/dummy-encrypted.pdf").unwrap();
         assert!(doc.is_pdf());
         assert!(doc.needs_password().unwrap());
         // Before authentication, no outlines
@@ -395,7 +415,7 @@ mod test {
 
     #[test]
     fn test_document_page_iterator() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let pages: Result<Vec<Page>, _> = doc.into_iter().collect();
         let pages = pages.unwrap();
         assert_eq!(pages.len(), 1);
@@ -409,7 +429,7 @@ mod test {
 
     #[test]
     fn test_document_metadata() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
 
         let format = doc.metadata(MetadataName::Format).unwrap();
         assert_eq!(format, "PDF 1.4");
@@ -436,7 +456,7 @@ mod test {
 
     #[test]
     fn test_document_outlines() {
-        let doc = Document::open("tests/files/dummy.pdf").unwrap();
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let outlines = doc.outlines().unwrap();
         assert_eq!(outlines.len(), 1);
 
