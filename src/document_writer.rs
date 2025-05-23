@@ -76,3 +76,47 @@ impl Drop for DocumentWriter {
         }
     }
 }
+
+#[cfg(not(target_arch = "wasm32"))]
+#[cfg(test)]
+mod test {
+    use crate::{pdf::PdfDocument, ColorParams, Image, Matrix, Rect};
+
+    use super::DocumentWriter;
+
+    #[test]
+    fn test_writer_ocr() {
+        let output = "tests/output/ocr.pdf";
+
+        {
+            let mut writer = DocumentWriter::with_ocr(output, "").unwrap();
+
+            let image = Image::from_file("tests/files/ocr.png").unwrap();
+            let width = image.width() as f32;
+            let height = image.height() as f32;
+
+            let device = writer
+                .begin_page(Rect {
+                    x0: 0.0,
+                    y0: 0.0,
+                    x1: width,
+                    y1: height,
+                })
+                .unwrap();
+            device
+                .fill_image(
+                    &image,
+                    &Matrix::new_scale(width, height),
+                    1.0,
+                    ColorParams::default(),
+                )
+                .unwrap();
+            writer.end_page(device).unwrap();
+        }
+
+        let doc = PdfDocument::open(output).unwrap();
+        let page = doc.load_page(0).unwrap();
+        let res = page.search("A short OCR test", 0).unwrap();
+        assert_eq!(res.len(), 1);
+    }
+}

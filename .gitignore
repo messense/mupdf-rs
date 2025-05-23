@@ -2,4 +2,4 @@ target
 Cargo.lock
 **/*.rs.bk
 /build
-tests/output/*.png
+tests/output/*
