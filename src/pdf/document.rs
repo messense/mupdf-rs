@@ -202,7 +202,7 @@ impl PdfWriteOptions {
     }
 
     pub fn set_owner_password(&mut self, pwd: &str) -> &mut Self {
-        assert!(pwd.len() + 1 <= self.inner.opwd_utf8.len());
+        assert!(pwd.len() < self.inner.opwd_utf8.len());
         unsafe {
             ptr::copy_nonoverlapping(
                 pwd.as_ptr().cast(),
@@ -220,7 +220,7 @@ impl PdfWriteOptions {
     }
 
     pub fn set_user_password(&mut self, pwd: &str) -> &mut Self {
-        assert!(pwd.len() + 1 <= self.inner.upwd_utf8.len());
+        assert!(pwd.len() < self.inner.upwd_utf8.len());
         unsafe {
             ptr::copy_nonoverlapping(
                 pwd.as_ptr().cast(),
