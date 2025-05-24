@@ -36,15 +36,6 @@ fn test_issue_27_flatten() {
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_issue_43_malloc() {
-    const IDENTITY: mupdf::Matrix = mupdf::Matrix {
-        a: 1.0,
-        b: 0.0,
-        c: 0.0,
-        d: 1.0,
-        e: 0.0,
-        f: 0.0,
-    };
-
     let density = 300;
     let height = 1500;
     let options = format!("resolution={},height={}", density, height);
@@ -57,7 +48,7 @@ fn test_issue_43_malloc() {
         let page0 = doc.load_page(0).unwrap();
         let mediabox = page0.bounds().unwrap();
         let device = writer.begin_page(mediabox).unwrap();
-        page0.run(&device, &IDENTITY).unwrap();
+        page0.run(&device, &mupdf::Matrix::IDENTITY).unwrap();
         writer.end_page(device).unwrap();
     }
 }
