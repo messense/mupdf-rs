@@ -10,8 +10,8 @@ use num_enum::TryFromPrimitive;
 
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error, Font, Image,
-    Outline, Point, SimpleFontEncoding, Size, WriteMode,
+    context, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error, FilePath,
+    Font, Image, Outline, Point, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -202,11 +202,15 @@ impl PdfWriteOptions {
     }
 
     pub fn set_owner_password(&mut self, pwd: &str) -> &mut Self {
-        let len = pwd.len() + 1;
-        let c_pwd = CString::new(pwd).unwrap();
+        assert!(pwd.len() < self.inner.opwd_utf8.len());
         unsafe {
-            ptr::copy_nonoverlapping(c_pwd.as_ptr(), self.inner.opwd_utf8.as_mut_ptr(), len);
+            ptr::copy_nonoverlapping(
+                pwd.as_ptr().cast(),
+                self.inner.opwd_utf8.as_mut_ptr(),
+                pwd.len(),
+            );
         }
+        self.inner.opwd_utf8[pwd.len()] = 0;
         self
     }
 
@@ -216,11 +220,15 @@ impl PdfWriteOptions {
     }
 
     pub fn set_user_password(&mut self, pwd: &str) -> &mut Self {
-        let len = pwd.len() + 1;
-        let c_pwd = CString::new(pwd).unwrap();
+        assert!(pwd.len() < self.inner.upwd_utf8.len());
         unsafe {
-            ptr::copy_nonoverlapping(c_pwd.as_ptr(), self.inner.upwd_utf8.as_mut_ptr(), len);
+            ptr::copy_nonoverlapping(
+                pwd.as_ptr().cast(),
+                self.inner.upwd_utf8.as_mut_ptr(),
+                pwd.len(),
+            );
         }
+        self.inner.upwd_utf8[pwd.len()] = 0;
         self
     }
 }
@@ -245,8 +253,8 @@ impl PdfDocument {
         }
     }
 
-    pub fn open(filename: &str) -> Result<Self, Error> {
-        let doc = Document::open(filename)?;
+    pub fn open<P: AsRef<FilePath> + ?Sized>(p: &P) -> Result<Self, Error> {
+        let doc = Document::open(p)?;
         Self::try_from(doc)
     }
 
