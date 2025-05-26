@@ -43,13 +43,13 @@ impl Make {
         name: &str,
         pkg_config_names: &[&str],
     ) -> Result<()> {
-        let libs_enabled = feature_reason == SystemLib::Libs && cfg!(feature = "sys-lib");
+        let all_enabled = feature_reason == SystemLib::Libs && cfg!(feature = "sys-lib");
         let feature_enabled = env::var_os(format!(
             "CARGO_FEATURE_SYS_LIB_{}",
             feature.to_ascii_uppercase()
         ))
         .is_some();
-        let enabled = feature_reason == SystemLib::Always || libs_enabled || feature_enabled;
+        let enabled = feature_reason == SystemLib::Always || all_enabled || feature_enabled;
 
         self.make_bool(&format!("USE_SYSTEM_{name}"), enabled);
         if !enabled {
@@ -66,8 +66,8 @@ impl Make {
                     format!(
 "You have two ways of solving this problem:
   1. {first_solution}
-  2. Disable the `sys-lib-{feature}` {}. This might be not what you what though, as it will statically link {pkg_config_name}.",
-                        if libs_enabled { "and `sys-lib` features" } else { "feature" },
+  2. Disable the `sys-lib-{feature}` {}. This might not be what you what though, as it will statically link {pkg_config_name}.",
+                        if all_enabled { "and `sys-lib` features" } else { "feature" },
                     )
                 };
 
