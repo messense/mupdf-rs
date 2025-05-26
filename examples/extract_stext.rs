@@ -1,5 +1,3 @@
-use std::io;
-
 use mupdf::{page::StextPage, Document, TextPageFlags};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -383,26 +383,17 @@ mod test {
     fn test_get_stext_page_as_json() {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page = doc.load_page(0).unwrap();
-        match page.stext_page_as_json_from_page(1.0) {
-            Ok(stext_json) => {
-                let stext_page: serde_json::Result<crate::page::StextPage> =
-                    serde_json::from_str(stext_json.as_str());
-                match stext_page {
-                    Ok(res) => {
-                        for block in res.blocks {
-                            if block.r#type.eq("text") {
-                                for line in block.lines {
-                                    assert_eq!(&line.text, &"Dummy PDF file".to_string());
-                                }
-                            }
-                        }
-                    }
-                    Err(err) => {
-                        println!("stext_page parsing error: {:?}", &err);
-                    }
+        let text_page = page.to_text_page(crate::TextPageFlags::empty()).unwrap();
+
+        let json = text_page.to_json(1.0).unwrap();
+        let stext_page: crate::page::StextPage = serde_json::from_str(json.as_str()).unwrap();
+
+        for block in stext_page.blocks {
+            if block.r#type == "text" {
+                for line in block.lines {
+                    assert_eq!(&line.text, &"Dummy PDF file".to_string());
                 }
             }
-            Err(_err) => {}
         }
     }
 

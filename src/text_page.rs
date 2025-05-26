@@ -485,7 +485,7 @@ mod test {
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
         let text = text_page.to_text().unwrap();
-        assert_eq!(text, "Dummy PDF file");
+        assert_eq!(text, "Dummy PDF file\n\n");
     }
 
     #[test]
