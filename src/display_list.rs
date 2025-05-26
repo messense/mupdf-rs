@@ -1,10 +1,10 @@
-use std::ffi::CString;
+use std::{ffi::CString, ptr::NonNull};
 
 use mupdf_sys::*;
 
 use crate::{
     array::FzArray, context, rust_vec_from_ffi_ptr, Colorspace, Cookie, Device, Error, Image,
-    Matrix, Pixmap, Quad, Rect, TextPage, TextPageOptions,
+    Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
 };
 
 #[derive(Debug)]
@@ -40,15 +40,18 @@ impl DisplayList {
         .map(|inner| unsafe { Pixmap::from_raw(inner) })
     }
 
-    pub fn to_text_page(&self, opts: TextPageOptions) -> Result<TextPage, Error> {
-        unsafe {
+    pub fn to_text_page(&self, opts: TextPageFlags) -> Result<TextPage, Error> {
+        let inner = unsafe {
             ffi_try!(mupdf_display_list_to_text_page(
                 context(),
                 self.inner,
                 opts.bits() as _
-            ))
-        }
-        .map(|inner| unsafe { TextPage::from_raw(inner) })
+            ))?
+        };
+
+        let inner = unsafe { NonNull::new_unchecked(inner) };
+
+        Ok(TextPage { inner })
     }
 
     pub fn to_image(&self, width: f32, height: f32) -> Result<Image, Error> {

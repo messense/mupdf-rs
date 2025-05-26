@@ -1,13 +1,11 @@
+use mupdf::{Document, TextPageFlags};
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let filename: String = std::env::args()
-        .collect::<Vec<_>>()
-        .get(1)
-        .expect("missing filename")
-        .to_owned();
-    let document = mupdf::document::Document::open(&filename)?;
+    let filename: String = std::env::args().nth(1).expect("missing filename");
+    let document = Document::open(&filename)?;
 
     for page in document.pages()? {
-        let text_page = page?.to_text_page(mupdf::text_page::TextPageOptions::empty())?;
+        let text_page = page?.to_text_page(TextPageFlags::empty())?;
 
         for block in text_page.blocks() {
             for line in block.lines() {

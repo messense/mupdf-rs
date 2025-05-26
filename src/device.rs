@@ -6,8 +6,8 @@ use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
 use crate::{
-    context, ColorParams, Colorspace, DisplayList, Error, IRect, Image, Matrix, Path, Pixmap, Rect,
-    Shade, StrokeState, Text, TextPage, TextPageOptions,
+    context, ColorParams, Colorspace, DisplayList, Error, FFIWrapper, IRect, Image, Matrix, Path,
+    Pixmap, Rect, Shade, StrokeState, Text, TextPage, TextPageFlags,
 };
 
 mod native;
@@ -206,11 +206,11 @@ impl Device {
         })
     }
 
-    pub fn from_text_page(page: &TextPage, opts: TextPageOptions) -> Result<Self, Error> {
+    pub fn from_text_page(page: &TextPage, opts: TextPageFlags) -> Result<Self, Error> {
         unsafe {
             ffi_try!(mupdf_new_stext_device(
                 context(),
-                page.inner,
+                page.as_ptr().cast_mut(),
                 opts.bits() as _
             ))
         }

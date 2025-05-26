@@ -8,7 +8,7 @@ use crate::array::FzArray;
 use crate::{
     context, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Colorspace, Cookie, Device,
     DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad, Rect, Separations, TextPage,
-    TextPageOptions,
+    TextPageFlags,
 };
 
 #[derive(Debug)]
@@ -96,15 +96,29 @@ impl Page {
         Ok(svg)
     }
 
-    pub fn to_text_page(&self, opts: TextPageOptions) -> Result<TextPage, Error> {
-        unsafe {
-            ffi_try!(mupdf_page_to_text_page(
+    pub fn to_text_page(&self, flags: TextPageFlags) -> Result<TextPage, Error> {
+        let opts = fz_stext_options {
+            flags: flags.bits() as _,
+            scale: 0.0,
+            clip: fz_rect {
+                x0: 0.0,
+                y0: 0.0,
+                x1: 0.0,
+                y1: 0.0,
+            },
+        };
+
+        let inner = unsafe {
+            ffi_try!(mupdf_new_stext_page_from_page(
                 context(),
-                self.as_ptr() as *mut _,
-                opts.bits() as _
-            ))
-        }
-        .map(|inner| unsafe { TextPage::from_raw(inner) })
+                self.as_ptr().cast_mut(),
+                &opts
+            ))?
+        };
+
+        let inner = unsafe { NonNull::new_unchecked(inner) };
+
+        Ok(TextPage { inner })
     }
 
     pub fn to_display_list(&self, annotations: bool) -> Result<DisplayList, Error> {
@@ -232,52 +246,6 @@ impl Page {
                 cookie.inner
             ))
         }
-    }
-
-    pub fn to_html(&self) -> Result<String, Error> {
-        let inner = unsafe { ffi_try!(mupdf_page_to_html(context(), self.as_ptr() as *mut _)) }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut out = String::new();
-        buf.read_to_string(&mut out)?;
-        Ok(out)
-    }
-
-    pub fn stext_page_as_json_from_page(&self, scale: f32) -> Result<String, Error> {
-        let inner = unsafe {
-            ffi_try!(mupdf_stext_page_as_json_from_page(
-                context(),
-                self.as_ptr() as *mut _,
-                scale
-            ))
-        }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut res = String::new();
-        buf.read_to_string(&mut res)?;
-        Ok(res)
-    }
-
-    pub fn to_xhtml(&self) -> Result<String, Error> {
-        let inner = unsafe { ffi_try!(mupdf_page_to_xhtml(context(), self.as_ptr() as *mut _)) }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut out = String::new();
-        buf.read_to_string(&mut out)?;
-        Ok(out)
-    }
-
-    pub fn to_xml(&self) -> Result<String, Error> {
-        let inner = unsafe { ffi_try!(mupdf_page_to_xml(context(), self.as_ptr() as *mut _)) }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut out = String::new();
-        buf.read_to_string(&mut out)?;
-        Ok(out)
-    }
-
-    pub fn to_text(&self) -> Result<String, Error> {
-        let inner = unsafe { ffi_try!(mupdf_page_to_text(context(), self.as_ptr() as *mut _)) }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut out = String::new();
-        buf.read_to_string(&mut out)?;
-        Ok(out)
     }
 
     pub fn links(&self) -> Result<LinkIter, Error> {
@@ -447,38 +415,6 @@ mod test {
     }
 
     #[test]
-    fn test_page_to_html() {
-        let doc = test_document!("..", "files/dummy.pdf").unwrap();
-        let page0 = doc.load_page(0).unwrap();
-        let html = page0.to_html().unwrap();
-        assert!(!html.is_empty());
-    }
-
-    #[test]
-    fn test_page_to_xhtml() {
-        let doc = test_document!("..", "files/dummy.pdf").unwrap();
-        let page0 = doc.load_page(0).unwrap();
-        let xhtml = page0.to_xhtml().unwrap();
-        assert!(!xhtml.is_empty());
-    }
-
-    #[test]
-    fn test_page_to_xml() {
-        let doc = test_document!("..", "files/dummy.pdf").unwrap();
-        let page0 = doc.load_page(0).unwrap();
-        let xml = page0.to_xml().unwrap();
-        assert!(!xml.is_empty());
-    }
-
-    #[test]
-    fn test_page_to_text() {
-        let doc = test_document!("..", "files/dummy.pdf").unwrap();
-        let page0 = doc.load_page(0).unwrap();
-        let text = page0.to_text().unwrap();
-        assert!(!text.is_empty());
-    }
-
-    #[test]
     fn test_page_to_display_list() {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
@@ -488,13 +424,11 @@ mod test {
 
     #[test]
     fn test_page_to_text_page() {
-        use crate::TextPageOptions;
+        use crate::TextPageFlags;
 
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
-        let _tp = page0
-            .to_text_page(TextPageOptions::PRESERVE_IMAGES)
-            .unwrap();
+        let _tp = page0.to_text_page(TextPageFlags::PRESERVE_IMAGES).unwrap();
     }
 
     #[test]
