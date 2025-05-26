@@ -51,10 +51,18 @@ pub struct TextPage {
 unsafe_impl_ffi_wrapper!(TextPage, fz_stext_page, fz_drop_stext_page);
 
 impl TextPage {
-    pub fn to_html(&self, id: i32) -> Result<String, Error> {
+    pub fn to_html(&self, id: i32, full: bool) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192);
 
         let out = Output::from_buffer(&buf);
+        if full {
+            unsafe {
+                ffi_try!(mupdf_print_stext_header_as_html(
+                    context(),
+                    out.inner.as_ptr()
+                ))?
+            };
+        }
         unsafe {
             ffi_try!(mupdf_print_stext_page_as_html(
                 context(),
@@ -63,6 +71,14 @@ impl TextPage {
                 id
             ))?
         };
+        if full {
+            unsafe {
+                ffi_try!(mupdf_print_stext_trailer_as_html(
+                    context(),
+                    out.inner.as_ptr()
+                ))?
+            };
+        }
         drop(out);
 
         let mut res = String::new();
@@ -75,13 +91,21 @@ impl TextPage {
 
         let out = Output::from_buffer(&buf);
         unsafe {
+            ffi_try!(mupdf_print_stext_header_as_xhtml(
+                context(),
+                out.inner.as_ptr()
+            ))?;
             ffi_try!(mupdf_print_stext_page_as_xhtml(
                 context(),
                 out.inner.as_ptr(),
                 self.inner.as_ptr(),
                 id
-            ))?
-        };
+            ))?;
+            ffi_try!(mupdf_print_stext_trailer_as_html(
+                context(),
+                out.inner.as_ptr()
+            ))?;
+        }
         drop(out);
 
         let mut res = String::new();
@@ -457,7 +481,13 @@ mod test {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
-        let html = text_page.to_html(0).unwrap();
+
+        let html = text_page.to_html(0, false).unwrap();
+        assert!(!html.starts_with("<!DOCTYPE html>"));
+        assert!(html.contains("Dummy PDF file"));
+
+        let html = text_page.to_html(0, true).unwrap();
+        assert!(html.starts_with("<!DOCTYPE html>"));
         assert!(html.contains("Dummy PDF file"));
     }
 
@@ -466,7 +496,9 @@ mod test {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
         let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
         let xhtml = text_page.to_xhtml(0).unwrap();
+        assert!(xhtml.starts_with("<?xml "));
         assert!(xhtml.contains("Dummy PDF file"));
     }
 

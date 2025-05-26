@@ -858,21 +858,21 @@ void mupdf_run_page_widgets(fz_context *ctx, fz_page *page, fz_device *device, f
 }
 
 fz_output *mupdf_new_output_with_buffer(fz_context *ctx, fz_buffer *buf, mupdf_error_t **errptr) {
-	fz_output* output;
-	fz_try(ctx)
-	{
-		output = fz_new_output_with_buffer(ctx, buf);
-	}
-	fz_catch(ctx)
-	{
+    fz_output* output;
+    fz_try(ctx)
+    {
+        output = fz_new_output_with_buffer(ctx, buf);
+    }
+    fz_catch(ctx)
+    {
         mupdf_save_error(ctx, errptr);
-	}
-	return output;
+    }
+    return output;
 }
 
 void mupdf_print_stext_page_as_html(fz_context *ctx, fz_output *out, fz_stext_page *page, int id, mupdf_error_t **errptr)
 {
-	fz_try(ctx)
+    fz_try(ctx)
     {
         fz_print_stext_page_as_html(ctx, out, page, id);
     }
@@ -882,9 +882,33 @@ void mupdf_print_stext_page_as_html(fz_context *ctx, fz_output *out, fz_stext_pa
     }
 }
 
+void mupdf_print_stext_header_as_html(fz_context *ctx, fz_output *out, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_print_stext_header_as_html(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_print_stext_trailer_as_html(fz_context *ctx, fz_output *out, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_print_stext_trailer_as_html(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 void mupdf_print_stext_page_as_xhtml(fz_context *ctx, fz_output *out, fz_stext_page *page, int id, mupdf_error_t **errptr)
 {
-	fz_try(ctx)
+    fz_try(ctx)
     {
         fz_print_stext_page_as_xhtml(ctx, out, page, id);
     }
@@ -894,9 +918,33 @@ void mupdf_print_stext_page_as_xhtml(fz_context *ctx, fz_output *out, fz_stext_p
     }
 }
 
+void mupdf_print_stext_header_as_xhtml(fz_context *ctx, fz_output *out, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_print_stext_header_as_xhtml(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
+void mupdf_print_stext_trailer_as_xhtml(fz_context *ctx, fz_output *out, mupdf_error_t **errptr)
+{
+    fz_try(ctx)
+    {
+        fz_print_stext_trailer_as_xhtml(ctx, out);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+}
+
 void mupdf_print_stext_page_as_xml(fz_context *ctx, fz_output *out, fz_stext_page *page, int id, mupdf_error_t **errptr)
 {
-	fz_try(ctx)
+    fz_try(ctx)
     {
         fz_print_stext_page_as_xml(ctx, out, page, id);
     }
@@ -908,7 +956,7 @@ void mupdf_print_stext_page_as_xml(fz_context *ctx, fz_output *out, fz_stext_pag
 
 void mupdf_print_stext_page_as_text(fz_context *ctx, fz_output *out, fz_stext_page *page, mupdf_error_t **errptr)
 {
-	fz_try(ctx)
+    fz_try(ctx)
     {
         fz_print_stext_page_as_text(ctx, out, page);
     }
