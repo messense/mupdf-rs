@@ -11,45 +11,167 @@ use bitflags::bitflags;
 use mupdf_sys::*;
 use num_enum::TryFromPrimitive;
 
-use crate::FFIAnalogue;
 use crate::{
-    context, rust_slice_to_ffi_ptr, Buffer, Error, Image, Matrix, Point, Quad, Rect, WriteMode,
+    context, rust_slice_to_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Error, FFIWrapper, Image,
+    Matrix, Point, Quad, Rect, WriteMode,
 };
+use crate::{output::Output, FFIAnalogue};
 
 bitflags! {
     /// Options for creating a pixmap and draw device.
-    pub struct TextPageOptions: u32 {
-        const BLOCK_IMAGE = FZ_STEXT_BLOCK_IMAGE as _;
-        const BLOCK_TEXT = FZ_STEXT_BLOCK_TEXT as _;
-        const INHIBIT_SPACES = FZ_STEXT_INHIBIT_SPACES as _;
-        const PRESERVE_IMAGES = FZ_STEXT_PRESERVE_IMAGES as _;
+    pub struct TextPageFlags: u32 {
         const PRESERVE_LIGATURES = FZ_STEXT_PRESERVE_LIGATURES as _;
         const PRESERVE_WHITESPACE = FZ_STEXT_PRESERVE_WHITESPACE as _;
+        const PRESERVE_IMAGES = FZ_STEXT_PRESERVE_IMAGES as _;
+        const INHIBIT_SPACES = FZ_STEXT_INHIBIT_SPACES as _;
+        const DEHYPHENATE = FZ_STEXT_DEHYPHENATE as _;
+        const PRESERVE_SPANS = FZ_STEXT_PRESERVE_SPANS as _;
+        const CLIP = FZ_STEXT_CLIP as _;
+        const USE_CID_FOR_UNKNOWN_UNICODE = FZ_STEXT_USE_CID_FOR_UNKNOWN_UNICODE as _;
+        const COLLECT_STRUCTURE = FZ_STEXT_COLLECT_STRUCTURE as _;
+        const ACCURATE_BBOXES = FZ_STEXT_ACCURATE_BBOXES as _;
+        const COLLECT_VECTORS = FZ_STEXT_COLLECT_VECTORS as _;
+        const IGNORE_ACTUALTEXT = FZ_STEXT_IGNORE_ACTUALTEXT as _;
+        const SEGMENT = FZ_STEXT_SEGMENT as _;
+        const PARAGRAPH_BREAK = FZ_STEXT_PARAGRAPH_BREAK as _;
+        const TABLE_HUNT = FZ_STEXT_TABLE_HUNT as _;
+        const COLLECT_STYLES = FZ_STEXT_COLLECT_STYLES as _;
+        const USE_GID_FOR_UNKNOWN_UNICODE = FZ_STEXT_USE_GID_FOR_UNKNOWN_UNICODE as _;
+        const ACCURATE_ASCENDERS = FZ_STEXT_ACCURATE_ASCENDERS as _;
+        const ACCURATE_SIDE_BEARINGS = FZ_STEXT_ACCURATE_SIDE_BEARINGS as _;
     }
 }
 
 /// A text page is a list of blocks, together with an overall bounding box
 #[derive(Debug)]
 pub struct TextPage {
-    pub(crate) inner: *mut fz_stext_page,
+    pub(crate) inner: NonNull<fz_stext_page>,
 }
 
+unsafe_impl_ffi_wrapper!(TextPage, fz_stext_page, fz_drop_stext_page);
+
 impl TextPage {
-    pub(crate) unsafe fn from_raw(ptr: *mut fz_stext_page) -> Self {
-        Self { inner: ptr }
+    pub fn to_html(&self, id: i32, full: bool) -> Result<String, Error> {
+        let mut buf = Buffer::with_capacity(8192);
+
+        let out = Output::from_buffer(&buf);
+        if full {
+            unsafe {
+                ffi_try!(mupdf_print_stext_header_as_html(
+                    context(),
+                    out.inner.as_ptr()
+                ))?
+            };
+        }
+        unsafe {
+            ffi_try!(mupdf_print_stext_page_as_html(
+                context(),
+                out.inner.as_ptr(),
+                self.inner.as_ptr(),
+                id
+            ))?
+        };
+        if full {
+            unsafe {
+                ffi_try!(mupdf_print_stext_trailer_as_html(
+                    context(),
+                    out.inner.as_ptr()
+                ))?
+            };
+        }
+        drop(out);
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res)?;
+        Ok(res)
+    }
+
+    pub fn to_xhtml(&self, id: i32) -> Result<String, Error> {
+        let mut buf = Buffer::with_capacity(8192);
+
+        let out = Output::from_buffer(&buf);
+        unsafe {
+            ffi_try!(mupdf_print_stext_header_as_xhtml(
+                context(),
+                out.inner.as_ptr()
+            ))?;
+            ffi_try!(mupdf_print_stext_page_as_xhtml(
+                context(),
+                out.inner.as_ptr(),
+                self.inner.as_ptr(),
+                id
+            ))?;
+            ffi_try!(mupdf_print_stext_trailer_as_html(
+                context(),
+                out.inner.as_ptr()
+            ))?;
+        }
+        drop(out);
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res)?;
+        Ok(res)
+    }
+
+    pub fn to_xml(&self, id: i32) -> Result<String, Error> {
+        let mut buf = Buffer::with_capacity(8192);
+
+        let out = Output::from_buffer(&buf);
+        unsafe {
+            ffi_try!(mupdf_print_stext_page_as_xml(
+                context(),
+                out.inner.as_ptr(),
+                self.inner.as_ptr(),
+                id
+            ))?
+        };
+        drop(out);
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res)?;
+        Ok(res)
     }
 
     pub fn to_text(&self) -> Result<String, Error> {
-        let inner = unsafe { ffi_try!(mupdf_stext_page_to_text(context(), self.inner)) }?;
-        let mut buf = unsafe { Buffer::from_raw(inner) };
-        let mut text = String::new();
-        buf.read_to_string(&mut text)?;
-        Ok(text)
+        let mut buf = Buffer::with_capacity(8192);
+
+        let out = Output::from_buffer(&buf);
+        unsafe {
+            ffi_try!(mupdf_print_stext_page_as_text(
+                context(),
+                out.inner.as_ptr(),
+                self.inner.as_ptr()
+            ))?
+        };
+        drop(out);
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res)?;
+        Ok(res)
+    }
+
+    pub fn to_json(&self, scale: f32) -> Result<String, Error> {
+        let mut buf = Buffer::with_capacity(8192);
+
+        let out = Output::from_buffer(&buf);
+        unsafe {
+            ffi_try!(mupdf_print_stext_page_as_json(
+                context(),
+                out.inner.as_ptr(),
+                self.inner.as_ptr(),
+                scale
+            ))?
+        };
+        drop(out);
+
+        let mut res = String::new();
+        buf.read_to_string(&mut res)?;
+        Ok(res)
     }
 
     pub fn blocks(&self) -> TextBlockIter {
         TextBlockIter {
-            next: unsafe { (*self.inner).first_block },
+            next: unsafe { (*self.as_ptr().cast_mut()).first_block },
             _marker: PhantomData,
         }
     }
@@ -152,7 +274,7 @@ impl TextPage {
         unsafe {
             ffi_try!(mupdf_search_stext_page_cb(
                 context(),
-                self.inner,
+                self.as_ptr().cast_mut(),
                 c_needle.as_ptr(),
                 Some(ffi_cb::<T, F>),
                 &raw mut opaque as *mut c_void
@@ -172,22 +294,12 @@ impl TextPage {
         unsafe {
             ffi_try!(mupdf_highlight_selection(
                 context(),
-                self.inner,
+                self.as_mut_ptr(),
                 a.into(),
                 b.into(),
                 ptr as *mut fz_quad,
                 len
             ))
-        }
-    }
-}
-
-impl Drop for TextPage {
-    fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                fz_drop_stext_page(context(), self.inner);
-            }
         }
     }
 }
@@ -362,7 +474,51 @@ impl<'a> Iterator for TextCharIter<'a> {
 
 #[cfg(test)]
 mod test {
-    use crate::{document::test_document, text_page::SearchHitResponse, Document, TextPageOptions};
+    use crate::{document::test_document, text_page::SearchHitResponse, Document, TextPageFlags};
+
+    #[test]
+    fn test_page_to_html() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let html = text_page.to_html(0, false).unwrap();
+        assert!(!html.starts_with("<!DOCTYPE html>"));
+        assert!(html.contains("Dummy PDF file"));
+
+        let html = text_page.to_html(0, true).unwrap();
+        assert!(html.starts_with("<!DOCTYPE html>"));
+        assert!(html.contains("Dummy PDF file"));
+    }
+
+    #[test]
+    fn test_page_to_xhtml() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let xhtml = text_page.to_xhtml(0).unwrap();
+        assert!(xhtml.starts_with("<?xml "));
+        assert!(xhtml.contains("Dummy PDF file"));
+    }
+
+    #[test]
+    fn test_page_to_xml() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+        let xml = text_page.to_xml(0).unwrap();
+        assert!(xml.contains("Dummy PDF file"));
+    }
+
+    #[test]
+    fn test_page_to_text() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+        let text = text_page.to_text().unwrap();
+        assert_eq!(text, "Dummy PDF file\n\n");
+    }
 
     #[test]
     fn test_text_page_search() {
@@ -370,7 +526,7 @@ mod test {
 
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
-        let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
         let hits = text_page.search("Dummy").unwrap();
         assert_eq!(hits.len(), 1);
         assert_eq!(
@@ -403,7 +559,7 @@ mod test {
     fn test_text_page_cb_search() {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
-        let text_page = page0.to_text_page(TextPageOptions::BLOCK_IMAGE).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
         let mut sum_x = 0.0;
         let num_hits = text_page
             .search_cb("Dummy", &mut sum_x, |acc, hits| {

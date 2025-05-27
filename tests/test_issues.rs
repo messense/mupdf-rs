@@ -1,5 +1,5 @@
 use mupdf::pdf::PdfDocument;
-use mupdf::{Error, TextPageOptions};
+use mupdf::{Error, TextPageFlags};
 
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
@@ -21,7 +21,7 @@ fn test_issue_27_flatten() {
     let pages = doc
         .pages()
         .unwrap()
-        .map(|page| page?.to_text_page(TextPageOptions::PRESERVE_LIGATURES))
+        .map(|page| page?.to_text_page(TextPageFlags::PRESERVE_LIGATURES))
         .collect::<Result<Vec<_>, Error>>()
         .unwrap();
     // The original code from the issue doesn't compile anymore since `pages` is required to hold
@@ -76,11 +76,13 @@ fn test_issue_86_invalid_utf8() {
         .unwrap();
     for (idx, page) in doc.pages().unwrap().enumerate() {
         let page = page.unwrap();
-        let text = page.to_text();
+        let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let text = text_page.to_text();
         assert!(text.is_ok());
         println!("page: {idx}, text: {}", text.unwrap());
 
-        let json = page.stext_page_as_json_from_page(1.0);
+        let json = text_page.to_json(1.0);
         assert!(json.is_ok());
 
         // Validate JSON parsing
@@ -95,11 +97,13 @@ fn test_issue_i32_box() {
     let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/i32-box.pdf")).unwrap();
     for (idx, page) in doc.pages().unwrap().enumerate() {
         let page = page.unwrap();
-        let text = page.to_text();
+        let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let text = text_page.to_text();
         assert!(text.is_ok());
         println!("page: {idx}, text: {}", text.unwrap());
 
-        let json = page.stext_page_as_json_from_page(1.0);
+        let json = text_page.to_json(1.0);
         assert!(json.is_ok());
 
         let stext_page: Result<mupdf::page::StextPage, _> =
@@ -112,6 +116,7 @@ fn test_issue_i32_box() {
 fn test_issue_no_json() {
     let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/no-json.pdf")).unwrap();
     let page = doc.load_page(0).unwrap();
-    let json = page.stext_page_as_json_from_page(1.0);
+    let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
+    let json = text_page.to_json(1.0);
     assert!(json.is_err());
 }
