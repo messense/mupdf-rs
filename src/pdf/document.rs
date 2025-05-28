@@ -10,8 +10,8 @@ use num_enum::TryFromPrimitive;
 
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error, FilePath,
-    Font, Image, Outline, Point, SimpleFontEncoding, Size, WriteMode,
+    context, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font, Image, Outline,
+    SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -568,17 +568,12 @@ impl PdfDocument {
             item.dict_put("Title", PdfObject::new_string(&outline.title)?)?;
             item.dict_put("Parent", parent.clone())?;
             if let Some(dest) = outline
-                .location
-                .map(|loc| {
-                    let page = self.find_page(loc.page as i32)?;
+                .dest
+                .map(|dest| {
+                    let page = self.find_page(dest.loc.page_number as i32)?;
 
                     let matrix = page.page_ctm()?;
-                    let Point { x, y } = loc.coord.transform(&matrix);
-                    let dest_kind = DestinationKind::XYZ {
-                        left: Some(x),
-                        top: Some(y),
-                        zoom: None,
-                    };
+                    let dest_kind = dest.kind.transform(&matrix);
                     let dest = Destination::new(page, dest_kind);
 
                     let mut array = self.new_array()?;

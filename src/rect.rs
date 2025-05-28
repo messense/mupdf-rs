@@ -184,6 +184,10 @@ impl Rect {
         }
         .map(fz_rect::into)
     }
+
+    pub fn transform(self, matrix: &Matrix) -> Self {
+        unsafe { fz_transform_rect(self.into(), matrix.into()) }.into()
+    }
 }
 
 impl fmt::Display for Rect {

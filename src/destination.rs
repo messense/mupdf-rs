@@ -1,5 +1,7 @@
 use crate::pdf::PdfObject;
-use crate::Error;
+use crate::{Error, Matrix, Point, Rect};
+
+use mupdf_sys::*;
 
 #[derive(Debug, Clone)]
 pub struct Destination {
@@ -8,7 +10,7 @@ pub struct Destination {
     kind: DestinationKind,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum DestinationKind {
     /// Display the page at a scale which just fits the whole page
     /// in the window both horizontally and vertically.
@@ -42,6 +44,84 @@ pub enum DestinationKind {
     /// Display the page like `/FitV`, but use the bounding box of the page’s contents,
     /// rather than the crop box.
     FitBV { left: f32 },
+}
+
+impl DestinationKind {
+    #[allow(non_upper_case_globals)]
+    pub(crate) fn from_link_dest(dst: fz_link_dest) -> Self {
+        match dst.type_ {
+            fz_link_dest_type_FZ_LINK_DEST_FIT => Self::Fit,
+            fz_link_dest_type_FZ_LINK_DEST_FIT_B => Self::FitB,
+            fz_link_dest_type_FZ_LINK_DEST_FIT_H => Self::FitH { top: dst.y },
+            fz_link_dest_type_FZ_LINK_DEST_FIT_BH => Self::FitBH { top: dst.y },
+            fz_link_dest_type_FZ_LINK_DEST_FIT_V => Self::FitV { left: dst.x },
+            fz_link_dest_type_FZ_LINK_DEST_FIT_BV => Self::FitBV { left: dst.x },
+            fz_link_dest_type_FZ_LINK_DEST_XYZ => Self::XYZ {
+                left: Some(dst.x),
+                top: Some(dst.y),
+                zoom: Some(dst.zoom),
+            },
+            fz_link_dest_type_FZ_LINK_DEST_FIT_R => Self::FitR {
+                left: dst.x,
+                bottom: dst.y,
+                right: dst.x + dst.w,
+                top: dst.y + dst.h,
+            },
+            _ => unreachable!(),
+        }
+    }
+
+    pub fn transform(self, matrix: &Matrix) -> Self {
+        match self {
+            Self::Fit => Self::Fit,
+            Self::FitB => Self::FitB,
+            Self::FitH { top } => {
+                let p = Point::new(0.0, top).transform(matrix);
+                Self::FitH { top: p.y }
+            }
+            Self::FitBH { top } => {
+                let p = Point::new(0.0, top).transform(matrix);
+                Self::FitBH { top: p.y }
+            }
+            Self::FitV { left } => {
+                let p = Point::new(left, 0.0).transform(matrix);
+                Self::FitV { left: p.x }
+            }
+            Self::FitBV { left } => {
+                let p = Point::new(left, 0.0).transform(matrix);
+                Self::FitBV { left: p.x }
+            }
+            Self::XYZ { left, top, zoom } => {
+                let p =
+                    Point::new(left.unwrap_or_default(), top.unwrap_or_default()).transform(matrix);
+                Self::XYZ {
+                    left: Some(p.x),
+                    top: Some(p.y),
+                    zoom: zoom,
+                }
+            }
+            Self::FitR {
+                left,
+                bottom,
+                right,
+                top,
+            } => {
+                let r = Rect {
+                    x0: left,
+                    y0: bottom,
+                    x1: right,
+                    y1: top,
+                };
+                let tr = r.transform(matrix);
+                Self::FitR {
+                    left: tr.x0,
+                    bottom: tr.y0,
+                    right: tr.x1,
+                    top: tr.y1,
+                }
+            }
+        }
+    }
 }
 
 impl Destination {

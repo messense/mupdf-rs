@@ -2155,6 +2155,21 @@ fz_location mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *ur
     return loc;
 }
 
+
+fz_link_dest mupdf_resolve_link_dest(fz_context *ctx, fz_document *doc, const char *uri, mupdf_error_t **errptr)
+{
+    fz_link_dest dest;
+    fz_try(ctx)
+    {
+        dest = fz_resolve_link_dest(ctx, doc, uri);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return dest;
+}
+
 fz_colorspace *mupdf_document_output_intent(fz_context *ctx, fz_document *doc, mupdf_error_t **errptr)
 {
     fz_colorspace *cs = NULL;

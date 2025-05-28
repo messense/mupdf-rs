@@ -4,8 +4,9 @@ use std::ptr;
 
 use mupdf_sys::*;
 
+use crate::link::LinkDestination;
 use crate::pdf::PdfDocument;
-use crate::{context, Buffer, Colorspace, Cookie, Error, FilePath, Outline, Page, Point};
+use crate::{context, Buffer, Colorspace, Cookie, Error, FilePath, Outline, Page};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {
@@ -51,41 +52,6 @@ pub struct Location {
     ///
     /// See [`page`](Location::page) for the page index relative to the [`chapter`](Location::chapter).
     pub page_number: u32,
-    pub coord: Point,
-}
-
-impl Location {
-    pub(crate) fn from_uri(doc: &Document, uri: &CStr) -> Result<Option<Self>, Error> {
-        let external = unsafe { fz_is_external_link(context(), uri.as_ptr()) } != 0;
-        if external {
-            return Ok(None);
-        }
-
-        let mut x = 0.0;
-        let mut y = 0.0;
-
-        let loc = unsafe {
-            ffi_try!(mupdf_resolve_link(
-                context(),
-                doc.inner,
-                uri.as_ptr(),
-                &mut x,
-                &mut y
-            ))
-        }?;
-        if loc.page < 0 {
-            return Ok(None);
-        }
-
-        let page_number = unsafe { fz_page_number_from_location(context(), doc.inner, loc) };
-
-        Ok(Some(Self {
-            chapter: loc.chapter as u32,
-            page: loc.page as u32,
-            page_number: page_number as u32,
-            coord: Point { x, y },
-        }))
-    }
 }
 
 #[derive(Debug)]
@@ -158,9 +124,9 @@ impl Document {
         Ok(info)
     }
 
-    pub fn resolve_link(&self, uri: &str) -> Result<Option<Location>, Error> {
+    pub fn resolve_link(&self, uri: &str) -> Result<Option<LinkDestination>, Error> {
         let c_uri = CString::new(uri)?;
-        Location::from_uri(self, &c_uri)
+        LinkDestination::from_uri(self, &c_uri)
     }
 
     pub fn is_reflowable(&self) -> Result<bool, Error> {
@@ -270,10 +236,10 @@ impl Document {
         while !next.is_null() {
             let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
 
-            let (uri, location) = if !(*next).uri.is_null() {
+            let (uri, dest) = if !(*next).uri.is_null() {
                 let uri = CStr::from_ptr((*next).uri);
-                let loc = Location::from_uri(self, uri).unwrap();
-                (Some(uri.to_string_lossy().into_owned()), loc)
+                let dest = LinkDestination::from_uri(self, uri).unwrap();
+                (Some(uri.to_string_lossy().into_owned()), dest)
             } else {
                 (None, None)
             };
@@ -287,7 +253,7 @@ impl Document {
             outlines.push(Outline {
                 title,
                 uri,
-                location,
+                dest,
                 down,
             });
             next = (*next).next;
@@ -384,7 +350,7 @@ pub(crate) use test_document;
 
 #[cfg(test)]
 mod test {
-    use crate::{document::Location, Point};
+    use crate::{document::Location, link::LinkDestination, DestinationKind};
 
     use super::{Document, MetadataName, Page};
 
@@ -491,18 +457,21 @@ mod test {
 
         let out1 = &outlines[0];
         assert_eq!(
-            out1.location,
-            Some(Location {
-                chapter: 0,
-                page: 0,
-                page_number: 0,
-                coord: Point {
-                    x: 56.7,
-                    y: 68.70001,
+            out1.dest,
+            Some(LinkDestination {
+                loc: Location {
+                    chapter: 0,
+                    page: 0,
+                    page_number: 0,
+                },
+                kind: DestinationKind::XYZ {
+                    left: Some(56.7),
+                    top: Some(68.70001),
+                    zoom: Some(100.0),
                 }
             })
         );
         assert_eq!(out1.title, "Dummy PDF file");
-        assert!(out1.uri.is_none());
+        assert_eq!(out1.uri.as_deref(), Some("#page=1&zoom=100,56.7,68.70001"));
     }
 }
