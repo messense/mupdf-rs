@@ -2141,13 +2141,12 @@ pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, in
     return pdf;
 }
 
-fz_location mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, mupdf_error_t **errptr)
+fz_location mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, float *xp, float *yp, mupdf_error_t **errptr)
 {
     fz_location loc = { -1, -1 };
-    float xp = 0.0f, yp = 0.0f;
     fz_try(ctx)
     {
-        loc = fz_resolve_link(ctx, doc, uri, &xp, &yp);
+        loc = fz_resolve_link(ctx, doc, uri, xp, yp);
     }
     fz_catch(ctx)
     {

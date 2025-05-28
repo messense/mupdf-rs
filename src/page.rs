@@ -1,21 +1,22 @@
 use std::ffi::{c_int, CStr, CString};
 use std::io::Read;
-use std::ptr::{self, NonNull};
+use std::ptr::NonNull;
 
 use mupdf_sys::*;
 
 use crate::array::FzArray;
+use crate::document::Location;
 use crate::{
     context, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Colorspace, Cookie, Device,
-    DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad, Rect, Separations, TextPage,
-    TextPageFlags,
+    DisplayList, Document, Error, FFIWrapper, Link, Matrix, Pixmap, Quad, Rect, Separations,
+    TextPage, TextPageFlags,
 };
 
 #[derive(Debug)]
 pub struct Page {
     /// Ideally we'd use `Unique` here to signify ownership but that's not stable
     pub(crate) inner: NonNull<fz_page>,
-    pub(crate) doc: *mut fz_document,
+    pub(crate) doc: Document,
 }
 
 unsafe_impl_ffi_wrapper!(Page, fz_page, fz_drop_page);
@@ -38,7 +39,7 @@ impl Page {
     pub(crate) unsafe fn from_non_null(nonnull: NonNull<fz_page>) -> Self {
         Self {
             inner: nonnull,
-            doc: (*nonnull.as_ptr()).doc,
+            doc: Document::from_raw((*nonnull.as_ptr()).doc),
         }
     }
 
@@ -249,11 +250,9 @@ impl Page {
     }
 
     pub fn links(&self) -> Result<LinkIter, Error> {
-        unsafe { ffi_try!(mupdf_load_links(context(), self.as_ptr() as *mut _)) }.map(|next| {
-            LinkIter {
-                next,
-                doc: self.doc,
-            }
+        unsafe { ffi_try!(mupdf_load_links(context(), self.inner.as_ptr())) }.map(|next| LinkIter {
+            next,
+            doc: self.doc.clone(),
         })
     }
 
@@ -294,7 +293,7 @@ impl Clone for Page {
 #[derive(Debug)]
 pub struct LinkIter {
     next: *mut fz_link,
-    doc: *mut fz_document,
+    doc: Document,
 }
 
 impl Iterator for LinkIter {
@@ -308,22 +307,13 @@ impl Iterator for LinkIter {
         unsafe {
             self.next = (*node).next;
             let bounds = (*node).rect.into();
-            let uri = CStr::from_ptr((*node).uri).to_string_lossy().into_owned();
-            let mut page = 0;
-            if fz_is_external_link(context(), (*node).uri) == 0 {
-                page = fz_resolve_link(
-                    context(),
-                    self.doc,
-                    (*node).uri,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                )
-                .page;
-            }
+            let uri = CStr::from_ptr((*node).uri);
+            let location = Location::from_uri(&self.doc, uri).unwrap();
+
             Some(Link {
                 bounds,
-                page: page as u32,
-                uri,
+                location,
+                uri: uri.to_string_lossy().into_owned(),
             })
         }
     }

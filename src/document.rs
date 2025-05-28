@@ -5,7 +5,7 @@ use std::ptr;
 use mupdf_sys::*;
 
 use crate::pdf::PdfDocument;
-use crate::{context, Buffer, Colorspace, Cookie, Error, FilePath, Outline, Page};
+use crate::{context, Buffer, Colorspace, Cookie, Error, FilePath, Outline, Page, Point};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum MetadataName {
@@ -42,8 +42,50 @@ impl MetadataName {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Location {
-    pub chapter: i32,
-    pub page: i32,
+    pub chapter: u32,
+    /// Index of the page inside the inside the [`chapter`](Location::chapter).
+    ///
+    /// See [`page_number`](Location::page_number) for the absolute page number.
+    pub page: u32,
+    /// Page number absolute to the start of the document.
+    ///
+    /// See [`page`](Location::page) for the page index relative to the [`chapter`](Location::chapter).
+    pub page_number: u32,
+    pub coord: Point,
+}
+
+impl Location {
+    pub(crate) fn from_uri(doc: &Document, uri: &CStr) -> Result<Option<Self>, Error> {
+        let external = unsafe { fz_is_external_link(context(), uri.as_ptr()) } != 0;
+        if external {
+            return Ok(None);
+        }
+
+        let mut x = 0.0;
+        let mut y = 0.0;
+
+        let loc = unsafe {
+            ffi_try!(mupdf_resolve_link(
+                context(),
+                doc.inner,
+                uri.as_ptr(),
+                &mut x,
+                &mut y
+            ))
+        }?;
+        if loc.page < 0 {
+            return Ok(None);
+        }
+
+        let page_number = unsafe { fz_page_number_from_location(context(), doc.inner, loc) };
+
+        Ok(Some(Self {
+            chapter: loc.chapter as u32,
+            page: loc.page as u32,
+            page_number: page_number as u32,
+            coord: Point { x, y },
+        }))
+    }
 }
 
 #[derive(Debug)]
@@ -118,14 +160,7 @@ impl Document {
 
     pub fn resolve_link(&self, uri: &str) -> Result<Option<Location>, Error> {
         let c_uri = CString::new(uri)?;
-        let loc = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) }?;
-        if loc.page >= 0 {
-            return Ok(Some(Location {
-                chapter: loc.chapter,
-                page: loc.page,
-            }));
-        }
-        Ok(None)
+        Location::from_uri(self, &c_uri)
     }
 
     pub fn is_reflowable(&self) -> Result<bool, Error> {
@@ -233,35 +268,27 @@ impl Document {
         let mut outlines = Vec::new();
         let mut next = outline;
         while !next.is_null() {
-            let mut x = 0.0;
-            let mut y = 0.0;
-            let mut page = None;
             let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
-            let uri = if !(*next).uri.is_null() {
-                if fz_is_external_link(context(), (*next).uri) > 0 {
-                    Some(CStr::from_ptr((*next).uri).to_string_lossy().into_owned())
-                } else {
-                    page = Some(
-                        fz_resolve_link(context(), self.inner, (*next).uri, &mut x, &mut y).page
-                            as u32,
-                    );
-                    None
-                }
+
+            let (uri, location) = if !(*next).uri.is_null() {
+                let uri = CStr::from_ptr((*next).uri);
+                let loc = Location::from_uri(self, uri).unwrap();
+                (Some(uri.to_string_lossy().into_owned()), loc)
             } else {
-                None
+                (None, None)
             };
+
             let down = if !(*next).down.is_null() {
                 self.walk_outlines((*next).down)
             } else {
                 Vec::new()
             };
+
             outlines.push(Outline {
                 title,
                 uri,
-                page,
+                location,
                 down,
-                x,
-                y,
             });
             next = (*next).next;
         }
@@ -357,6 +384,8 @@ pub(crate) use test_document;
 
 #[cfg(test)]
 mod test {
+    use crate::{document::Location, Point};
+
     use super::{Document, MetadataName, Page};
 
     #[test]
@@ -461,10 +490,19 @@ mod test {
         assert_eq!(outlines.len(), 1);
 
         let out1 = &outlines[0];
-        assert_eq!(out1.page, Some(0));
+        assert_eq!(
+            out1.location,
+            Some(Location {
+                chapter: 0,
+                page: 0,
+                page_number: 0,
+                coord: Point {
+                    x: 56.7,
+                    y: 68.70001,
+                }
+            })
+        );
         assert_eq!(out1.title, "Dummy PDF file");
         assert!(out1.uri.is_none());
-        assert_eq!(out1.x, 56.7);
-        assert_eq!(out1.y, 68.70001);
     }
 }

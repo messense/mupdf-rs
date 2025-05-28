@@ -568,13 +568,12 @@ impl PdfDocument {
             item.dict_put("Title", PdfObject::new_string(&outline.title)?)?;
             item.dict_put("Parent", parent.clone())?;
             if let Some(dest) = outline
-                .page
-                .map(|page| {
-                    let page = self.find_page(page as i32)?;
+                .location
+                .map(|loc| {
+                    let page = self.find_page(loc.page as i32)?;
 
                     let matrix = page.page_ctm()?;
-                    let fz_point = Point::new(outline.x, outline.y);
-                    let Point { x, y } = fz_point.transform(&matrix);
+                    let Point { x, y } = loc.coord.transform(&matrix);
                     let dest_kind = DestinationKind::XYZ {
                         left: Some(x),
                         top: Some(y),

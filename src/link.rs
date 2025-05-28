@@ -1,21 +1,9 @@
-use std::fmt;
-
-use crate::Rect;
+use crate::{document::Location, Rect};
 
 /// A list of interactive links on a page.
 #[derive(Debug, Clone)]
 pub struct Link {
     pub bounds: Rect,
-    pub page: u32,
+    pub location: Option<Location>,
     pub uri: String,
-}
-
-impl fmt::Display for Link {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "Link(b={},page={},uri={})",
-            self.bounds, self.page, self.uri
-        )
-    }
 }
