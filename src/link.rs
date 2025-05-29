@@ -36,10 +36,10 @@ impl LinkDestination {
         Ok(Some(Self {
             loc: Location {
                 chapter: dest.loc.chapter as u32,
-                page: dest.loc.page as u32,
+                page_in_chapter: dest.loc.page as u32,
                 page_number: page_number as u32,
             },
-            kind: DestinationKind::from_link_dest(dest),
+            kind: dest.into(),
         }))
     }
 }

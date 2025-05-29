@@ -44,13 +44,13 @@ impl MetadataName {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Location {
     pub chapter: u32,
-    /// Index of the page inside the inside the [`chapter`](Location::chapter).
+    /// Index of the page inside the [`chapter`](Location::chapter).
     ///
     /// See [`page_number`](Location::page_number) for the absolute page number.
-    pub page: u32,
+    pub page_in_chapter: u32,
     /// Page number absolute to the start of the document.
     ///
-    /// See [`page`](Location::page) for the page index relative to the [`chapter`](Location::chapter).
+    /// See [`page_in_chapter`](Location::page_in_chapter) for the page index relative to the [`chapter`](Location::chapter).
     pub page_number: u32,
 }
 
@@ -461,7 +461,7 @@ mod test {
             Some(LinkDestination {
                 loc: Location {
                     chapter: 0,
-                    page: 0,
+                    page_in_chapter: 0,
                     page_number: 0,
                 },
                 kind: DestinationKind::XYZ {
