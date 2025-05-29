@@ -1,21 +1,20 @@
 use std::ffi::{c_int, CStr, CString};
 use std::io::Read;
-use std::ptr::{self, NonNull};
+use std::ptr::NonNull;
 
 use mupdf_sys::*;
 
-use crate::array::FzArray;
+use crate::Document;
 use crate::{
-    context, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Colorspace, Cookie, Device,
-    DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad, Rect, Separations, TextPage,
-    TextPageFlags,
+    array::FzArray, context, link::LinkDestination, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper,
+    Buffer, Colorspace, Cookie, Device, DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad,
+    Rect, Separations, TextPage, TextPageFlags,
 };
 
 #[derive(Debug)]
 pub struct Page {
     /// Ideally we'd use `Unique` here to signify ownership but that's not stable
     pub(crate) inner: NonNull<fz_page>,
-    pub(crate) doc: *mut fz_document,
 }
 
 unsafe_impl_ffi_wrapper!(Page, fz_page, fz_drop_page);
@@ -36,10 +35,7 @@ impl Page {
     ///
     /// * `nonnull` must point to a valid, well-aligned instance of [`fz_page`]
     pub(crate) unsafe fn from_non_null(nonnull: NonNull<fz_page>) -> Self {
-        Self {
-            inner: nonnull,
-            doc: (*nonnull.as_ptr()).doc,
-        }
+        Self { inner: nonnull }
     }
 
     pub fn bounds(&self) -> Result<Rect, Error> {
@@ -249,12 +245,12 @@ impl Page {
     }
 
     pub fn links(&self) -> Result<LinkIter, Error> {
-        unsafe { ffi_try!(mupdf_load_links(context(), self.as_ptr() as *mut _)) }.map(|next| {
-            LinkIter {
-                next,
-                doc: self.doc,
-            }
-        })
+        let next = unsafe { ffi_try!(mupdf_load_links(context(), self.inner.as_ptr())) }?;
+
+        let doc_ptr = unsafe { (*self.inner.as_ptr()).doc };
+        let doc = unsafe { Document::from_raw(fz_keep_document(context(), doc_ptr)) };
+
+        Ok(LinkIter { next, doc })
     }
 
     pub fn separations(&self) -> Result<Separations, Error> {
@@ -283,7 +279,7 @@ impl Clone for Page {
     fn clone(&self) -> Self {
         let inner = self.inner;
         unsafe {
-            fz_keep_page(context(), inner.as_ptr() as *mut _);
+            fz_keep_page(context(), inner.as_ptr());
         }
         // SAFETY: If it was safe to construct `self`, it's safe to construct another instance of
         // `Self`.
@@ -294,7 +290,7 @@ impl Clone for Page {
 #[derive(Debug)]
 pub struct LinkIter {
     next: *mut fz_link,
-    doc: *mut fz_document,
+    doc: Document,
 }
 
 impl Iterator for LinkIter {
@@ -304,26 +300,18 @@ impl Iterator for LinkIter {
         if self.next.is_null() {
             return None;
         }
+
         let node = self.next;
         unsafe {
             self.next = (*node).next;
             let bounds = (*node).rect.into();
-            let uri = CStr::from_ptr((*node).uri).to_string_lossy().into_owned();
-            let mut page = 0;
-            if fz_is_external_link(context(), (*node).uri) == 0 {
-                page = fz_resolve_link(
-                    context(),
-                    self.doc,
-                    (*node).uri,
-                    ptr::null_mut(),
-                    ptr::null_mut(),
-                )
-                .page;
-            }
+            let uri = CStr::from_ptr((*node).uri);
+            let dest = LinkDestination::from_uri(&self.doc, uri).unwrap();
+
             Some(Link {
                 bounds,
-                page: page as u32,
-                uri,
+                dest,
+                uri: uri.to_string_lossy().into_owned(),
             })
         }
     }

@@ -4,6 +4,7 @@ use std::ptr;
 
 use mupdf_sys::*;
 
+use crate::link::LinkDestination;
 use crate::pdf::PdfDocument;
 use crate::{context, Buffer, Colorspace, Cookie, Error, FilePath, Outline, Page};
 
@@ -42,8 +43,15 @@ impl MetadataName {
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Location {
-    pub chapter: i32,
-    pub page: i32,
+    pub chapter: u32,
+    /// Index of the page inside the [`chapter`](Location::chapter).
+    ///
+    /// See [`page_number`](Location::page_number) for the absolute page number.
+    pub page_in_chapter: u32,
+    /// Page number absolute to the start of the document.
+    ///
+    /// See [`page_in_chapter`](Location::page_in_chapter) for the page index relative to the [`chapter`](Location::chapter).
+    pub page_number: u32,
 }
 
 #[derive(Debug)]
@@ -116,16 +124,9 @@ impl Document {
         Ok(info)
     }
 
-    pub fn resolve_link(&self, uri: &str) -> Result<Option<Location>, Error> {
+    pub fn resolve_link(&self, uri: &str) -> Result<Option<LinkDestination>, Error> {
         let c_uri = CString::new(uri)?;
-        let loc = unsafe { ffi_try!(mupdf_resolve_link(context(), self.inner, c_uri.as_ptr())) }?;
-        if loc.page >= 0 {
-            return Ok(Some(Location {
-                chapter: loc.chapter,
-                page: loc.page,
-            }));
-        }
-        Ok(None)
+        LinkDestination::from_uri(self, &c_uri)
     }
 
     pub fn is_reflowable(&self) -> Result<bool, Error> {
@@ -233,35 +234,27 @@ impl Document {
         let mut outlines = Vec::new();
         let mut next = outline;
         while !next.is_null() {
-            let mut x = 0.0;
-            let mut y = 0.0;
-            let mut page = None;
             let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
-            let uri = if !(*next).uri.is_null() {
-                if fz_is_external_link(context(), (*next).uri) > 0 {
-                    Some(CStr::from_ptr((*next).uri).to_string_lossy().into_owned())
-                } else {
-                    page = Some(
-                        fz_resolve_link(context(), self.inner, (*next).uri, &mut x, &mut y).page
-                            as u32,
-                    );
-                    None
-                }
+
+            let (uri, dest) = if !(*next).uri.is_null() {
+                let uri = CStr::from_ptr((*next).uri);
+                let dest = LinkDestination::from_uri(self, uri).unwrap();
+                (Some(uri.to_string_lossy().into_owned()), dest)
             } else {
-                None
+                (None, None)
             };
+
             let down = if !(*next).down.is_null() {
                 self.walk_outlines((*next).down)
             } else {
                 Vec::new()
             };
+
             outlines.push(Outline {
                 title,
                 uri,
-                page,
+                dest,
                 down,
-                x,
-                y,
             });
             next = (*next).next;
         }
@@ -357,6 +350,8 @@ pub(crate) use test_document;
 
 #[cfg(test)]
 mod test {
+    use crate::{document::Location, link::LinkDestination, DestinationKind};
+
     use super::{Document, MetadataName, Page};
 
     #[test]
@@ -461,10 +456,22 @@ mod test {
         assert_eq!(outlines.len(), 1);
 
         let out1 = &outlines[0];
-        assert_eq!(out1.page, Some(0));
+        assert_eq!(
+            out1.dest,
+            Some(LinkDestination {
+                loc: Location {
+                    chapter: 0,
+                    page_in_chapter: 0,
+                    page_number: 0,
+                },
+                kind: DestinationKind::XYZ {
+                    left: Some(56.7),
+                    top: Some(68.70001),
+                    zoom: Some(100.0),
+                }
+            })
+        );
         assert_eq!(out1.title, "Dummy PDF file");
-        assert!(out1.uri.is_none());
-        assert_eq!(out1.x, 56.7);
-        assert_eq!(out1.y, 68.70001);
+        assert_eq!(out1.uri.as_deref(), Some("#page=1&zoom=100,56.7,68.70001"));
     }
 }
