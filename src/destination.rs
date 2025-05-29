@@ -97,7 +97,7 @@ impl DestinationKind {
                 Self::XYZ {
                     left: Some(p.x),
                     top: Some(p.y),
-                    zoom: zoom,
+                    zoom,
                 }
             }
             Self::FitR {
