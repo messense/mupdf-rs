@@ -257,13 +257,13 @@ macro_rules! from_enum {
         }
 
         impl TryFrom<$c_type> for $name {
-            type Error = ();
+            type Error = Error;
 
             #[allow(non_upper_case_globals)]
             fn try_from(value: $c_type) -> Result<Self, Self::Error> {
                 match value {
                     $($value => Ok(Self::$field),)*
-                    _ => Err(())
+                    _ => Err(Error::UnknownEnumVariant)
                 }
             }
         }
