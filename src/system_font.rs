@@ -6,9 +6,11 @@ use font_kit::family_name::FamilyName;
 use font_kit::handle::Handle;
 use font_kit::properties::{Properties, Style, Weight};
 use font_kit::source::SystemSource;
-use num_enum::TryFromPrimitive;
 
 use crate::font::Font;
+#[cfg(windows)]
+use crate::CjkFontOrdering;
+
 use mupdf_sys::*;
 
 pub(crate) unsafe extern "C" fn load_system_font(
@@ -70,16 +72,6 @@ pub(crate) unsafe extern "C" fn load_system_font(
     ptr::null_mut()
 }
 
-#[derive(TryFromPrimitive)]
-#[repr(u32)]
-#[allow(clippy::enum_variant_names)]
-enum Ordering {
-    AdobeCns = FZ_ADOBE_CNS as u32,
-    AdobeGb = FZ_ADOBE_GB as u32,
-    AdobeJapan = FZ_ADOBE_JAPAN as u32,
-    AdobeKorea = FZ_ADOBE_KOREA as u32,
-}
-
 #[cfg(windows)]
 unsafe fn load_font_by_names(ctx: *mut fz_context, names: &[&str]) -> *mut fz_font {
     use std::ffi::CString;
@@ -107,33 +99,33 @@ pub unsafe extern "C" fn load_system_cjk_font(
         return font;
     }
     if serif == 1 {
-        match Ordering::try_from(ordering as u32) {
-            Ok(Ordering::AdobeCns) => {
+        match CjkFontOrdering::try_from(ordering as u32) {
+            Ok(CjkFontOrdering::AdobeCns) => {
                 return load_font_by_names(ctx, &["MingLiU"]);
             }
-            Ok(Ordering::AdobeGb) => {
+            Ok(CjkFontOrdering::AdobeGb) => {
                 return load_font_by_names(ctx, &["SimSun"]);
             }
-            Ok(Ordering::AdobeJapan) => {
+            Ok(CjkFontOrdering::AdobeJapan) => {
                 return load_font_by_names(ctx, &["MS-Mincho"]);
             }
-            Ok(Ordering::AdobeKorea) => {
+            Ok(CjkFontOrdering::AdobeKorea) => {
                 return load_font_by_names(ctx, &["Batang"]);
             }
             Err(_) => {}
         }
     } else {
-        match Ordering::try_from(ordering as u32) {
-            Ok(Ordering::AdobeCns) => {
+        match CjkFontOrdering::try_from(ordering as u32) {
+            Ok(CjkFontOrdering::AdobeCns) => {
                 return load_font_by_names(ctx, &["DFKaiShu-SB-Estd-BF"]);
             }
-            Ok(Ordering::AdobeGb) => {
+            Ok(CjkFontOrdering::AdobeGb) => {
                 return load_font_by_names(ctx, &["KaiTi", "KaiTi_GB2312"]);
             }
-            Ok(Ordering::AdobeJapan) => {
+            Ok(CjkFontOrdering::AdobeJapan) => {
                 return load_font_by_names(ctx, &["MS-Gothic"]);
             }
-            Ok(Ordering::AdobeKorea) => {
+            Ok(CjkFontOrdering::AdobeKorea) => {
                 return load_font_by_names(ctx, &["Gulim"]);
             }
             Err(_) => {}

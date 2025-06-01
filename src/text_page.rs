@@ -1,6 +1,6 @@
 use std::{
     convert::TryInto,
-    ffi::{c_int, c_void, CString},
+    ffi::{c_int, c_uint, c_void, CString},
     io::Read,
     marker::PhantomData,
     ptr::{self, NonNull},
@@ -9,11 +9,10 @@ use std::{
 
 use bitflags::bitflags;
 use mupdf_sys::*;
-use num_enum::TryFromPrimitive;
 
 use crate::{
-    context, rust_slice_to_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Error, FFIWrapper, Image,
-    Matrix, Point, Quad, Rect, WriteMode,
+    context, from_enum, rust_slice_to_ffi_ptr, unsafe_impl_ffi_wrapper, Buffer, Error, FFIWrapper,
+    Image, Matrix, Point, Quad, Rect, WriteMode,
 };
 use crate::{output::Output, FFIAnalogue};
 
@@ -310,11 +309,15 @@ pub enum SearchHitResponse {
     AbortSearch = 1,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
-pub enum TextBlockType {
-    Text = FZ_STEXT_BLOCK_TEXT as u32,
-    Image = FZ_STEXT_BLOCK_IMAGE as u32,
+from_enum! { c_uint,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum TextBlockType {
+        Text = FZ_STEXT_BLOCK_TEXT,
+        Image = FZ_STEXT_BLOCK_IMAGE,
+        Struct = FZ_STEXT_BLOCK_STRUCT,
+        Vector = FZ_STEXT_BLOCK_VECTOR,
+        Grid = FZ_STEXT_BLOCK_GRID,
+    }
 }
 
 /// A text block is a list of lines of text (typically a paragraph), or an image.

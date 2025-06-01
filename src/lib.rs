@@ -236,3 +236,37 @@ impl<A, B> AssertSizeEquals<A, B> {
         }
     }
 }
+
+macro_rules! from_enum {
+    (
+        $c_type:ty,
+        $(#[$($attr:tt)*])*
+        pub enum $name:ident {
+            $(
+                $(#[$($field_attr:tt)*])*
+                $field:ident = $value:tt,
+            )*
+        }
+    ) => {
+        $(#[$($attr)*])*
+        pub enum $name {
+            $(
+                $(#[$($field_attr)*])*
+                $field = ($value as isize),
+            )*
+        }
+
+        impl TryFrom<$c_type> for $name {
+            type Error = ();
+
+            #[allow(non_upper_case_globals)]
+            fn try_from(value: $c_type) -> Result<Self, Self::Error> {
+                match value {
+                    $($value => Ok(Self::$field),)*
+                    _ => Err(())
+                }
+            }
+        }
+    };
+}
+pub(crate) use from_enum;

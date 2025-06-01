@@ -1,34 +1,36 @@
-use std::ffi::{CStr, CString};
+use std::ffi::{c_uint, CStr, CString};
 use std::fmt;
 use std::str::FromStr;
 
 use mupdf_sys::*;
-use num_enum::TryFromPrimitive;
 
-use crate::{context, Buffer, Error, Matrix, Path};
+use crate::{context, from_enum, Buffer, Error, Matrix, Path};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(C)]
-pub enum SimpleFontEncoding {
-    Latin,
-    Greek,
-    Cyrillic,
+from_enum! { c_uint,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum SimpleFontEncoding {
+        Latin = PDF_SIMPLE_ENCODING_LATIN,
+        Greek = PDF_SIMPLE_ENCODING_GREEK,
+        Cyrillic = PDF_SIMPLE_ENCODING_CYRILLIC,
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
-pub enum WriteMode {
-    Horizontal = 0,
-    Vertical = 1,
+from_enum! { u32,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum WriteMode {
+        Horizontal = 0,
+        Vertical = 1,
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-#[repr(C)]
-pub enum CjkFontOrdering {
-    AdobeCns,
-    AdobeGb,
-    AdobeJapan,
-    AdobeKorea,
+from_enum! { c_uint,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum CjkFontOrdering {
+        AdobeCns = FZ_ADOBE_CNS,
+        AdobeGb = FZ_ADOBE_GB,
+        AdobeJapan = FZ_ADOBE_JAPAN,
+        AdobeKorea = FZ_ADOBE_KOREA,
+    }
 }
 
 impl FromStr for CjkFontOrdering {
