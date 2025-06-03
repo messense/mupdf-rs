@@ -172,8 +172,6 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
 
     builder = builder
         .allowlist_recursively(false)
-        .allowlist_type("va_list")
-        .allowlist_type("__va_list_tag")
         .allowlist_type("wchar_t")
         .allowlist_type("FILE")
         .opaque_type("FILE");
@@ -188,6 +186,17 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         .allowlist_item("UCDN_.*")
         .allowlist_item("Memento_.*")
         .allowlist_item("mupdf_.*");
+
+    // remove va_list functions as for all of these versions using ... exist
+    builder = builder
+        .blocklist_function("Memento_vasprintf") // Memento_asprintf
+        .blocklist_function("fz_vthrow") // fz_throw
+        .blocklist_function("fz_vwarn") // fz_warn
+        .blocklist_function("fz_vlog_error_printf") // fz_log_error_printf
+        .blocklist_function("fz_append_vprintf") // fz_append_printf
+        .blocklist_function("fz_write_vprintf") // fz_write_printf
+        .blocklist_function("fz_vsnprintf") // fz_snprintf
+        .blocklist_function("fz_format_string"); // mupdf_format_string
 
     // build config
     builder = builder

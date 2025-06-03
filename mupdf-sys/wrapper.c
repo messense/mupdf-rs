@@ -3273,3 +3273,10 @@ int32_t mupdf_search_stext_page_cb(fz_context *ctx, fz_stext_page *page, const c
 	}
 	return count;
 }
+
+void mupdf_format_string(fz_context *ctx, void *user, void (*emit)(fz_context *ctx, void *user, int c), const char *fmt, ...) {
+	va_list ap;
+	va_start(ap, fmt);
+	fz_format_string(ctx, user, emit, fmt, ap);
+	va_end(ap);
+}
