@@ -1,6 +1,6 @@
 use std::ptr;
 use std::{
-    ffi::{c_uint, CString},
+    ffi::{c_int, CString},
     num::NonZero,
 };
 
@@ -16,7 +16,7 @@ use crate::{
 mod native;
 pub use native::NativeDevice;
 
-from_enum! { c_uint,
+from_enum! { c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BlendMode {
         /* PDF 1.4 -- standard separable */

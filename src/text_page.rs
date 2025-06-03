@@ -1,6 +1,6 @@
 use std::{
     convert::TryInto,
-    ffi::{c_int, c_uint, c_void, CString},
+    ffi::{c_int, c_void, CString},
     io::Read,
     marker::PhantomData,
     ptr::{self, NonNull},
@@ -309,7 +309,7 @@ pub enum SearchHitResponse {
     AbortSearch = 1,
 }
 
-from_enum! { c_uint,
+from_enum! { c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum TextBlockType {
         Text = FZ_STEXT_BLOCK_TEXT,
@@ -327,7 +327,7 @@ pub struct TextBlock<'a> {
 
 impl TextBlock<'_> {
     pub fn r#type(&self) -> TextBlockType {
-        (self.inner.type_ as u32).try_into().unwrap()
+        self.inner.type_.try_into().unwrap()
     }
 
     pub fn bounds(&self) -> Rect {
@@ -336,7 +336,7 @@ impl TextBlock<'_> {
 
     pub fn lines(&self) -> TextLineIter {
         unsafe {
-            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as i32 {
+            if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as c_int {
                 return TextLineIter {
                     next: self.inner.u.t.first_line,
                     _marker: PhantomData,

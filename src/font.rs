@@ -1,4 +1,4 @@
-use std::ffi::{c_uint, CStr, CString};
+use std::ffi::{c_int, CStr, CString};
 use std::fmt;
 use std::str::FromStr;
 
@@ -6,7 +6,7 @@ use mupdf_sys::*;
 
 use crate::{context, from_enum, Buffer, Error, Matrix, Path};
 
-from_enum! { c_uint,
+from_enum! { c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum SimpleFontEncoding {
         Latin = PDF_SIMPLE_ENCODING_LATIN,
@@ -23,7 +23,7 @@ from_enum! { u32,
     }
 }
 
-from_enum! { c_uint,
+from_enum! { c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum CjkFontOrdering {
         AdobeCns = FZ_ADOBE_CNS,

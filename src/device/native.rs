@@ -771,14 +771,12 @@ unsafe extern "C" fn begin_group<D: NativeDevice>(
     with_rust_device::<D, _>(dev, |dev| {
         let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
 
-        let blendmode = BlendMode::try_from(blendmode as u32).unwrap();
-
         dev.begin_group(
             area.into(),
             &cs,
             isolated != 0,
             knockout != 0,
-            blendmode,
+            blendmode.try_into().unwrap(),
             alpha,
         );
     });
@@ -891,7 +889,7 @@ unsafe extern "C" fn begin_metatext<D: NativeDevice>(
     text: *const c_char,
 ) {
     with_rust_device::<D, _>(dev, |dev| {
-        let meta = Metatext::try_from(meta as u32).unwrap();
+        let meta = Metatext::try_from(meta).unwrap();
         let text = unsafe { CStr::from_ptr(text) }.to_str().unwrap();
 
         dev.begin_metatext(meta, text);

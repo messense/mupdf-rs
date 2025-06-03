@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::ffi::{c_uint, CStr, CString};
+use std::ffi::{c_int, CStr, CString};
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{self, NonNull};
@@ -27,7 +27,7 @@ bitflags! {
     }
 }
 
-from_enum! { c_uint,
+from_enum! { c_int,
     #[derive(Debug, Copy, Clone, PartialEq)]
     pub enum Encryption {
         Aes128 = PDF_ENCRYPT_AES_128,
@@ -180,7 +180,7 @@ impl PdfWriteOptions {
     }
 
     pub fn encryption(&self) -> Encryption {
-        Encryption::try_from(self.inner.do_encrypt as u32).unwrap()
+        Encryption::try_from(self.inner.do_encrypt).unwrap()
     }
 
     pub fn set_encryption(&mut self, value: Encryption) -> &mut Self {

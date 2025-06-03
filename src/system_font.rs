@@ -99,7 +99,7 @@ pub unsafe extern "C" fn load_system_cjk_font(
         return font;
     }
     if serif == 1 {
-        match CjkFontOrdering::try_from(ordering as u32) {
+        match CjkFontOrdering::try_from(ordering) {
             Ok(CjkFontOrdering::AdobeCns) => {
                 return load_font_by_names(ctx, &["MingLiU"]);
             }
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn load_system_cjk_font(
             Err(_) => {}
         }
     } else {
-        match CjkFontOrdering::try_from(ordering as u32) {
+        match CjkFontOrdering::try_from(ordering) {
             Ok(CjkFontOrdering::AdobeCns) => {
                 return load_font_by_names(ctx, &["DFKaiShu-SB-Estd-BF"]);
             }

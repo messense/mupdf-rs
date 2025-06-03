@@ -261,7 +261,7 @@ macro_rules! from_enum {
 
             #[allow(non_upper_case_globals)]
             fn try_from(value: $c_type) -> Result<Self, Self::Error> {
-                match value {
+                match value as _ {
                     $($value => Ok(Self::$field),)*
                     _ => Err(Error::UnknownEnumVariant)
                 }
