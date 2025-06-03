@@ -46,7 +46,7 @@ fn run() -> Result<()> {
 
     let sysroot = find_clang_sysroot(&target)?;
 
-    let docs = env::var("DOCS_RS").is_ok();
+    let docs = env::var_os("DOCS_RS").is_some();
     if !docs {
         let build_dir = out_dir.join("build");
         let build_dir = build_dir.to_str().ok_or_else(|| {
