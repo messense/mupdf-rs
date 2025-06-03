@@ -172,6 +172,7 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
 
     builder = builder
         .allowlist_recursively(false)
+        .allowlist_type("va_list")
         .allowlist_type("__va_list_tag")
         .allowlist_type("wchar_t")
         .allowlist_type("FILE")
