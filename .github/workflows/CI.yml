@@ -31,7 +31,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2019, windows-2022, windows-2025]
+        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -72,7 +72,7 @@ jobs:
 
   test-msys:
     name: Test Suite (MSYS2)
-    runs-on: windows-2019
+    runs-on: windows-2025
     defaults:
       run:
         shell: msys2 {0}
