@@ -201,6 +201,11 @@ impl Make {
 
         self.make_bool("verbose", true);
 
+        // harfbuzz sometimes requires this
+        if target.os == "windows" {
+            self.build.flag("-Wa,-mbig-obj");
+        }
+
         self.libs()?;
         self.cpus(target);
 
