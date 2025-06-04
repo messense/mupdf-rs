@@ -1,17 +1,17 @@
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_int, CStr, CString};
 use std::io::{self, Write};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{self, NonNull};
 
 use bitflags::bitflags;
+
 use mupdf_sys::*;
-use num_enum::TryFromPrimitive;
 
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font, Image, Outline,
-    SimpleFontEncoding, Size, WriteMode,
+    context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
+    Image, Outline, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
@@ -27,16 +27,17 @@ bitflags! {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
-pub enum Encryption {
-    Aes128 = PDF_ENCRYPT_AES_128 as u32,
-    Aes256 = PDF_ENCRYPT_AES_256 as u32,
-    Rc4_40 = PDF_ENCRYPT_RC4_40 as u32,
-    Rc4_128 = PDF_ENCRYPT_RC4_128 as u32,
-    Keep = PDF_ENCRYPT_KEEP as u32,
-    None = PDF_ENCRYPT_NONE as u32,
-    Unknown = PDF_ENCRYPT_UNKNOWN as u32,
+from_enum! { c_int,
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub enum Encryption {
+        Aes128 = PDF_ENCRYPT_AES_128,
+        Aes256 = PDF_ENCRYPT_AES_256,
+        Rc4_40 = PDF_ENCRYPT_RC4_40,
+        Rc4_128 = PDF_ENCRYPT_RC4_128,
+        Keep = PDF_ENCRYPT_KEEP,
+        None = PDF_ENCRYPT_NONE,
+        Unknown = PDF_ENCRYPT_UNKNOWN,
+    }
 }
 
 impl Default for Encryption {
@@ -179,7 +180,7 @@ impl PdfWriteOptions {
     }
 
     pub fn encryption(&self) -> Encryption {
-        Encryption::try_from(self.inner.do_encrypt as u32).unwrap()
+        Encryption::try_from(self.inner.do_encrypt).unwrap()
     }
 
     pub fn set_encryption(&mut self, value: Encryption) -> &mut Self {

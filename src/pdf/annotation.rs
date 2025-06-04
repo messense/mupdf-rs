@@ -2,56 +2,59 @@ use std::convert::TryFrom;
 use std::ffi::{CStr, CString};
 
 use mupdf_sys::*;
-use num_enum::TryFromPrimitive;
 
 use crate::pdf::PdfFilterOptions;
-use crate::{context, Error};
+use crate::{context, from_enum, Error};
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(i32)]
-pub enum PdfAnnotationType {
-    Text = 0,
-    Link = 1,
-    FreeText = 2,
-    Line = 3,
-    Square = 4,
-    Circle = 5,
-    Polygon = 6,
-    PloyLine = 7,
-    Highlight = 8,
-    Underline = 9,
-    Squiggly = 10,
-    StrikeOut = 11,
-    Redact = 12,
-    Stamp = 13,
-    Caret = 14,
-    Ink = 15,
-    Popup = 16,
-    FileAttachment = 17,
-    Sound = 18,
-    Movie = 19,
-    Widget = 20,
-    Screen = 21,
-    PrinterMark = 22,
-    TrapNet = 23,
-    Watermark = 24,
-    ThreeD = 25,
-    Unknown = -1,
+from_enum! { pdf_annot_type,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum PdfAnnotationType {
+        Text = pdf_annot_type_PDF_ANNOT_TEXT,
+        Link = pdf_annot_type_PDF_ANNOT_LINK,
+        FreeText = pdf_annot_type_PDF_ANNOT_FREE_TEXT,
+        Line = pdf_annot_type_PDF_ANNOT_LINE,
+        Square = pdf_annot_type_PDF_ANNOT_SQUARE,
+        Circle = pdf_annot_type_PDF_ANNOT_CIRCLE,
+        Polygon = pdf_annot_type_PDF_ANNOT_POLYGON,
+        PloyLine = pdf_annot_type_PDF_ANNOT_POLY_LINE,
+        Highlight = pdf_annot_type_PDF_ANNOT_HIGHLIGHT,
+        Underline = pdf_annot_type_PDF_ANNOT_UNDERLINE,
+        Squiggly = pdf_annot_type_PDF_ANNOT_SQUIGGLY,
+        StrikeOut = pdf_annot_type_PDF_ANNOT_STRIKE_OUT,
+        Redact = pdf_annot_type_PDF_ANNOT_REDACT,
+        Stamp = pdf_annot_type_PDF_ANNOT_STAMP,
+        Caret = pdf_annot_type_PDF_ANNOT_CARET,
+        Ink = pdf_annot_type_PDF_ANNOT_INK,
+        Popup = pdf_annot_type_PDF_ANNOT_POPUP,
+        FileAttachment = pdf_annot_type_PDF_ANNOT_FILE_ATTACHMENT,
+        Sound = pdf_annot_type_PDF_ANNOT_SOUND,
+        Movie = pdf_annot_type_PDF_ANNOT_MOVIE,
+        RichMedia = pdf_annot_type_PDF_ANNOT_RICH_MEDIA,
+        Widget = pdf_annot_type_PDF_ANNOT_WIDGET,
+        Screen = pdf_annot_type_PDF_ANNOT_SCREEN,
+        PrinterMark = pdf_annot_type_PDF_ANNOT_PRINTER_MARK,
+        TrapNet = pdf_annot_type_PDF_ANNOT_TRAP_NET,
+        Watermark = pdf_annot_type_PDF_ANNOT_WATERMARK,
+        ThreeD = pdf_annot_type_PDF_ANNOT_3D,
+        Projection = pdf_annot_type_PDF_ANNOT_PROJECTION,
+        Unknown = pdf_annot_type_PDF_ANNOT_UNKNOWN,
+    }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(i32)]
-pub enum LineEndingStyle {
-    None = 0,
-    Square = 1,
-    Circle = 2,
-    Diamond = 3,
-    OpenArrow = 4,
-    ClosedArrow = 5,
-    Butt = 6,
-    ROpenArrow = 7,
-    RClosedArrow = 8,
-    Slash = 9,
+from_enum! { pdf_line_ending,
+    #[derive(Debug, Clone, Copy, PartialEq)]
+    pub enum LineEndingStyle {
+        None = pdf_line_ending_PDF_ANNOT_LE_NONE,
+        Square = pdf_line_ending_PDF_ANNOT_LE_SQUARE,
+        Circle = pdf_line_ending_PDF_ANNOT_LE_CIRCLE,
+        Diamond = pdf_line_ending_PDF_ANNOT_LE_DIAMOND,
+        OpenArrow = pdf_line_ending_PDF_ANNOT_LE_OPEN_ARROW,
+        ClosedArrow = pdf_line_ending_PDF_ANNOT_LE_CLOSED_ARROW,
+        Butt = pdf_line_ending_PDF_ANNOT_LE_BUTT,
+        ROpenArrow = pdf_line_ending_PDF_ANNOT_LE_R_OPEN_ARROW,
+        RClosedArrow = pdf_line_ending_PDF_ANNOT_LE_R_CLOSED_ARROW,
+        Slash = pdf_line_ending_PDF_ANNOT_LE_SLASH,
+    }
 }
 
 #[derive(Debug)]

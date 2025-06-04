@@ -1,37 +1,28 @@
 use std::convert::TryFrom;
 
 use mupdf_sys::*;
-use num_enum::TryFromPrimitive;
 
-use crate::{context, Error};
+use crate::{context, from_enum, Error};
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
-pub enum LineCap {
-    Butt = 0,
-    Round = 1,
-    Square = 2,
-    Triangle = 3,
-}
-
-impl Default for LineCap {
-    fn default() -> Self {
-        Self::Butt
+from_enum! { fz_linecap,
+    #[derive(Debug, Default, Clone, Copy, PartialEq)]
+    pub enum LineCap {
+        #[default]
+        Butt = fz_linecap_FZ_LINECAP_BUTT,
+        Round = fz_linecap_FZ_LINECAP_ROUND,
+        Square = fz_linecap_FZ_LINECAP_SQUARE,
+        Triangle = fz_linecap_FZ_LINECAP_TRIANGLE,
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, TryFromPrimitive)]
-#[repr(u32)]
-pub enum LineJoin {
-    Miter = 0,
-    Round = 1,
-    Bevel = 2,
-    MiterXps = 3,
-}
-
-impl Default for LineJoin {
-    fn default() -> Self {
-        Self::Miter
+from_enum! { fz_linejoin,
+    #[derive(Debug, Default, Clone, Copy, PartialEq)]
+    pub enum LineJoin {
+        #[default]
+        Miter = fz_linejoin_FZ_LINEJOIN_MITER,
+        Round = fz_linejoin_FZ_LINEJOIN_ROUND,
+        Bevel = fz_linejoin_FZ_LINEJOIN_BEVEL,
+        MiterXps = fz_linejoin_FZ_LINEJOIN_MITER_XPS,
     }
 }
 
@@ -92,19 +83,19 @@ impl StrokeState {
     }
 
     pub fn start_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).start_cap as u32 }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).start_cap }).unwrap()
     }
 
     pub fn dash_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).dash_cap as u32 }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).dash_cap }).unwrap()
     }
 
     pub fn end_cap(&self) -> LineCap {
-        LineCap::try_from(unsafe { (*self.inner).end_cap as u32 }).unwrap()
+        LineCap::try_from(unsafe { (*self.inner).end_cap }).unwrap()
     }
 
     pub fn line_join(&self) -> LineJoin {
-        LineJoin::try_from(unsafe { (*self.inner).linejoin as u32 }).unwrap()
+        LineJoin::try_from(unsafe { (*self.inner).linejoin }).unwrap()
     }
 
     pub fn line_width(&self) -> f32 {

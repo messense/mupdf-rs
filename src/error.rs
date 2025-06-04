@@ -75,6 +75,7 @@ pub enum Error {
     IntConversion(TryFromIntError),
     InvalidUtf8,
     UnexpectedNullPtr,
+    UnknownEnumVariant,
 }
 
 impl fmt::Display for Error {
@@ -91,6 +92,7 @@ impl fmt::Display for Error {
                 f,
                 "An FFI function call returned a null ptr when we expected a non-null ptr"
             ),
+            Error::UnknownEnumVariant => write!(f, "unknown enum variant provided"),
         }
     }
 }
