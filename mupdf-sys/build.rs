@@ -44,26 +44,29 @@ fn run() -> Result<()> {
     let out_dir =
         PathBuf::from(env::var_os("OUT_DIR").ok_or("Missing OUT_DIR environment variable")?);
 
-    let build_dir = out_dir.join("build");
-    let build_dir = build_dir.to_str().ok_or_else(|| {
-        format!("Build dir path is required to be valid UTF-8, got {build_dir:?}")
-    })?;
-
-    if let Err(e) = remove_dir_all(build_dir) {
-        if e.kind() != ErrorKind::NotFound {
-            println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
-        }
-    }
-
     let sysroot = find_clang_sysroot(&target)?;
 
-    copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
+    let docs = env::var_os("DOCS_RS").is_some();
+    if !docs {
+        let build_dir = out_dir.join("build");
+        let build_dir = build_dir.to_str().ok_or_else(|| {
+            format!("Build dir path is required to be valid UTF-8, got {build_dir:?}")
+        })?;
 
-    println!("cargo:rerun-if-changed=wrapper.h");
-    println!("cargo:rerun-if-changed=wrapper.c");
+        if let Err(e) = remove_dir_all(build_dir) {
+            if e.kind() != ErrorKind::NotFound {
+                println!("cargo:warning=Unable to clear {build_dir:?}. This may lead to flaky builds that might not incorporate configurations changes: {e}");
+            }
+        }
 
-    Build::new(&target).run(&target, build_dir)?;
-    build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
+        copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
+
+        println!("cargo:rerun-if-changed=wrapper.h");
+        println!("cargo:rerun-if-changed=wrapper.c");
+
+        Build::new(&target).run(&target, build_dir)?;
+        build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
+    }
 
     generate_bindings(&target, &out_dir.join("bindings.rs"), sysroot)
         .map_err(|e| format!("Unable to generate mupdf bindings using bindgen:\n  {e}"))?;
@@ -165,15 +168,61 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
     builder = builder
         .clang_arg("-Imupdf/include")
         .header("wrapper.h")
-        .header("wrapper.c")
+        .header("wrapper.c");
+
+    builder = builder
+        .allowlist_recursively(false)
+        .allowlist_type("wchar_t")
+        .allowlist_type("FILE")
+        .opaque_type("FILE");
+
+    builder = builder
         .allowlist_item("fz_.*")
         .allowlist_item("FZ_.*")
         .allowlist_item("pdf_.*")
         .allowlist_item("PDF_.*")
+        .allowlist_type("cmap_splay")
         .allowlist_item("ucdn_.*")
         .allowlist_item("UCDN_.*")
         .allowlist_item("Memento_.*")
-        .allowlist_item("mupdf_.*")
+        .allowlist_item("mupdf_.*");
+
+    // remove va_list functions as for all of these versions using ... exist
+    builder = builder
+        .blocklist_function("Memento_vasprintf") // Memento_asprintf
+        .blocklist_function("fz_vthrow") // fz_throw
+        .blocklist_function("fz_vwarn") // fz_warn
+        .blocklist_function("fz_vlog_error_printf") // fz_log_error_printf
+        .blocklist_function("fz_append_vprintf") // fz_append_printf
+        .blocklist_function("fz_write_vprintf") // fz_write_printf
+        .blocklist_function("fz_vsnprintf") // fz_snprintf
+        .blocklist_function("fz_format_string"); // mupdf_format_string
+
+    // build config
+    builder = builder
+        .blocklist_var("FZ_VERSION.*")
+        .blocklist_var("FZ_ENABLE_.*")
+        .blocklist_var("FZ_PLOTTERS_.*");
+
+    // internal implementation details, considered private
+    builder = builder
+        .blocklist_item("fz_jmp_buf")
+        .blocklist_function("fz_var_imp")
+        .blocklist_function("fz_push_try")
+        .blocklist_function("fz_do_.*")
+        .blocklist_var("FZ_JMPBUF_ALIGN")
+        .blocklist_type("fz_error_stack_slot")
+        .blocklist_type("fz_error_context")
+        .blocklist_type("fz_warn_context")
+        .blocklist_type("fz_aa_context")
+        .blocklist_type("fz_activity_.*")
+        .blocklist_function("fz_register_activity_logger")
+        .opaque_type("fz_context")
+        .blocklist_type("fz_new_context_imp")
+        .blocklist_type("fz_lock")
+        .blocklist_type("fz_unlock");
+
+    builder = builder
         .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         .parse_callbacks(Box::new(DocsCallbacks::default()));
 
@@ -182,10 +231,7 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         builder = builder.parse_callbacks(Box::new(ZerocopyDeriveCallbacks));
     }
 
-    builder
-        .size_t_is_usize(true)
-        .generate()?
-        .write_to_file(path)?;
+    builder.use_core().generate()?.write_to_file(path)?;
 
     Ok(())
 }
