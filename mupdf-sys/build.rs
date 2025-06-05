@@ -231,7 +231,11 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         builder = builder.parse_callbacks(Box::new(ZerocopyDeriveCallbacks));
     }
 
-    builder.use_core().generate()?.write_to_file(path)?;
+    builder
+        .prepend_enum_name(false)
+        .use_core()
+        .generate()?
+        .write_to_file(path)?;
 
     Ok(())
 }

@@ -1,12 +1,12 @@
-use std::{cell::RefCell, collections::HashMap};
+use std::{cell::RefCell, collections::HashSet};
 
 use bindgen::callbacks::{EnumVariantValue, ParseCallbacks};
-use regex::{Regex, RegexBuilder};
+use regex::{Captures, Regex, RegexBuilder};
 
 #[derive(Debug)]
 pub struct DocsCallbacks {
     types: Regex,
-    full_names: RefCell<HashMap<String, String>>,
+    full_names: RefCell<HashSet<String>>,
 }
 
 impl Default for DocsCallbacks {
@@ -25,25 +25,19 @@ impl ParseCallbacks for DocsCallbacks {
     fn item_name(&self, original_item_name: &str) -> Option<String> {
         self.full_names
             .borrow_mut()
-            .insert(original_item_name.to_owned(), original_item_name.to_owned());
+            .insert(original_item_name.to_owned());
         None
     }
 
     fn enum_variant_name(
         &self,
-        enum_name: Option<&str>,
+        _enum_name: Option<&str>,
         original_variant_name: &str,
         _variant_value: EnumVariantValue,
     ) -> Option<String> {
-        let enum_name = enum_name?;
-        if enum_name.contains("unnamed at ") {
-            return None;
-        }
-
-        let name = format!("{enum_name}_{original_variant_name}");
         self.full_names
             .borrow_mut()
-            .insert(original_variant_name.to_owned(), name);
+            .insert(original_variant_name.to_owned());
         None
     }
 
@@ -84,23 +78,33 @@ impl ParseCallbacks for DocsCallbacks {
             let line = line
                 .replace('[', "\\[")
                 .replace(']', "\\]")
+                .replace('(', "\\(")
+                .replace(')', "\\)")
                 .replace('<', "\\<")
                 .replace('>', "\\>")
                 .replace("NULL", "`NULL`");
-            let mut line = self.types.replace_all(&line, |c: &regex::Captures| {
+            let mut line = self.types.replace_all(&line, |c: &Captures| {
                 let name = &c[0];
                 if name.contains('*') {
                     return format!("`{name}`");
                 }
 
                 let full_names = self.full_names.borrow();
-                if let Some(full_name) = full_names.get(name) {
-                    return format!("[`{name}`]({full_name})");
-                }
+                if !full_names.contains(name) {
+                    const SUFFIXES: [&str; 3] = ["s", "ed", "ped"];
 
-                if let Some(short_name) = name.strip_suffix("s") {
-                    if let Some(full_name) = full_names.get(short_name) {
-                        return format!("[`{short_name}`]({full_name})s");
+                    for suffix in SUFFIXES {
+                        if let Some(short_name) = name.strip_suffix(suffix) {
+                            if !full_names.contains(short_name) {
+                                return format!("[`{short_name}`]({short_name}){suffix}");
+                            }
+                        }
+                    }
+
+                    for suffix in SUFFIXES {
+                        if let Some(short_name) = name.strip_suffix(suffix) {
+                            return format!("[`{short_name}`]({short_name}){suffix}");
+                        }
                     }
                 }
 
