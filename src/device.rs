@@ -32,6 +32,7 @@ from_enum! { c_int,
         SoftLight = FZ_BLEND_SOFT_LIGHT,
         Difference = FZ_BLEND_DIFFERENCE,
         Exclusion = FZ_BLEND_EXCLUSION,
+
         /* PDF 1.4 -- standard non-separable */
         Hue = FZ_BLEND_HUE,
         Saturation = FZ_BLEND_SATURATION,
@@ -55,105 +56,104 @@ bitflags! {
         const LINEWIDTH_UNDEFINED = FZ_DEVFLAG_LINEWIDTH_UNDEFINED as _;
         const BBOX_DEFINED = FZ_DEVFLAG_BBOX_DEFINED as _;
         const GRIDFIT_AS_TILED = FZ_DEVFLAG_GRIDFIT_AS_TILED as _;
-        // will probably be released in 1.26.x
-        // const DASH_PATTERN_UNDEFINED = FZ_DEVFLAG_DASH_PATTERN_UNDEFINED as _;
+        const DASH_PATTERN_UNDEFINED = FZ_DEVFLAG_DASH_PATTERN_UNDEFINED as _;
     }
 }
 
 from_enum! { fz_structure,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Structure {
-        Invalid = fz_structure_FZ_STRUCTURE_INVALID,
+        Invalid = FZ_STRUCTURE_INVALID,
 
         /* Grouping elements (PDF 1.7 - Table 10.20) */
-        Document = fz_structure_FZ_STRUCTURE_DOCUMENT,
-        Part = fz_structure_FZ_STRUCTURE_PART,
-        Art = fz_structure_FZ_STRUCTURE_ART,
-        Sect = fz_structure_FZ_STRUCTURE_SECT,
-        Div = fz_structure_FZ_STRUCTURE_DIV,
-        BlockQuote = fz_structure_FZ_STRUCTURE_BLOCKQUOTE,
-        Caption = fz_structure_FZ_STRUCTURE_CAPTION,
-        TOC = fz_structure_FZ_STRUCTURE_TOC,
-        TOCI = fz_structure_FZ_STRUCTURE_TOCI,
-        Index = fz_structure_FZ_STRUCTURE_INDEX,
-        NonStruct = fz_structure_FZ_STRUCTURE_NONSTRUCT,
-        Private = fz_structure_FZ_STRUCTURE_PRIVATE,
+        Document = FZ_STRUCTURE_DOCUMENT,
+        Part = FZ_STRUCTURE_PART,
+        Art = FZ_STRUCTURE_ART,
+        Sect = FZ_STRUCTURE_SECT,
+        Div = FZ_STRUCTURE_DIV,
+        BlockQuote = FZ_STRUCTURE_BLOCKQUOTE,
+        Caption = FZ_STRUCTURE_CAPTION,
+        TOC = FZ_STRUCTURE_TOC,
+        TOCI = FZ_STRUCTURE_TOCI,
+        Index = FZ_STRUCTURE_INDEX,
+        NonStruct = FZ_STRUCTURE_NONSTRUCT,
+        Private = FZ_STRUCTURE_PRIVATE,
         /* Grouping elements (PDF 2.0 - Table 364) */
-        DocumentFragment = fz_structure_FZ_STRUCTURE_DOCUMENTFRAGMENT,
+        DocumentFragment = FZ_STRUCTURE_DOCUMENTFRAGMENT,
         /* Grouping elements (PDF 2.0 - Table 365) */
-        Aside = fz_structure_FZ_STRUCTURE_ASIDE,
+        Aside = FZ_STRUCTURE_ASIDE,
         /* Grouping elements (PDF 2.0 - Table 366) */
-        Title = fz_structure_FZ_STRUCTURE_TITLE,
-        FENote = fz_structure_FZ_STRUCTURE_FENOTE,
+        Title = FZ_STRUCTURE_TITLE,
+        FENote = FZ_STRUCTURE_FENOTE,
         /* Grouping elements (PDF 2.0 - Table 367) */
-        Sub = fz_structure_FZ_STRUCTURE_SUB,
+        Sub = FZ_STRUCTURE_SUB,
 
         /* Paragraphlike elements (PDF 1.7 - Table 10.21) */
-        P = fz_structure_FZ_STRUCTURE_P,
-        H = fz_structure_FZ_STRUCTURE_H,
-        H1 = fz_structure_FZ_STRUCTURE_H1,
-        H2 = fz_structure_FZ_STRUCTURE_H2,
-        H3 = fz_structure_FZ_STRUCTURE_H3,
-        H4 = fz_structure_FZ_STRUCTURE_H4,
-        H5 = fz_structure_FZ_STRUCTURE_H5,
-        H6 = fz_structure_FZ_STRUCTURE_H6,
+        P = FZ_STRUCTURE_P,
+        H = FZ_STRUCTURE_H,
+        H1 = FZ_STRUCTURE_H1,
+        H2 = FZ_STRUCTURE_H2,
+        H3 = FZ_STRUCTURE_H3,
+        H4 = FZ_STRUCTURE_H4,
+        H5 = FZ_STRUCTURE_H5,
+        H6 = FZ_STRUCTURE_H6,
 
         /* List elements (PDF 1.7 - Table 10.23) */
-        List = fz_structure_FZ_STRUCTURE_LIST,
-        ListItem = fz_structure_FZ_STRUCTURE_LISTITEM,
-        Label = fz_structure_FZ_STRUCTURE_LABEL,
-        ListBody = fz_structure_FZ_STRUCTURE_LISTBODY,
+        List = FZ_STRUCTURE_LIST,
+        ListItem = FZ_STRUCTURE_LISTITEM,
+        Label = FZ_STRUCTURE_LABEL,
+        ListBody = FZ_STRUCTURE_LISTBODY,
 
         /* Table elements (PDF 1.7 - Table 10.24) */
-        Table = fz_structure_FZ_STRUCTURE_TABLE,
-        TR = fz_structure_FZ_STRUCTURE_TR,
-        TH = fz_structure_FZ_STRUCTURE_TH,
-        TD = fz_structure_FZ_STRUCTURE_TD,
-        THead = fz_structure_FZ_STRUCTURE_THEAD,
-        TBody = fz_structure_FZ_STRUCTURE_TBODY,
-        TFoot = fz_structure_FZ_STRUCTURE_TFOOT,
+        Table = FZ_STRUCTURE_TABLE,
+        TR = FZ_STRUCTURE_TR,
+        TH = FZ_STRUCTURE_TH,
+        TD = FZ_STRUCTURE_TD,
+        THead = FZ_STRUCTURE_THEAD,
+        TBody = FZ_STRUCTURE_TBODY,
+        TFoot = FZ_STRUCTURE_TFOOT,
 
         /* Inline elements (PDF 1.7 - Table 10.25) */
-        Span = fz_structure_FZ_STRUCTURE_SPAN,
-        Quote = fz_structure_FZ_STRUCTURE_QUOTE,
-        Note = fz_structure_FZ_STRUCTURE_NOTE,
-        Reference = fz_structure_FZ_STRUCTURE_REFERENCE,
-        BibEntry = fz_structure_FZ_STRUCTURE_BIBENTRY,
-        Code = fz_structure_FZ_STRUCTURE_CODE,
-        Link = fz_structure_FZ_STRUCTURE_LINK,
-        Annot = fz_structure_FZ_STRUCTURE_ANNOT,
+        Span = FZ_STRUCTURE_SPAN,
+        Quote = FZ_STRUCTURE_QUOTE,
+        Note = FZ_STRUCTURE_NOTE,
+        Reference = FZ_STRUCTURE_REFERENCE,
+        BibEntry = FZ_STRUCTURE_BIBENTRY,
+        Code = FZ_STRUCTURE_CODE,
+        Link = FZ_STRUCTURE_LINK,
+        Annot = FZ_STRUCTURE_ANNOT,
         /* Inline elements (PDF 2.0 - Table 368) */
-        Em = fz_structure_FZ_STRUCTURE_EM,
-        Strong = fz_structure_FZ_STRUCTURE_STRONG,
+        Em = FZ_STRUCTURE_EM,
+        Strong = FZ_STRUCTURE_STRONG,
 
         /* Ruby inline element (PDF 1.7 - Table 10.26) */
-        Ruby = fz_structure_FZ_STRUCTURE_RUBY,
-        RB = fz_structure_FZ_STRUCTURE_RB,
-        RT = fz_structure_FZ_STRUCTURE_RT,
-        RP = fz_structure_FZ_STRUCTURE_RP,
+        Ruby = FZ_STRUCTURE_RUBY,
+        RB = FZ_STRUCTURE_RB,
+        RT = FZ_STRUCTURE_RT,
+        RP = FZ_STRUCTURE_RP,
 
         /* Warichu inline element (PDF 1.7 - Table 10.26) */
-        Warichu = fz_structure_FZ_STRUCTURE_WARICHU,
-        WT = fz_structure_FZ_STRUCTURE_WT,
-        WP = fz_structure_FZ_STRUCTURE_WP,
+        Warichu = FZ_STRUCTURE_WARICHU,
+        WT = FZ_STRUCTURE_WT,
+        WP = FZ_STRUCTURE_WP,
 
         /* Illustration elements (PDF 1.7 - Table 10.27) */
-        Figure = fz_structure_FZ_STRUCTURE_FIGURE,
-        Formula = fz_structure_FZ_STRUCTURE_FORMULA,
-        Form = fz_structure_FZ_STRUCTURE_FORM,
+        Figure = FZ_STRUCTURE_FIGURE,
+        Formula = FZ_STRUCTURE_FORMULA,
+        Form = FZ_STRUCTURE_FORM,
 
         /* Artifact structure type (PDF 2.0 - Table 375) */
-        Artifact = fz_structure_FZ_STRUCTURE_ARTIFACT,
+        Artifact = FZ_STRUCTURE_ARTIFACT,
     }
 }
 
 from_enum! { fz_metatext,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Metatext {
-        ActualText = fz_metatext_FZ_METATEXT_ACTUALTEXT,
-        Alt = fz_metatext_FZ_METATEXT_ALT,
-        Abbreviation = fz_metatext_FZ_METATEXT_ABBREVIATION,
-        Title = fz_metatext_FZ_METATEXT_TITLE,
+        ActualText = FZ_METATEXT_ACTUALTEXT,
+        Alt = FZ_METATEXT_ALT,
+        Abbreviation = FZ_METATEXT_ABBREVIATION,
+        Title = FZ_METATEXT_TITLE,
     }
 }
 

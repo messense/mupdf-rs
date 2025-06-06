@@ -8,10 +8,10 @@ from_enum! { fz_linecap,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineCap {
         #[default]
-        Butt = fz_linecap_FZ_LINECAP_BUTT,
-        Round = fz_linecap_FZ_LINECAP_ROUND,
-        Square = fz_linecap_FZ_LINECAP_SQUARE,
-        Triangle = fz_linecap_FZ_LINECAP_TRIANGLE,
+        Butt = FZ_LINECAP_BUTT,
+        Round = FZ_LINECAP_ROUND,
+        Square = FZ_LINECAP_SQUARE,
+        Triangle = FZ_LINECAP_TRIANGLE,
     }
 }
 
@@ -19,10 +19,10 @@ from_enum! { fz_linejoin,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineJoin {
         #[default]
-        Miter = fz_linejoin_FZ_LINEJOIN_MITER,
-        Round = fz_linejoin_FZ_LINEJOIN_ROUND,
-        Bevel = fz_linejoin_FZ_LINEJOIN_BEVEL,
-        MiterXps = fz_linejoin_FZ_LINEJOIN_MITER_XPS,
+        Miter = FZ_LINEJOIN_MITER,
+        Round = FZ_LINEJOIN_ROUND,
+        Bevel = FZ_LINEJOIN_BEVEL,
+        MiterXps = FZ_LINEJOIN_MITER_XPS,
     }
 }
 

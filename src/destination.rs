@@ -169,18 +169,18 @@ impl From<fz_link_dest> for DestinationKind {
     #[allow(non_upper_case_globals)]
     fn from(value: fz_link_dest) -> Self {
         match value.type_ {
-            fz_link_dest_type_FZ_LINK_DEST_FIT => Self::Fit,
-            fz_link_dest_type_FZ_LINK_DEST_FIT_B => Self::FitB,
-            fz_link_dest_type_FZ_LINK_DEST_FIT_H => Self::FitH { top: value.y },
-            fz_link_dest_type_FZ_LINK_DEST_FIT_BH => Self::FitBH { top: value.y },
-            fz_link_dest_type_FZ_LINK_DEST_FIT_V => Self::FitV { left: value.x },
-            fz_link_dest_type_FZ_LINK_DEST_FIT_BV => Self::FitBV { left: value.x },
-            fz_link_dest_type_FZ_LINK_DEST_XYZ => Self::XYZ {
+            FZ_LINK_DEST_FIT => Self::Fit,
+            FZ_LINK_DEST_FIT_B => Self::FitB,
+            FZ_LINK_DEST_FIT_H => Self::FitH { top: value.y },
+            FZ_LINK_DEST_FIT_BH => Self::FitBH { top: value.y },
+            FZ_LINK_DEST_FIT_V => Self::FitV { left: value.x },
+            FZ_LINK_DEST_FIT_BV => Self::FitBV { left: value.x },
+            FZ_LINK_DEST_XYZ => Self::XYZ {
                 left: Some(value.x),
                 top: Some(value.y),
                 zoom: Some(value.zoom),
             },
-            fz_link_dest_type_FZ_LINK_DEST_FIT_R => Self::FitR {
+            FZ_LINK_DEST_FIT_R => Self::FitR {
                 left: value.x,
                 bottom: value.y,
                 right: value.x + value.w,

@@ -47,23 +47,23 @@ impl Drop for Text {
 from_enum! { fz_bidi_direction,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BidiDirection {
-        Ltr = fz_bidi_direction_FZ_BIDI_LTR,
-        Rtl = fz_bidi_direction_FZ_BIDI_RTL,
-        Neutral = fz_bidi_direction_FZ_BIDI_NEUTRAL,
+        Ltr = FZ_BIDI_LTR,
+        Rtl = FZ_BIDI_RTL,
+        Neutral = FZ_BIDI_NEUTRAL,
     }
 }
 
 from_enum! { fz_text_language,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Language {
-        Unset = fz_text_language_FZ_LANG_UNSET,
-        Ja = fz_text_language_FZ_LANG_ja,
-        Ko = fz_text_language_FZ_LANG_ko,
-        Ur = fz_text_language_FZ_LANG_ur,
-        Urd = fz_text_language_FZ_LANG_urd,
-        Zh = fz_text_language_FZ_LANG_zh,
-        ZhHans = fz_text_language_FZ_LANG_zh_Hans,
-        ZhHant = fz_text_language_FZ_LANG_zh_Hant,
+        Unset = FZ_LANG_UNSET,
+        Ja = FZ_LANG_ja,
+        Ko = FZ_LANG_ko,
+        Ur = FZ_LANG_ur,
+        Urd = FZ_LANG_urd,
+        Zh = FZ_LANG_zh,
+        ZhHans = FZ_LANG_zh_Hans,
+        ZhHant = FZ_LANG_zh_Hant,
     }
 }
 
