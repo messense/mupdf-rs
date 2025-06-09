@@ -100,7 +100,7 @@ libarchive = []
 zerocopy = ["dep:zerocopy"]
 
 [build-dependencies]
-bindgen = { version = "0.71", default-features = false, features = ["runtime"] }
+bindgen = { version = "0.72", default-features = false, features = ["runtime"] }
 cc = "1.0.50"
 pkg-config = "0.3"
 regex = "1.11"
