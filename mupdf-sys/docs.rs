@@ -1,6 +1,6 @@
 use std::{cell::RefCell, collections::HashSet};
 
-use bindgen::callbacks::{EnumVariantValue, ParseCallbacks};
+use bindgen::callbacks::{EnumVariantValue, ItemInfo, ParseCallbacks};
 use regex::{Captures, Regex, RegexBuilder};
 
 #[derive(Debug)]
@@ -22,10 +22,10 @@ impl Default for DocsCallbacks {
 }
 
 impl ParseCallbacks for DocsCallbacks {
-    fn item_name(&self, original_item_name: &str) -> Option<String> {
+    fn item_name(&self, item_info: ItemInfo<'_>) -> Option<String> {
         self.full_names
             .borrow_mut()
-            .insert(original_item_name.to_owned());
+            .insert(item_info.name.to_owned());
         None
     }
 
