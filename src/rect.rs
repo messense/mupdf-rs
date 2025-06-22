@@ -73,9 +73,9 @@ impl IRect {
 
     pub fn r#union(&self, other: IRect) -> Self {
         if !self.is_valid() {
-            other.clone()
+            other
         } else if !other.is_valid() {
-            (*self).clone()
+            *self
         } else {
             IRect {
                 x0: if other.x0 < self.x0 {
