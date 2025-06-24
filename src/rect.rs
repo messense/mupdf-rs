@@ -1,9 +1,6 @@
 use std::fmt;
 
-use mupdf_sys::{
-    fz_intersect_irect, fz_intersect_rect, fz_irect, fz_irect_from_rect, fz_rect, fz_round_rect,
-    fz_transform_rect, fz_union_rect, mupdf_adjust_rect_for_stroke,
-};
+use mupdf_sys::*;
 
 use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
 
@@ -78,26 +75,10 @@ impl IRect {
             *self
         } else {
             IRect {
-                x0: if other.x0 < self.x0 {
-                    other.x0
-                } else {
-                    self.x0
-                },
-                y0: if other.y0 < self.y0 {
-                    other.y0
-                } else {
-                    self.y0
-                },
-                x1: if other.x1 > self.x1 {
-                    other.x1
-                } else {
-                    self.x1
-                },
-                y1: if other.y1 > self.y1 {
-                    other.y1
-                } else {
-                    self.y1
-                },
+                x0: self.x0.min(other.x0),
+                y0: self.y0.min(other.y0),
+                x1: self.x1.max(other.x1),
+                y1: self.y1.max(other.y1),
             }
         }
     }
@@ -115,23 +96,15 @@ impl fmt::Display for IRect {
 
 impl From<fz_irect> for IRect {
     fn from(r: fz_irect) -> IRect {
-        IRect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        }
+        let fz_irect { x0, y0, x1, y1 } = r;
+        IRect { x0, y0, x1, y1 }
     }
 }
 
 impl From<IRect> for fz_irect {
-    fn from(r: IRect) -> Self {
-        fz_irect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        }
+    fn from(val: IRect) -> Self {
+        let IRect { x0, y0, x1, y1 } = val;
+        fz_irect { x0, y0, x1, y1 }
     }
 }
 
@@ -251,33 +224,25 @@ impl From<IRect> for Rect {
 
 impl From<Quad> for Rect {
     fn from(q: Quad) -> Rect {
-        Rect {
-            x0: q.ul.x.min(q.ur.x).min(q.ll.x).min(q.lr.x),
-            y0: q.ul.y.min(q.ur.y).min(q.ll.y).min(q.lr.y),
-            x1: q.ul.x.max(q.ur.x).max(q.ll.x).max(q.lr.x),
-            y1: q.ul.y.max(q.ur.y).max(q.ll.y).max(q.lr.y),
-        }
+        let Quad { ul, ur, ll, lr } = q;
+        let x0 = ul.x.min(ur.x).min(ll.x).min(lr.x);
+        let y0 = ul.y.min(ur.y).min(ll.y).min(lr.y);
+        let x1 = ul.x.max(ur.x).max(ll.x).max(lr.x);
+        let y1 = ul.y.max(ur.y).max(ll.y).max(lr.y);
+        Rect { x0, y0, x1, y1 }
     }
 }
 
 impl From<fz_rect> for Rect {
     fn from(r: fz_rect) -> Rect {
-        Rect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        }
+        let fz_rect { x0, y0, x1, y1 } = r;
+        Rect { x0, y0, x1, y1 }
     }
 }
 
 impl From<Rect> for fz_rect {
-    fn from(r: Rect) -> Self {
-        fz_rect {
-            x0: r.x0,
-            y0: r.y0,
-            x1: r.x1,
-            y1: r.y1,
-        }
+    fn from(val: Rect) -> Self {
+        let Rect { x0, y0, x1, y1 } = val;
+        fz_rect { x0, y0, x1, y1 }
     }
 }
