@@ -86,6 +86,10 @@ impl IRect {
     pub fn intersect(&self, rect: &Self) -> Self {
         unsafe { fz_intersect_irect((*self).into(), (*rect).into()) }.into()
     }
+
+    pub fn translate(&self, xoff: i32, yoff: i32) -> Self {
+        unsafe { fz_translate_irect((*self).into(), xoff, yoff) }.into()
+    }
 }
 
 impl fmt::Display for IRect {
@@ -202,6 +206,10 @@ impl Rect {
 
     pub fn intersect(&self, rect: &Self) -> Self {
         unsafe { fz_intersect_rect((*self).into(), (*rect).into()) }.into()
+    }
+
+    pub fn translate(&self, xoff: f32, yoff: f32) -> Self {
+        unsafe { fz_translate_rect((*self).into(), xoff, yoff) }.into()
     }
 }
 
