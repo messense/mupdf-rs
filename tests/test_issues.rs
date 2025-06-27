@@ -38,7 +38,7 @@ fn test_issue_27_flatten() {
 fn test_issue_43_malloc() {
     let density = 300;
     let height = 1500;
-    let options = format!("resolution={},height={}", density, height);
+    let options = format!("resolution={density},height={height}");
 
     let mut writer =
         mupdf::DocumentWriter::new("tests/output/issue_43.png", "png", options.as_str()).unwrap();
@@ -57,7 +57,7 @@ fn test_issue_43_malloc() {
 fn test_issue_60_display_list() {
     let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/p11.pdf")).unwrap();
     let num_pages = doc.page_count().unwrap();
-    println!("Document has {} page(s)", num_pages);
+    println!("Document has {num_pages} page(s)");
 
     let _display_list: Vec<(usize, mupdf::DisplayList)> = doc
         .pages()
