@@ -80,13 +80,13 @@ pub enum Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match *self {
-            Error::Io(ref err) => err.fmt(f),
-            Error::InvalidLanguage(ref lang) => write!(f, "invalid language {}", lang),
+        match self {
+            Error::Io(err) => err.fmt(f),
+            Error::InvalidLanguage(lang) => write!(f, "invalid language {lang}"),
             Error::InvalidPdfDocument => write!(f, "invalid pdf document"),
-            Error::MuPdf(ref err) => err.fmt(f),
-            Error::Nul(ref err) => err.fmt(f),
-            Error::IntConversion(ref err) => err.fmt(f),
+            Error::MuPdf(err) => err.fmt(f),
+            Error::Nul(err) => err.fmt(f),
+            Error::IntConversion(err) => err.fmt(f),
             Error::InvalidUtf8 => f.write_str("string contained invalid utf-8"),
             Error::UnexpectedNullPtr => write!(
                 f,
