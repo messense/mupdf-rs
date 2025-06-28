@@ -29,22 +29,35 @@ impl IRect {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.x0 == self.x1 || self.y0 == self.y1
+        self.x0 >= self.x1 || self.y0 >= self.y1
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.x0 <= self.x1 && self.y0 <= self.y1
     }
 
     pub fn contains(&self, x: i32, y: i32) -> bool {
         if self.is_empty() {
-            return false;
+            false
+        } else {
+            x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
         }
-        x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
     }
 
     pub fn width(&self) -> i32 {
-        self.x1 - self.x0
+        if self.is_empty() {
+            0
+        } else {
+            self.x1 - self.x0
+        }
     }
 
     pub fn height(&self) -> i32 {
-        self.y1 - self.y0
+        if self.is_empty() {
+            0
+        } else {
+            self.y1 - self.y0
+        }
     }
 
     pub fn origin(&self) -> Point {
@@ -52,31 +65,30 @@ impl IRect {
     }
 
     pub fn size(&self) -> Size {
-        Size::new((self.x1 - self.x0) as f32, (self.y1 - self.y0) as f32)
+        Size::new(self.width() as f32, self.height() as f32)
     }
 
-    pub fn r#union(&mut self, other: IRect) -> &mut Self {
-        let IRect { x0, y0, x1, y1 } = other;
-        if self.is_empty() {
-            self.x0 = x0;
-            self.y0 = y0;
-            self.x1 = x1;
-            self.y1 = y1;
+    pub fn r#union(&self, other: IRect) -> Self {
+        if !self.is_valid() {
+            other
+        } else if !other.is_valid() {
+            *self
         } else {
-            if x0 < self.x0 {
-                self.x0 = x0;
-            }
-            if y0 < self.y0 {
-                self.y0 = y0;
-            }
-            if x1 > self.x1 {
-                self.x1 = x1;
-            }
-            if y1 > self.y1 {
-                self.y1 = y1;
+            IRect {
+                x0: self.x0.min(other.x0),
+                y0: self.y0.min(other.y0),
+                x1: self.x1.max(other.x1),
+                y1: self.y1.max(other.y1),
             }
         }
-        self
+    }
+
+    pub fn intersect(&self, rect: &Self) -> Self {
+        unsafe { fz_intersect_irect((*self).into(), (*rect).into()) }.into()
+    }
+
+    pub fn translate(&self, xoff: i32, yoff: i32) -> Self {
+        unsafe { fz_translate_irect((*self).into(), xoff, yoff) }.into()
     }
 }
 
@@ -97,6 +109,12 @@ impl From<IRect> for fz_irect {
     fn from(val: IRect) -> Self {
         let IRect { x0, y0, x1, y1 } = val;
         fz_irect { x0, y0, x1, y1 }
+    }
+}
+
+impl From<Rect> for IRect {
+    fn from(rect: Rect) -> Self {
+        unsafe { fz_irect_from_rect(rect.into()) }.into()
     }
 }
 
@@ -122,22 +140,35 @@ impl Rect {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.x0 == self.x1 || self.y0 == self.y1
+        self.x0 >= self.x1 || self.y0 >= self.y1
+    }
+
+    pub fn is_valid(&self) -> bool {
+        self.x0 <= self.x1 && self.y0 <= self.y1
     }
 
     pub fn contains(&self, x: f32, y: f32) -> bool {
         if self.is_empty() {
-            return false;
+            false
+        } else {
+            x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
         }
-        x >= self.x0 && x < self.x1 && y >= self.y0 && y < self.y1
     }
 
     pub fn width(&self) -> f32 {
-        self.x1 - self.x0
+        if self.is_empty() {
+            0.0
+        } else {
+            self.x1 - self.x0
+        }
     }
 
     pub fn height(&self) -> f32 {
-        self.y1 - self.y0
+        if self.is_empty() {
+            0.0
+        } else {
+            self.y1 - self.y0
+        }
     }
 
     pub fn origin(&self) -> Point {
@@ -145,31 +176,11 @@ impl Rect {
     }
 
     pub fn size(&self) -> Size {
-        Size::new(self.x1 - self.x0, self.y1 - self.y0)
+        Size::new(self.width(), self.height())
     }
 
-    pub fn r#union(&mut self, other: Rect) -> &mut Self {
-        let Rect { x0, y0, x1, y1 } = other;
-        if self.is_empty() {
-            self.x0 = x0;
-            self.y0 = y0;
-            self.x1 = x1;
-            self.y1 = y1;
-        } else {
-            if x0 < self.x0 {
-                self.x0 = x0;
-            }
-            if y0 < self.y0 {
-                self.y0 = y0;
-            }
-            if x1 > self.x1 {
-                self.x1 = x1;
-            }
-            if y1 > self.y1 {
-                self.y1 = y1;
-            }
-        }
-        self
+    pub fn r#union(&self, other: &Self) -> Self {
+        unsafe { fz_union_rect((*self).into(), (*other).into()) }.into()
     }
 
     pub fn adjust_for_stroke(&self, stroke: &StrokeState, ctm: &Matrix) -> Result<Self, Error> {
@@ -185,8 +196,20 @@ impl Rect {
         .map(fz_rect::into)
     }
 
-    pub fn transform(self, matrix: &Matrix) -> Self {
-        unsafe { fz_transform_rect(self.into(), matrix.into()) }.into()
+    pub fn transform(&self, matrix: &Matrix) -> Self {
+        unsafe { fz_transform_rect((*self).into(), matrix.into()) }.into()
+    }
+
+    pub fn round(&self) -> IRect {
+        unsafe { fz_round_rect((*self).into()) }.into()
+    }
+
+    pub fn intersect(&self, rect: &Self) -> Self {
+        unsafe { fz_intersect_rect((*self).into(), (*rect).into()) }.into()
+    }
+
+    pub fn translate(&self, xoff: f32, yoff: f32) -> Self {
+        unsafe { fz_translate_rect((*self).into(), xoff, yoff) }.into()
     }
 }
 
