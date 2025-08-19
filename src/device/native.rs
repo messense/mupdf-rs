@@ -360,7 +360,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
     }
 }
 
-pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
+pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device<D>, Error> {
     let ret = unsafe {
         let c_device: *mut CDevice<D> =
             ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"))?;
@@ -904,7 +904,7 @@ unsafe extern "C" fn end_metatext<D: NativeDevice>(_ctx: *mut fz_context, dev: *
 
 #[cfg(test)]
 mod test {
-    use std::rc::Rc;
+    use std::{cell::Cell, rc::Rc};
 
     use crate::{
         device::{Metatext, Structure},
@@ -915,63 +915,63 @@ mod test {
     fn native_device() {
         #[derive(Default)]
         struct Test {
-            begin_layer: u8,
-            end_layer: u8,
-            begin_structure: u8,
-            end_structure: u8,
-            begin_metatext: u8,
-            end_metatext: u8,
+            begin_layer: Cell<u8>,
+            end_layer: Cell<u8>,
+            begin_structure: Cell<u8>,
+            end_structure: Cell<u8>,
+            begin_metatext: Cell<u8>,
+            end_metatext: Cell<u8>,
         }
 
-        impl NativeDevice for Test {
+        impl NativeDevice for &Test {
             fn begin_layer(&mut self, name: &str) {
                 assert_eq!(name, "begin layer name");
-                self.begin_layer += 1;
+                self.begin_layer.update(|v| v + 1);
             }
 
             fn end_layer(&mut self) {
-                self.end_layer += 1;
+                self.end_layer.update(|v| v + 1);
             }
 
             fn begin_structure(&mut self, standard: Structure, raw: &str, idx: i32) {
                 assert_eq!(standard, Structure::Div);
                 assert_eq!(raw, "div");
                 assert_eq!(idx, 5);
-                self.begin_structure += 1;
+                self.begin_structure.update(|v| v + 1);
             }
 
             fn end_structure(&mut self) {
-                self.end_structure += 1;
+                self.end_structure.update(|v| v + 1);
             }
 
             fn begin_metatext(&mut self, meta: Metatext, text: &str) {
                 assert_eq!(meta, Metatext::Title);
                 assert_eq!(text, "some text");
-                self.begin_metatext += 1;
+                self.begin_metatext.update(|v| v + 1);
             }
 
             fn end_metatext(&mut self) {
-                self.end_metatext += 1;
+                self.end_metatext.update(|v| v + 1);
             }
         }
 
-        let mut ndev = Test::default();
-        let dev = Device::from_native(&mut ndev).unwrap();
+        let ndev = Test::default();
+        let dev = Device::from_native(&ndev).unwrap();
 
         dev.begin_layer("begin layer name").unwrap();
-        assert_eq!(ndev.begin_layer, 1);
+        assert_eq!(ndev.begin_layer.get(), 1);
         dev.end_layer().unwrap();
-        assert_eq!(ndev.end_layer, 1);
+        assert_eq!(ndev.end_layer.get(), 1);
 
         dev.begin_structure(Structure::Div, "div", 5).unwrap();
-        assert_eq!(ndev.begin_structure, 1);
+        assert_eq!(ndev.begin_structure.get(), 1);
         dev.end_structure().unwrap();
-        assert_eq!(ndev.end_structure, 1);
+        assert_eq!(ndev.end_structure.get(), 1);
 
         dev.begin_metatext(Metatext::Title, "some text").unwrap();
-        assert_eq!(ndev.begin_metatext, 1);
+        assert_eq!(ndev.begin_metatext.get(), 1);
         dev.end_metatext().unwrap();
-        assert_eq!(ndev.end_metatext, 1);
+        assert_eq!(ndev.end_metatext.get(), 1);
     }
 
     #[test]

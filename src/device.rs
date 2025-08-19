@@ -178,25 +178,35 @@ impl Drop for Function {
 }
 
 #[derive(Debug)]
-pub struct Device {
+pub struct Device<D = ()> {
     pub(crate) dev: *mut fz_device,
     pub(crate) list: *mut fz_display_list,
+    marker: std::marker::PhantomData<D>,
 }
 
-impl Device {
-    pub(crate) unsafe fn from_raw(dev: *mut fz_device, list: *mut fz_display_list) -> Self {
-        Self { dev, list }
-    }
-
-    pub fn from_native<D: NativeDevice>(device: D) -> Result<Self, Error> {
+impl<D: NativeDevice> Device<D> {
+    pub fn from_native(device: D) -> Result<Self, Error> {
         native::create(device)
     }
+}
 
+impl<D> Device<D> {
+    pub(crate) unsafe fn from_raw(dev: *mut fz_device, list: *mut fz_display_list) -> Self {
+        Self {
+            dev,
+            list,
+            marker: std::marker::PhantomData,
+        }
+    }
+}
+
+impl Device<()> {
     pub fn from_pixmap_with_clip(pixmap: &Pixmap, clip: IRect) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_new_draw_device(context(), pixmap.inner, clip.into())) }.map(
             |dev| Self {
                 dev,
                 list: ptr::null_mut(),
+                marker: std::marker::PhantomData,
             },
         )
     }
@@ -209,6 +219,7 @@ impl Device {
         unsafe { ffi_try!(mupdf_new_display_list_device(context(), list.inner)) }.map(|dev| Self {
             dev,
             list: list.inner,
+            marker: std::marker::PhantomData,
         })
     }
 
@@ -223,9 +234,12 @@ impl Device {
         .map(|dev| Self {
             dev,
             list: ptr::null_mut(),
+            marker: std::marker::PhantomData,
         })
     }
+}
 
+impl<D> Device<D> {
     #[allow(clippy::too_many_arguments)]
     pub fn fill_path(
         &self,
@@ -593,7 +607,7 @@ impl Device {
     }
 }
 
-impl Drop for Device {
+impl<D> Drop for Device<D> {
     fn drop(&mut self) {
         if !self.dev.is_null() {
             unsafe {
