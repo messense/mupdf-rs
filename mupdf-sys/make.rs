@@ -140,7 +140,8 @@ impl Make {
         make_flag: &str,
         define: Option<&str>,
     ) {
-        let contains = target.features.iter().any(|f| f == feature);
+        let contains = target.features.iter().any(|f| f == feature)
+            && self.build.is_flag_supported(flag).unwrap_or(true);
         if contains {
             self.build.flag(flag);
             self.make_bool(make_flag, true);
