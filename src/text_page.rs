@@ -168,7 +168,7 @@ impl TextPage {
         Ok(res)
     }
 
-    pub fn blocks(&self) -> TextBlockIter {
+    pub fn blocks(&self) -> TextBlockIter<'_> {
         TextBlockIter {
             next: unsafe { (*self.as_ptr().cast_mut()).first_block },
             _marker: PhantomData,
@@ -334,7 +334,7 @@ impl TextBlock<'_> {
         self.inner.bbox.into()
     }
 
-    pub fn lines(&self) -> TextLineIter {
+    pub fn lines(&self) -> TextLineIter<'_> {
         unsafe {
             if self.inner.type_ == FZ_STEXT_BLOCK_TEXT as c_int {
                 return TextLineIter {
@@ -404,7 +404,7 @@ impl TextLine<'_> {
         (self.inner.wmode as u32).try_into().unwrap()
     }
 
-    pub fn chars(&self) -> TextCharIter {
+    pub fn chars(&self) -> TextCharIter<'_> {
         TextCharIter {
             next: self.inner.first_char,
             _marker: PhantomData,

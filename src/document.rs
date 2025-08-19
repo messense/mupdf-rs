@@ -214,7 +214,7 @@ impl Document {
             .and_then(|fz_page| unsafe { Page::from_raw(fz_page) })
     }
 
-    pub fn pages(&self) -> Result<PageIter, Error> {
+    pub fn pages(&self) -> Result<PageIter<'_>, Error> {
         Ok(PageIter {
             index: 0,
             total: self.page_count()?,

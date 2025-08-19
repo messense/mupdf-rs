@@ -121,7 +121,7 @@ impl TextSpan {
         unsafe { (*self.inner).set_language(language as _) }
     }
 
-    pub fn items(&self) -> TextItemIter {
+    pub fn items(&self) -> TextItemIter<'_> {
         unsafe {
             let len = (*self.inner).len as usize;
             let items = slice::from_raw_parts((*self.inner).items, len);
