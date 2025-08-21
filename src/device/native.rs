@@ -408,7 +408,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
         scissor: Rect,
     ) {
         self.borrow_mut()
-            .clip_stroke_path(path, stroke_state, cmt, scissor)
+            .clip_stroke_path(path, stroke_state, cmt, scissor);
     }
 
     fn fill_text(
