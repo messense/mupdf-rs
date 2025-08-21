@@ -1,8 +1,11 @@
 use std::{
+    cell::RefCell,
     ffi::{c_char, c_int, CStr},
     mem::ManuallyDrop,
     num::NonZero,
-    ptr, slice,
+    ptr,
+    rc::Rc,
+    slice,
 };
 
 use mupdf_sys::*;
@@ -15,7 +18,7 @@ use crate::{
 use super::{DefaultColorspaces, DeviceFlag, Metatext, Structure};
 
 #[allow(unused_variables, clippy::too_many_arguments)]
-pub trait NativeDevice {
+pub trait NativeDevice: 'static {
     fn close_device(&mut self) {}
 
     fn fill_path(
@@ -164,7 +167,7 @@ pub trait NativeDevice {
     fn end_metatext(&mut self) {}
 }
 
-impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
+impl<T: NativeDevice + ?Sized> NativeDevice for Box<T> {
     fn close_device(&mut self) {
         (**self).close_device();
     }
@@ -357,6 +360,212 @@ impl<T: NativeDevice + ?Sized> NativeDevice for &mut T {
 
     fn end_metatext(&mut self) {
         (**self).end_metatext();
+    }
+}
+
+impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
+    fn close_device(&mut self) {
+        self.borrow_mut().close_device();
+    }
+
+    fn fill_path(
+        &mut self,
+        path: &Path,
+        even_odd: bool,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .fill_path(path, even_odd, cmt, color_space, color, alpha, cp);
+    }
+
+    fn stroke_path(
+        &mut self,
+        path: &Path,
+        stroke_state: &StrokeState,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .stroke_path(path, stroke_state, cmt, color_space, color, alpha, cp);
+    }
+
+    fn clip_path(&mut self, path: &Path, even_odd: bool, cmt: Matrix, scissor: Rect) {
+        self.borrow_mut().clip_path(path, even_odd, cmt, scissor);
+    }
+
+    fn clip_stroke_path(
+        &mut self,
+        path: &Path,
+        stroke_state: &StrokeState,
+        cmt: Matrix,
+        scissor: Rect,
+    ) {
+        self.borrow_mut()
+            .clip_stroke_path(path, stroke_state, cmt, scissor);
+    }
+
+    fn fill_text(
+        &mut self,
+        text: &Text,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .fill_text(text, cmt, color_space, color, alpha, cp);
+    }
+
+    fn stroke_text(
+        &mut self,
+        text: &Text,
+        stroke_state: &StrokeState,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .stroke_text(text, stroke_state, cmt, color_space, color, alpha, cp);
+    }
+
+    fn clip_text(&mut self, text: &Text, cmt: Matrix, scissor: Rect) {
+        self.borrow_mut().clip_text(text, cmt, scissor);
+    }
+
+    fn clip_stroke_text(
+        &mut self,
+        text: &Text,
+        stroke_state: &StrokeState,
+        cmt: Matrix,
+        scissor: Rect,
+    ) {
+        self.borrow_mut()
+            .clip_stroke_text(text, stroke_state, cmt, scissor);
+    }
+
+    fn ignore_text(&mut self, text: &Text, cmt: Matrix) {
+        self.borrow_mut().ignore_text(text, cmt);
+    }
+
+    fn fill_shade(&mut self, shade: &Shade, cmt: Matrix, alpha: f32, cp: ColorParams) {
+        self.borrow_mut().fill_shade(shade, cmt, alpha, cp);
+    }
+
+    fn fill_image(&mut self, img: &Image, cmt: Matrix, alpha: f32, cp: ColorParams) {
+        self.borrow_mut().fill_image(img, cmt, alpha, cp);
+    }
+
+    fn fill_image_mask(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .fill_image_mask(img, cmt, color_space, color, alpha, cp);
+    }
+
+    fn clip_image_mask(&mut self, img: &Image, cmt: Matrix, scissor: Rect) {
+        self.borrow_mut().clip_image_mask(img, cmt, scissor);
+    }
+
+    fn pop_clip(&mut self) {
+        self.borrow_mut().pop_clip();
+    }
+
+    fn begin_mask(
+        &mut self,
+        area: Rect,
+        luminosity: bool,
+        color_space: &Colorspace,
+        color: &[f32],
+        cp: ColorParams,
+    ) {
+        self.borrow_mut()
+            .begin_mask(area, luminosity, color_space, color, cp);
+    }
+
+    fn end_mask(&mut self, f: &Function) {
+        self.borrow_mut().end_mask(f);
+    }
+
+    fn begin_group(
+        &mut self,
+        area: Rect,
+        cs: &Colorspace,
+        isolated: bool,
+        knockout: bool,
+        blendmode: BlendMode,
+        alpha: f32,
+    ) {
+        self.borrow_mut()
+            .begin_group(area, cs, isolated, knockout, blendmode, alpha);
+    }
+
+    fn end_group(&mut self) {
+        self.borrow_mut().end_group();
+    }
+
+    fn begin_tile(
+        &mut self,
+        area: Rect,
+        view: Rect,
+        x_step: f32,
+        y_step: f32,
+        ctm: Matrix,
+        id: Option<NonZero<i32>>,
+    ) -> Option<NonZero<i32>> {
+        self.borrow_mut()
+            .begin_tile(area, view, x_step, y_step, ctm, id)
+    }
+
+    fn end_tile(&mut self) {
+        self.borrow_mut().end_tile();
+    }
+
+    fn render_flags(&mut self, set: DeviceFlag, clear: DeviceFlag) {
+        self.borrow_mut().render_flags(set, clear);
+    }
+
+    fn set_default_colorspaces(&mut self, default_cs: &DefaultColorspaces) {
+        self.borrow_mut().set_default_colorspaces(default_cs);
+    }
+
+    fn begin_layer(&mut self, name: &str) {
+        self.borrow_mut().begin_layer(name);
+    }
+
+    fn end_layer(&mut self) {
+        self.borrow_mut().end_layer();
+    }
+
+    fn begin_structure(&mut self, standard: Structure, raw: &str, idx: i32) {
+        self.borrow_mut().begin_structure(standard, raw, idx);
+    }
+
+    fn end_structure(&mut self) {
+        self.borrow_mut().end_structure();
+    }
+
+    fn begin_metatext(&mut self, meta: Metatext, text: &str) {
+        self.borrow_mut().begin_metatext(meta, text);
+    }
+
+    fn end_metatext(&mut self) {
+        self.borrow_mut().end_metatext();
     }
 }
 
@@ -904,7 +1113,7 @@ unsafe extern "C" fn end_metatext<D: NativeDevice>(_ctx: *mut fz_context, dev: *
 
 #[cfg(test)]
 mod test {
-    use std::rc::Rc;
+    use std::{cell::RefCell, rc::Rc};
 
     use crate::{
         device::{Metatext, Structure},
@@ -955,23 +1164,23 @@ mod test {
             }
         }
 
-        let mut ndev = Test::default();
-        let dev = Device::from_native(&mut ndev).unwrap();
+        let ndev = Rc::new(RefCell::new(Test::default()));
+        let dev = Device::from_native(ndev.clone()).unwrap();
 
         dev.begin_layer("begin layer name").unwrap();
-        assert_eq!(ndev.begin_layer, 1);
+        assert_eq!(ndev.borrow().begin_layer, 1);
         dev.end_layer().unwrap();
-        assert_eq!(ndev.end_layer, 1);
+        assert_eq!(ndev.borrow().end_layer, 1);
 
         dev.begin_structure(Structure::Div, "div", 5).unwrap();
-        assert_eq!(ndev.begin_structure, 1);
+        assert_eq!(ndev.borrow().begin_structure, 1);
         dev.end_structure().unwrap();
-        assert_eq!(ndev.end_structure, 1);
+        assert_eq!(ndev.borrow().end_structure, 1);
 
         dev.begin_metatext(Metatext::Title, "some text").unwrap();
-        assert_eq!(ndev.begin_metatext, 1);
+        assert_eq!(ndev.borrow().begin_metatext, 1);
         dev.end_metatext().unwrap();
-        assert_eq!(ndev.end_metatext, 1);
+        assert_eq!(ndev.borrow().end_metatext, 1);
     }
 
     #[test]
