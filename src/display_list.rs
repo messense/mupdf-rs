@@ -1,10 +1,10 @@
-use std::{ffi::CString, ptr::NonNull};
+use std::{ffi::CString, io::Read, ptr::NonNull};
 
 use mupdf_sys::*;
 
 use crate::{
-    array::FzArray, context, rust_vec_from_ffi_ptr, Colorspace, Cookie, Device, Error, Image,
-    Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
+    array::FzArray, context, rust_vec_from_ffi_ptr, Buffer, Colorspace, Cookie, Device, Error,
+    Image, Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
 };
 
 #[derive(Debug)]
@@ -38,6 +38,36 @@ impl DisplayList {
             ))
         }
         .map(|inner| unsafe { Pixmap::from_raw(inner) })
+    }
+
+    pub fn to_svg(&self, ctm: &Matrix) -> Result<String, Error> {
+        let inner = unsafe {
+            ffi_try!(mupdf_display_list_to_svg(
+                context(),
+                self.inner,
+                ctm.into(),
+                ptr::null_mut()
+            ))
+        }?;
+        let mut buf = unsafe { Buffer::from_raw(inner) };
+        let mut svg = String::new();
+        buf.read_to_string(&mut svg)?;
+        Ok(svg)
+    }
+
+    pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &Cookie) -> Result<String, Error> {
+        let inner = unsafe {
+            ffi_try!(mupdf_display_list_to_svg(
+                context(),
+                self.inner,
+                ctm.into(),
+                cookie.inner
+            ))
+        }?;
+        let mut buf = unsafe { Buffer::from_raw(inner) };
+        let mut svg = String::new();
+        buf.read_to_string(&mut svg)?;
+        Ok(svg)
     }
 
     pub fn to_text_page(&self, opts: TextPageFlags) -> Result<TextPage, Error> {
