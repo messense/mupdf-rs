@@ -1037,7 +1037,7 @@ const char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **err
     TRY_CATCH(const char*, NULL, pdf_to_name(ctx, obj));
 }
 
-const char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *len, mupdf_error_t **errptr)
+const unsigned char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *len, mupdf_error_t **errptr)
 {
     TRY_CATCH(const char*, NULL, pdf_to_string(ctx, obj, len));
 }
