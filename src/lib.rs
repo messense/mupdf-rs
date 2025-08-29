@@ -6,6 +6,8 @@
 pub mod bitmap;
 /// Dynamically allocated array of bytes
 pub mod buffer;
+/// Color struct
+pub mod color;
 /// Color params
 pub mod color_params;
 /// Colorspace

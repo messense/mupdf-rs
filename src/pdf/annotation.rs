@@ -3,7 +3,8 @@ use std::ffi::{CStr, CString};
 
 use mupdf_sys::*;
 
-use crate::pdf::PdfFilterOptions;
+use crate::color::AnnotationColor;
+use crate::{Point, Rect, pdf::PdfFilterOptions};
 use crate::{context, from_enum, Error};
 
 from_enum! { pdf_annot_type,
@@ -67,18 +68,52 @@ impl PdfAnnotation {
         Self { inner: ptr }
     }
 
+    /// Get the [`PdfAnnotationType`] of this annotation
     pub fn r#type(&self) -> Result<PdfAnnotationType, Error> {
         unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner)) }.map(|subtype| {
             PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown)
         })
     }
 
+    /// Check if the annotation is hot (i.e. that the pointing device's cursor is hovering over the
+    /// annotation)
     pub fn is_hot(&self) -> bool {
         unsafe { pdf_annot_hot(context(), self.inner) != 0 }
     }
 
+    /// Make this "hot" (see [`is_hot()`])
+    pub fn set_hot(&mut self, hot: bool) {
+        // Just kinda trusting it would be insane of them to throw here
+        unsafe { pdf_set_annot_hot(context(), self.inner, i32::from(hot)) }
+    }
+
     pub fn is_active(&self) -> bool {
         unsafe { pdf_annot_active(context(), self.inner) != 0 }
+    }
+
+    pub fn set_line(&mut self, start: Point, end: Point) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_set_annot_line(context(), self.inner, start.into(), end.into())) }
+    }
+
+    pub fn set_color(&mut self, color: AnnotationColor) -> Result<(), Error> {
+        unsafe { match color {
+            AnnotationColor::Gray(g) => ffi_try!(mupdf_pdf_set_annot_color(context(), self.inner, 1, &[g] as *const _)),
+            AnnotationColor::Rgb { red, green, blue } => ffi_try!(
+                mupdf_pdf_set_annot_color(context(), self.inner, 3, &[red, green, blue] as *const _)
+            ),
+            AnnotationColor::Cmyk { cyan, magenta, yellow, key } => ffi_try!(
+                mupdf_pdf_set_annot_color(context(), self.inner, 4, &[cyan, magenta, yellow, key] as *const _)
+            )
+        }}
+    }
+
+    pub fn set_flags(&mut self, flags: AnnotationFlags) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_set_annot_flags(context(), self.inner, flags.bits())) }
+    }
+
+    /// Set the bounding box of the annotation
+    pub fn set_rect(&mut self, rect: Rect) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_set_annot_rect(context(), self.inner, rect.into())) }
     }
 
     pub fn author(&self) -> Result<Option<&str>, Error> {
@@ -119,5 +154,20 @@ impl Drop for PdfAnnotation {
                 pdf_drop_annot(context(), self.inner);
             }
         }
+    }
+}
+
+bitflags::bitflags! {
+    pub struct AnnotationFlags: i32 {
+        const IS_INVISIBLE = PDF_ANNOT_IS_INVISIBLE as _;
+        const IS_HIDDEN = PDF_ANNOT_IS_HIDDEN as _;
+        const IS_PRINT = PDF_ANNOT_IS_PRINT as _;
+        const NO_ZOOM = PDF_ANNOT_IS_NO_ZOOM as _;
+        const NO_ROTATE = PDF_ANNOT_IS_NO_ROTATE as _;
+        const NO_VIEW = PDF_ANNOT_IS_NO_VIEW as _;
+        const IS_READ_ONLY = PDF_ANNOT_IS_READ_ONLY as _;
+        const IS_LOCKED = PDF_ANNOT_IS_LOCKED as _;
+        const IS_TOGGLE_NO_VIEW = PDF_ANNOT_IS_TOGGLE_NO_VIEW as _;
+        const IS_LOCKED_CONTENTS = PDF_ANNOT_IS_LOCKED_CONTENTS as _;
     }
 }
