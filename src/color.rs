@@ -7,7 +7,12 @@ pub struct Color {
 
 impl Color {
     fn into_bytes(self) -> [u8; 4] {
-        let Color { alpha, red, green, blue } = self;
+        let Color {
+            alpha,
+            red,
+            green,
+            blue,
+        } = self;
         [alpha, red, green, blue]
     }
 }
@@ -15,7 +20,12 @@ impl Color {
 impl From<f32> for Color {
     fn from(value: f32) -> Self {
         let [alpha, red, green, blue] = value.to_be_bytes();
-        Self { alpha, red, green, blue }
+        Self {
+            alpha,
+            red,
+            green,
+            blue,
+        }
     }
 }
 
@@ -28,7 +38,12 @@ impl From<Color> for f32 {
 impl From<i32> for Color {
     fn from(value: i32) -> Self {
         let [alpha, red, green, blue] = value.to_be_bytes();
-        Self { alpha, red, green, blue }
+        Self {
+            alpha,
+            red,
+            green,
+            blue,
+        }
     }
 }
 
@@ -43,6 +58,15 @@ impl From<Color> for i32 {
 /// indicates white.
 pub enum AnnotationColor {
     Gray(f32),
-    Rgb { red: f32, green: f32, blue: f32 },
-    Cmyk { cyan: f32, magenta: f32, yellow: f32, key: f32 }
+    Rgb {
+        red: f32,
+        green: f32,
+        blue: f32,
+    },
+    Cmyk {
+        cyan: f32,
+        magenta: f32,
+        yellow: f32,
+        key: f32,
+    },
 }

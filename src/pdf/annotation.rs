@@ -4,8 +4,8 @@ use std::ffi::{CStr, CString};
 use mupdf_sys::*;
 
 use crate::color::AnnotationColor;
-use crate::{Point, Rect, pdf::PdfFilterOptions};
 use crate::{context, from_enum, Error};
+use crate::{pdf::PdfFilterOptions, Point, Rect};
 
 from_enum! { pdf_annot_type,
     #[derive(Debug, Clone, Copy, PartialEq)]
@@ -92,23 +92,54 @@ impl PdfAnnotation {
     }
 
     pub fn set_line(&mut self, start: Point, end: Point) -> Result<(), Error> {
-        unsafe { ffi_try!(mupdf_pdf_set_annot_line(context(), self.inner, start.into(), end.into())) }
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_line(
+                context(),
+                self.inner,
+                start.into(),
+                end.into()
+            ))
+        }
     }
 
     pub fn set_color(&mut self, color: AnnotationColor) -> Result<(), Error> {
-        unsafe { match color {
-            AnnotationColor::Gray(g) => ffi_try!(mupdf_pdf_set_annot_color(context(), self.inner, 1, &[g] as *const _)),
-            AnnotationColor::Rgb { red, green, blue } => ffi_try!(
-                mupdf_pdf_set_annot_color(context(), self.inner, 3, &[red, green, blue] as *const _)
-            ),
-            AnnotationColor::Cmyk { cyan, magenta, yellow, key } => ffi_try!(
-                mupdf_pdf_set_annot_color(context(), self.inner, 4, &[cyan, magenta, yellow, key] as *const _)
-            )
-        }}
+        unsafe {
+            match color {
+                AnnotationColor::Gray(g) => ffi_try!(mupdf_pdf_set_annot_color(
+                    context(),
+                    self.inner,
+                    1,
+                    &[g] as *const _
+                )),
+                AnnotationColor::Rgb { red, green, blue } => ffi_try!(mupdf_pdf_set_annot_color(
+                    context(),
+                    self.inner,
+                    3,
+                    &[red, green, blue] as *const _
+                )),
+                AnnotationColor::Cmyk {
+                    cyan,
+                    magenta,
+                    yellow,
+                    key,
+                } => ffi_try!(mupdf_pdf_set_annot_color(
+                    context(),
+                    self.inner,
+                    4,
+                    &[cyan, magenta, yellow, key] as *const _
+                )),
+            }
+        }
     }
 
     pub fn set_flags(&mut self, flags: AnnotationFlags) -> Result<(), Error> {
-        unsafe { ffi_try!(mupdf_pdf_set_annot_flags(context(), self.inner, flags.bits())) }
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_flags(
+                context(),
+                self.inner,
+                flags.bits()
+            ))
+        }
     }
 
     /// Set the bounding box of the annotation
