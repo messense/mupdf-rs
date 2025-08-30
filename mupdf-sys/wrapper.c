@@ -1070,7 +1070,7 @@ const char *mupdf_pdf_to_name(fz_context *ctx, pdf_obj *obj, mupdf_error_t **err
 
 const unsigned char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *len, mupdf_error_t **errptr)
 {
-    TRY_CATCH(const char*, NULL, pdf_to_string(ctx, obj, len));
+    TRY_CATCH(const unsigned char*, NULL, (const unsigned char *)pdf_to_string(ctx, obj, len));
 }
 
 pdf_obj *mupdf_pdf_resolve_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
@@ -2036,6 +2036,21 @@ void mupdf_pdf_set_annot_line(fz_context *ctx, pdf_annot *annot, fz_point a, fz_
     TRY_CATCH_VOID(pdf_set_annot_line(ctx, annot, a, b));
 }
 
+void mupdf_pdf_set_annot_rect(fz_context *ctx, pdf_annot *annot, fz_rect rect, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_rect(ctx, annot, rect));
+}
+
+void mupdf_pdf_set_annot_color(fz_context *ctx, pdf_annot *annot, int n, const float *color, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_color(ctx, annot, n, color));
+}
+
+void mupdf_pdf_set_annot_flags(fz_context *ctx, pdf_annot *annot, int flags, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_flags(ctx, annot, flags));
+}
+
 void mupdf_pdf_filter_annot_contents(fz_context *ctx, pdf_annot *annot, pdf_filter_options *filter, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_filter_annot_contents(ctx, pdf_annot_page(ctx, annot)->doc, annot, filter));
@@ -2078,8 +2093,8 @@ int32_t mupdf_search_stext_page_cb(fz_context *ctx, fz_stext_page *page, const c
 }
 
 void mupdf_format_string(fz_context *ctx, void *user, void (*emit)(fz_context *ctx, void *user, int c), const char *fmt, ...) {
-	va_list ap;
-	va_start(ap, fmt);
-	fz_format_string(ctx, user, emit, fmt, ap);
-	va_end(ap);
+    va_list ap;
+    va_start(ap, fmt);
+    fz_format_string(ctx, user, emit, fmt, ap);
+    va_end(ap);
 }
