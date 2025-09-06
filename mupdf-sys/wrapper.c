@@ -2051,6 +2051,26 @@ void mupdf_pdf_set_annot_flags(fz_context *ctx, pdf_annot *annot, int flags, mup
     TRY_CATCH_VOID(pdf_set_annot_flags(ctx, annot, flags));
 }
 
+void mupdf_pdf_set_annot_popup(fz_context *ctx, pdf_annot *annot, fz_rect rect, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_popup(ctx, annot, rect));
+}
+
+void mupdf_pdf_set_annot_active(fz_context *ctx, pdf_annot *annot, int active, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_active(ctx, annot, active));
+}
+
+void mupdf_pdf_set_annot_border_width(fz_context *ctx, pdf_annot *annot, float width, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_border_width(ctx, annot, width));
+}
+
+void mupdf_pdf_set_annot_intent(fz_context *ctx, pdf_annot *annot, enum pdf_intent intent, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_intent(ctx, annot, intent));
+}
+
 void mupdf_pdf_filter_annot_contents(fz_context *ctx, pdf_annot *annot, pdf_filter_options *filter, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_filter_annot_contents(ctx, pdf_annot_page(ctx, annot)->doc, annot, filter));
