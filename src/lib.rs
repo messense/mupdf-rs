@@ -230,9 +230,9 @@ struct AssertSizeEquals<A, B> {
 }
 
 impl<A, B> AssertSizeEquals<A, B> {
-    const _SIZE_OK: () = assert!(size_of::<A>() == size_of::<B>());
+    const _SIZE_OK: () = const { assert!(size_of::<A>() == size_of::<B>()) };
 
-    fn new() -> Self {
+    const fn new() -> Self {
         Self {
             _phantom: PhantomData,
         }

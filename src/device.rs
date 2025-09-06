@@ -1,7 +1,7 @@
-use std::ptr;
 use std::{
     ffi::{c_int, CString},
     num::NonZero,
+    ptr,
 };
 
 use bitflags::bitflags;
@@ -226,6 +226,8 @@ impl Device {
         })
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     #[allow(clippy::too_many_arguments)]
     pub fn fill_path(
         &self,
@@ -252,6 +254,8 @@ impl Device {
         }
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     #[allow(clippy::too_many_arguments)]
     pub fn stroke_path(
         &self,
@@ -307,6 +311,8 @@ impl Device {
         }
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     pub fn fill_text(
         &self,
         text: &Text,
@@ -330,6 +336,8 @@ impl Device {
         }
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     #[allow(clippy::too_many_arguments)]
     pub fn stroke_text(
         &self,
@@ -426,6 +434,8 @@ impl Device {
         }
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     pub fn fill_image_mask(
         &self,
         image: &Image,

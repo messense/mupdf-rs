@@ -24,6 +24,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - run: sudo apt-get -y install libfontconfig1-dev
       - run: cargo clippy --tests --features serde -- -D warnings
+      - run: cargo doc -p mupdf --no-deps --document-private-items
 
   test:
     name: Test Suite

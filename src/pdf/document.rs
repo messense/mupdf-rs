@@ -240,6 +240,14 @@ pub struct PdfDocument {
     doc: Document,
 }
 
+impl Default for PdfDocument {
+    fn default() -> Self {
+        let inner = unsafe { pdf_create_document(context()) };
+        let doc = unsafe { Document::from_raw(&mut (*inner).super_) };
+        Self { inner, doc }
+    }
+}
+
 impl PdfDocument {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_document) -> Self {
         let doc = Document::from_raw(&mut (*ptr).super_);
@@ -247,11 +255,7 @@ impl PdfDocument {
     }
 
     pub fn new() -> Self {
-        unsafe {
-            let inner = pdf_create_document(context());
-            let doc = Document::from_raw(&mut (*inner).super_);
-            Self { inner, doc }
-        }
+        Self::default()
     }
 
     pub fn open<P: AsRef<FilePath> + ?Sized>(p: &P) -> Result<Self, Error> {

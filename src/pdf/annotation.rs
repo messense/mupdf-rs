@@ -81,7 +81,7 @@ impl PdfAnnotation {
         unsafe { pdf_annot_hot(context(), self.inner) != 0 }
     }
 
-    /// Make this "hot" (see [`is_hot()`])
+    /// Make this "hot" (see [`Self::is_hot()`])
     pub fn set_hot(&mut self, hot: bool) {
         // Just kinda trusting it would be insane of them to throw here
         unsafe { pdf_set_annot_hot(context(), self.inner, i32::from(hot)) }

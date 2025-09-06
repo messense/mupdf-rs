@@ -87,6 +87,16 @@ impl Colorspace {
         name_cstr.to_str().unwrap()
     }
 
+    /// `color` should contain a number of elements euql to [`self.n()`]. Each element within
+    /// `color` should *probably* be a value between [0, 1.0] (at least, that is the case when
+    /// [`Self::is_rgb()`], [`Self::is_gray()`], or [`Self::is_cmyk()`] - other colorspaces may
+    /// work differently).
+    ///
+    /// The returned vector will have [`to.n()`] elements, and contain values that follow the same
+    /// rules as the input `color` (but with regard to `to`, not `self`)
+    ///
+    /// [`self.n()`]: Self::n
+    /// [`to.n()`]: Self::n
     pub fn convert_color(
         &self,
         color: &[f32],

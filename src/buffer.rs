@@ -25,6 +25,12 @@ impl FromStr for Buffer {
     }
 }
 
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::with_capacity(0)
+    }
+}
+
 impl Buffer {
     pub(crate) unsafe fn from_raw(ptr: *mut fz_buffer) -> Self {
         Self {
@@ -34,7 +40,7 @@ impl Buffer {
     }
 
     pub fn new() -> Self {
-        Self::with_capacity(0)
+        Self::default()
     }
 
     pub fn from_base64(str: &str) -> Result<Self, Error> {

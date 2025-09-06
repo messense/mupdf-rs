@@ -1,4 +1,4 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct Color {
     pub alpha: u8,
     pub red: u8,
@@ -51,6 +51,8 @@ impl Color {
 /// The method used to set colors for [`PdfAnnotation::set_color`] - each float inside should
 /// contain a value between [0, 1.0], with 1.0 being the most intense. A 1.0 for Self::Gray
 /// indicates white.
+///
+/// [`PdfAnnotation::set_color`]: crate::pdf::annotation::PdfAnnotation::set_color
 pub enum AnnotationColor {
     Gray(f32),
     Rgb {
