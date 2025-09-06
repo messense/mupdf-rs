@@ -1,3 +1,4 @@
+use core::ffi::c_int;
 use std::{
     convert::TryFrom,
     ffi::{c_uint, CStr, CString},
@@ -5,7 +6,7 @@ use std::{
 
 use mupdf_sys::*;
 
-use crate::color::AnnotationColor;
+use crate::{color::AnnotationColor, pdf::Intent};
 use crate::{context, from_enum, Error};
 use crate::{pdf::PdfFilterOptions, Point, Rect};
 
@@ -176,6 +177,30 @@ impl PdfAnnotation {
                 self.inner,
                 &raw mut opt.inner
             ))
+        }
+    }
+
+    pub fn set_popup(&mut self, rect: Rect) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_popup(context(), self.inner, fz_rect::from(rect)))
+        }
+    }
+
+    pub fn set_active(&mut self, active: bool) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_active(context(), self.inner, c_int::from(active)))
+        }
+    }
+
+    pub fn set_border_width(&mut self, width: f32) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_border_width(context(), self.inner, width))
+        }
+    }
+
+    pub fn set_intent(&mut self, intent: Intent) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_intent(context(), self.inner, pdf_intent::from(intent)))
         }
     }
 }
