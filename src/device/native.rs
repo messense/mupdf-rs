@@ -21,6 +21,8 @@ use super::{DefaultColorspaces, DeviceFlag, Metatext, Structure};
 pub trait NativeDevice: 'static {
     fn close_device(&mut self) {}
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn fill_path(
         &mut self,
         path: &Path,
@@ -33,6 +35,8 @@ pub trait NativeDevice: 'static {
     ) {
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn stroke_path(
         &mut self,
         path: &Path,
@@ -56,6 +60,8 @@ pub trait NativeDevice: 'static {
     ) {
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn fill_text(
         &mut self,
         text: &Text,
@@ -67,6 +73,8 @@ pub trait NativeDevice: 'static {
     ) {
     }
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn stroke_text(
         &mut self,
         text: &Text,
@@ -96,6 +104,8 @@ pub trait NativeDevice: 'static {
 
     fn fill_image(&mut self, img: &Image, cmt: Matrix, alpha: f32, cp: ColorParams) {}
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn fill_image_mask(
         &mut self,
         img: &Image,
@@ -111,6 +121,8 @@ pub trait NativeDevice: 'static {
 
     fn pop_clip(&mut self) {}
 
+    /// The colors in `color` must match the colorspace `cs`, as described in
+    /// [`Colorspace::convert_color`]
     fn begin_mask(
         &mut self,
         area: Rect,

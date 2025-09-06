@@ -77,6 +77,9 @@ members = [
 version = "0.5.0"
 edition = "2021"
 
+[lints.rustdoc]
+broken_intra_doc_links = "deny"
+
 [dev-dependencies]
 crossbeam-utils = "0.8.1"
 serde_json = "1.0.117"
