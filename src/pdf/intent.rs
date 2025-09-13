@@ -1,63 +1,20 @@
 use mupdf_sys::*;
 
-pub enum Intent {
-    Default,
-    FreetextCallout,
-    FreetextTypewriter,
-    LineArrow,
-    LineDimension,
-    PolylineDimension,
-    PolygonCloud,
-    PolygonDimension,
-    StampImage,
-    StampSnapshot,
-}
+use crate::from_enum;
 
-impl From<Intent> for pdf_intent {
-    fn from(value: Intent) -> Self {
-        match value {
-            Intent::Default => PDF_ANNOT_IT_DEFAULT,
-            Intent::FreetextCallout => PDF_ANNOT_IT_FREETEXT_CALLOUT,
-            Intent::FreetextTypewriter => PDF_ANNOT_IT_FREETEXT_TYPEWRITER,
-            Intent::LineArrow => PDF_ANNOT_IT_LINE_ARROW,
-            Intent::LineDimension => PDF_ANNOT_IT_LINE_DIMENSION,
-            Intent::PolylineDimension => PDF_ANNOT_IT_POLYLINE_DIMENSION,
-            Intent::PolygonCloud => PDF_ANNOT_IT_POLYGON_CLOUD,
-            Intent::PolygonDimension => PDF_ANNOT_IT_POLYGON_DIMENSION,
-            Intent::StampImage => PDF_ANNOT_IT_STAMP_IMAGE,
-            Intent::StampSnapshot => PDF_ANNOT_IT_STAMP_SNAPSHOT
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct OutOfRange;
-
-impl std::fmt::Display for OutOfRange {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "The provided value was out of the allowed range")
-    }
-}
-
-impl std::error::Error for OutOfRange {}
-
-impl TryFrom<pdf_intent> for Intent {
-    type Error = OutOfRange;
-
-    fn try_from(value: pdf_intent) -> Result<Self, Self::Error> {
-        match value {
-            PDF_ANNOT_IT_DEFAULT => Ok(Self::Default),
-            PDF_ANNOT_IT_FREETEXT_CALLOUT => Ok(Self::FreetextCallout),
-            PDF_ANNOT_IT_FREETEXT_TYPEWRITER => Ok(Self::FreetextTypewriter),
-            PDF_ANNOT_IT_LINE_ARROW => Ok(Self::LineArrow),
-            PDF_ANNOT_IT_LINE_DIMENSION => Ok(Self::LineDimension),
-            PDF_ANNOT_IT_POLYLINE_DIMENSION => Ok(Self::PolylineDimension),
-            PDF_ANNOT_IT_POLYGON_CLOUD => Ok(Self::PolygonCloud),
-            PDF_ANNOT_IT_POLYGON_DIMENSION => Ok(Self::PolygonDimension),
-            PDF_ANNOT_IT_STAMP_IMAGE => Ok(Self::StampImage),
-            PDF_ANNOT_IT_STAMP_SNAPSHOT => Ok(Self::StampSnapshot),
-            _ => Err(OutOfRange)
-        }
+from_enum! { pdf_intent,
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Intent {
+        Default = PDF_ANNOT_IT_DEFAULT,
+        FreetextCallout = PDF_ANNOT_IT_FREETEXT_CALLOUT,
+        FreetextTypewriter = PDF_ANNOT_IT_FREETEXT_TYPEWRITER,
+        LineArrow = PDF_ANNOT_IT_LINE_ARROW,
+        LineDimension = PDF_ANNOT_IT_LINE_DIMENSION,
+        PolylineDimension = PDF_ANNOT_IT_POLYLINE_DIMENSION,
+        PolygonCloud = PDF_ANNOT_IT_POLYGON_CLOUD,
+        PolygonDimension = PDF_ANNOT_IT_POLYGON_DIMENSION,
+        StampImage = PDF_ANNOT_IT_STAMP_IMAGE,
+        StampSnapshot = PDF_ANNOT_IT_STAMP_SNAPSHOT,
     }
 }
 
