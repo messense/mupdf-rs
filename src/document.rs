@@ -187,9 +187,9 @@ impl Document {
             ffi_try!(mupdf_convert_to_pdf(
                 context(),
                 self.inner,
-                start_page as _,
-                end_page as _,
-                rotate as _,
+                start_page,
+                end_page,
+                rotate as i32,
                 cookie_ptr
             ))
         }

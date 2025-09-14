@@ -152,7 +152,7 @@ macro_rules! unsafe_impl_ffi_wrapper {
 
         impl Drop for $struct {
             fn drop(&mut self) {
-                let ptr = <Self as $crate::FFIWrapper>::as_ptr(&*self) as *mut _;
+                let ptr = <Self as $crate::FFIWrapper>::as_ptr(&*self).cast_mut();
                 // SAFETY: Guaranteed by caller
                 unsafe { $ffi_drop_fn($crate::context(), ptr) }
             }

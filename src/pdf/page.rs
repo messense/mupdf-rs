@@ -66,7 +66,7 @@ impl PdfPage {
     }
 
     pub fn annotations(&self) -> AnnotationIter {
-        let next = unsafe { pdf_first_annot(context(), self.as_ptr() as *mut _) };
+        let next = unsafe { pdf_first_annot(context(), self.as_ptr().cast_mut()) };
         AnnotationIter { next }
     }
 
@@ -103,13 +103,13 @@ impl PdfPage {
     }
 
     pub fn media_box(&self) -> Result<Rect, Error> {
-        let rect = unsafe { mupdf_pdf_page_media_box(context(), self.as_ptr() as *mut _) };
+        let rect = unsafe { mupdf_pdf_page_media_box(context(), self.as_ptr().cast_mut()) };
         Ok(rect.into())
     }
 
     pub fn crop_box(&self) -> Result<Rect, Error> {
         let bounds = self.bounds()?;
-        let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.as_ptr() as *mut _) };
+        let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.as_ptr().cast_mut()) };
         let media_box = self.media_box()?;
         let x0 = pos.x;
         let y0 = media_box.height() - pos.y - bounds.height();
@@ -129,8 +129,13 @@ impl PdfPage {
     }
 
     pub fn ctm(&self) -> Result<Matrix, Error> {
-        unsafe { ffi_try!(mupdf_pdf_page_transform(context(), self.as_ptr() as *mut _)) }
-            .map(fz_matrix::into)
+        unsafe {
+            ffi_try!(mupdf_pdf_page_transform(
+                context(),
+                self.as_ptr().cast_mut()
+            ))
+        }
+        .map(fz_matrix::into)
     }
 
     pub fn filter(&mut self, mut opt: PdfFilterOptions) -> Result<(), Error> {
@@ -138,7 +143,7 @@ impl PdfPage {
             ffi_try!(mupdf_pdf_filter_page_contents(
                 context(),
                 self.as_mut_ptr(),
-                &mut opt.inner as *mut _
+                &raw mut opt.inner
             ))
         }
     }
@@ -181,7 +186,7 @@ impl Iterator for AnnotationIter {
 impl TryFrom<Page> for PdfPage {
     type Error = Error;
     fn try_from(value: Page) -> Result<Self, Self::Error> {
-        let pdf_page = unsafe { pdf_page_from_fz_page(context(), value.as_ptr() as *mut _) };
+        let pdf_page = unsafe { pdf_page_from_fz_page(context(), value.as_ptr().cast_mut()) };
         // We need to make sure to not run the destructor for `Page`, or else it'll be freed and
         // then this struct will be pointing to invalid memory when we try to use it.
         // ...god please give me linear types so that I can check this sort of transformation at

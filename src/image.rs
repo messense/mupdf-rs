@@ -85,7 +85,7 @@ impl Image {
 
     pub fn set_interpolate(&mut self, interpolate: bool) {
         unsafe {
-            (*self.inner).set_interpolate(interpolate as _);
+            (*self.inner).set_interpolate(interpolate.into());
         }
     }
 
@@ -95,7 +95,7 @@ impl Image {
 
     pub fn set_scalable(&mut self, scalable: bool) {
         unsafe {
-            (*self.inner).set_scalable(scalable as _);
+            (*self.inner).set_scalable(scalable.into());
         }
     }
 }

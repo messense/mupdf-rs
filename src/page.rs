@@ -39,7 +39,7 @@ impl Page {
     }
 
     pub fn bounds(&self) -> Result<Rect, Error> {
-        unsafe { ffi_try!(mupdf_bound_page(context(), self.as_ptr() as *mut _)) }.map(Into::into)
+        unsafe { ffi_try!(mupdf_bound_page(context(), self.as_ptr().cast_mut())) }.map(Into::into)
     }
 
     pub fn to_pixmap(
@@ -52,7 +52,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_page_to_pixmap(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 ctm.into(),
                 cs.inner,
                 alpha,
@@ -66,7 +66,7 @@ impl Page {
         let inner = unsafe {
             ffi_try!(mupdf_page_to_svg(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 ctm.into(),
                 ptr::null_mut()
             ))
@@ -81,7 +81,7 @@ impl Page {
         let inner = unsafe {
             ffi_try!(mupdf_page_to_svg(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 ctm.into(),
                 cookie.inner
             ))
@@ -94,7 +94,7 @@ impl Page {
 
     pub fn to_text_page(&self, flags: TextPageFlags) -> Result<TextPage, Error> {
         let opts = fz_stext_options {
-            flags: flags.bits() as _,
+            flags: i32::from_be_bytes(flags.bits().to_be_bytes()),
             scale: 0.0,
             clip: fz_rect {
                 x0: 0.0,
@@ -121,7 +121,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_page_to_display_list(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 annotations
             ))
         }
@@ -132,7 +132,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -149,7 +149,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -161,7 +161,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_contents(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -178,7 +178,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_contents(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -190,7 +190,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_annots(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -207,7 +207,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_annots(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -219,7 +219,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_widgets(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 ptr::null_mut()
@@ -236,7 +236,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_run_page_widgets(
                 context(),
-                self.as_ptr() as *mut _,
+                self.as_ptr().cast_mut(),
                 device.dev,
                 ctm.into(),
                 cookie.inner
@@ -254,7 +254,7 @@ impl Page {
     }
 
     pub fn separations(&self) -> Result<Separations, Error> {
-        unsafe { ffi_try!(mupdf_page_separations(context(), self.as_ptr() as *mut _)) }
+        unsafe { ffi_try!(mupdf_page_separations(context(), self.as_ptr().cast_mut())) }
             .map(|inner| unsafe { Separations::from_raw(inner) })
     }
 
@@ -265,7 +265,7 @@ impl Page {
         unsafe {
             ffi_try!(mupdf_search_page(
                 context(),
-                self.as_ptr() as *mut fz_page,
+                self.as_ptr().cast_mut(),
                 c_needle.as_ptr(),
                 hit_max as c_int,
                 &mut hit_count

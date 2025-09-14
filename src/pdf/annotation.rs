@@ -109,13 +109,13 @@ impl PdfAnnotation {
                     context(),
                     self.inner,
                     1,
-                    &[g] as *const _
+                    [g].as_ptr()
                 )),
                 AnnotationColor::Rgb { red, green, blue } => ffi_try!(mupdf_pdf_set_annot_color(
                     context(),
                     self.inner,
                     3,
-                    &[red, green, blue] as *const _
+                    [red, green, blue].as_ptr()
                 )),
                 AnnotationColor::Cmyk {
                     cyan,
@@ -126,7 +126,7 @@ impl PdfAnnotation {
                     context(),
                     self.inner,
                     4,
-                    &[cyan, magenta, yellow, key] as *const _
+                    [cyan, magenta, yellow, key].as_ptr()
                 )),
             }
         }
@@ -172,7 +172,7 @@ impl PdfAnnotation {
             ffi_try!(mupdf_pdf_filter_annot_contents(
                 context(),
                 self.inner,
-                &mut opt.inner as *mut _
+                &raw mut opt.inner
             ))
         }
     }

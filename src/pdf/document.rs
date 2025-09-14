@@ -179,7 +179,7 @@ impl PdfWriteOptions {
     }
 
     pub fn set_encryption(&mut self, value: Encryption) -> &mut Self {
-        self.inner.do_encrypt = value as _;
+        self.inner.do_encrypt = value.into();
         self
     }
 

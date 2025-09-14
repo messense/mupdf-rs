@@ -91,7 +91,7 @@ impl TextSpan {
 
     pub fn set_wmode(&mut self, wmode: WriteMode) {
         unsafe {
-            (*self.inner).set_wmode(wmode as _);
+            (*self.inner).set_wmode(wmode.into());
         }
     }
 
@@ -109,7 +109,7 @@ impl TextSpan {
     }
 
     pub fn set_markup_dir(&mut self, dir: BidiDirection) {
-        unsafe { (*self.inner).set_markup_dir(dir as _) }
+        unsafe { (*self.inner).set_markup_dir(dir.into()) }
     }
 
     pub fn language(&self) -> Language {
@@ -118,7 +118,7 @@ impl TextSpan {
     }
 
     pub fn set_language(&mut self, language: Language) {
-        unsafe { (*self.inner).set_language(language as _) }
+        unsafe { (*self.inner).set_language(language.into()) }
     }
 
     pub fn items(&self) -> TextItemIter<'_> {

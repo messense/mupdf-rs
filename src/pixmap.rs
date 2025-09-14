@@ -162,7 +162,7 @@ impl Pixmap {
             // invalid stride
             return None;
         }
-        Some(unsafe { slice::from_raw_parts((*self.inner).samples as _, size) })
+        Some(unsafe { slice::from_raw_parts((*self.inner).samples as *mut u32, size) })
     }
 
     /// Initialize the samples area with 0x00

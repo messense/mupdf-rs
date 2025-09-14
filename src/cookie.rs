@@ -1,3 +1,5 @@
+use core::ffi::c_void;
+
 use mupdf_sys::*;
 
 use crate::{context, Error};
@@ -57,7 +59,7 @@ impl Drop for Cookie {
     fn drop(&mut self) {
         if !self.inner.is_null() {
             unsafe {
-                fz_free(context(), self.inner as _);
+                fz_free(context(), self.inner as *mut c_void);
             }
         }
     }

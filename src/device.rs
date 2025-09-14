@@ -522,7 +522,7 @@ impl Device {
                 cs.inner,
                 isolated,
                 knockout,
-                blend_mode as _,
+                blend_mode.into(),
                 alpha
             ))
         }
@@ -575,9 +575,9 @@ impl Device {
             ffi_try!(mupdf_begin_structure(
                 context(),
                 self.dev,
-                standard as _,
+                standard.into(),
                 c_raw.as_ptr(),
-                idx as _
+                idx
             ))
         }
     }
@@ -592,7 +592,7 @@ impl Device {
             ffi_try!(mupdf_begin_metatext(
                 context(),
                 self.dev,
-                meta as _,
+                meta.into(),
                 c_text.as_ptr()
             ))
         }
