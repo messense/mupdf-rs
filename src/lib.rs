@@ -250,23 +250,55 @@ macro_rules! from_enum {
             )*
         }
     ) => {
+        from_enum! {
+            $c_type => u8,
+            $(#[$($attr)*])*
+            pub enum $name {
+                $(
+                    $(#[$($field_attr)*])*
+                    $field = $value,
+                )*
+            }
+        }
+    };
+    (
+        $c_type:ty => $repr:ty,
+        $(#[$($attr:tt)*])*
+        pub enum $name:ident {
+            $(
+                $(#[$($field_attr:tt)*])*
+                $field:ident = $value:tt,
+            )*
+        }
+    ) => {
+        #[repr($repr)]
         $(#[$($attr)*])*
         pub enum $name {
             $(
                 $(#[$($field_attr)*])*
-                $field = ($value as isize),
+                $field = const { if $value > (<$repr>::MAX as _) {
+                    panic!("The #[repr] of this enum won't fit the given constant. Try increasing the repr to the next-largest type");
+                } else {
+                    $value as $repr
+                }},
             )*
         }
 
         impl TryFrom<$c_type> for $name {
-            type Error = Error;
+            type Error = $crate::error::Error;
 
             #[allow(non_upper_case_globals)]
             fn try_from(value: $c_type) -> Result<Self, Self::Error> {
                 match value as _ {
                     $($value => Ok(Self::$field),)*
-                    _ => Err(Error::UnknownEnumVariant)
+                    _ => Err(Self::Error::UnknownEnumVariant)
                 }
+            }
+        }
+
+        impl From<$name> for $c_type {
+            fn from(value: $name) -> Self {
+                Self::from(value as $repr)
             }
         }
     };
