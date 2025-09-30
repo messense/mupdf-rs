@@ -53,7 +53,7 @@ from_enum! { fz_bidi_direction,
     }
 }
 
-from_enum! { fz_text_language => u16,
+from_enum! { fz_text_language,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Language {
         Unset = FZ_LANG_UNSET,

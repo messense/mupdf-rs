@@ -250,37 +250,11 @@ macro_rules! from_enum {
             )*
         }
     ) => {
-        from_enum! {
-            $c_type => u8,
-            $(#[$($attr)*])*
-            pub enum $name {
-                $(
-                    $(#[$($field_attr)*])*
-                    $field = $value,
-                )*
-            }
-        }
-    };
-    (
-        $c_type:ty => $repr:ty,
-        $(#[$($attr:tt)*])*
-        pub enum $name:ident {
-            $(
-                $(#[$($field_attr:tt)*])*
-                $field:ident = $value:tt,
-            )*
-        }
-    ) => {
-        #[repr($repr)]
         $(#[$($attr)*])*
         pub enum $name {
             $(
                 $(#[$($field_attr)*])*
-                $field = const { if $value > (<$repr>::MAX as _) {
-                    panic!("The #[repr] of this enum won't fit the given constant. Try increasing the repr to the next-largest type");
-                } else {
-                    $value as $repr
-                }},
+                $field = $value as isize,
             )*
         }
 
@@ -296,9 +270,19 @@ macro_rules! from_enum {
             }
         }
 
+        const _: () = {
+            $(
+                // have to use the highest available signed value so that we can compare all values
+                // to each other, even if the constants we're provided are `c_uint` while the
+                // `c_type` we need to use is `c_int` (which is often the case)
+                assert!((<$c_type>::MAX as i128) >= ($value as i128));
+            )*
+        };
+
         impl From<$name> for $c_type {
             fn from(value: $name) -> Self {
-                Self::from(value as $repr)
+                // Validated that this won't cause truncation by the const block above this
+                value as $c_type
             }
         }
     };
