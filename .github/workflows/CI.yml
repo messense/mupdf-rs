@@ -23,7 +23,7 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
         with:
-          components: [clippy]
+          components: clippy
       - run: sudo apt-get -y install libfontconfig1-dev
       - run: cargo clippy --tests --features serde -- -D warnings
       - run: cargo doc -p mupdf --no-deps --document-private-items
