@@ -94,7 +94,7 @@ impl Page {
 
     pub fn to_text_page(&self, flags: TextPageFlags) -> Result<TextPage, Error> {
         let opts = fz_stext_options {
-            flags: i32::from_be_bytes(flags.bits().to_be_bytes()),
+            flags: flags.bits() as i32,
             scale: 0.0,
             clip: fz_rect {
                 x0: 0.0,
