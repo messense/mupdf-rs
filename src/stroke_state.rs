@@ -47,10 +47,10 @@ impl StrokeState {
         unsafe {
             ffi_try!(mupdf_new_stroke_state(
                 context(),
-                start_cap as fz_linecap,
-                dash_cap as fz_linecap,
-                end_cap as fz_linecap,
-                line_join as fz_linejoin,
+                start_cap.into(),
+                dash_cap.into(),
+                end_cap.into(),
+                line_join.into(),
                 line_width,
                 miter_limit,
                 dash_phase,

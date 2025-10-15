@@ -285,6 +285,23 @@ macro_rules! from_enum {
                 value as $c_type
             }
         }
+
+        #[cfg(windows)]
+        const _: () = {
+            $(
+                // have to use the highest available signed value so that we can compare all values
+                // to each other, even if the constants we're provided are `c_uint` while the
+                // `c_type` we need to use is `c_int` (which is often the case)
+                assert!((u32::MAX as i128) >= ($value as i128));
+            )*
+        };
+
+        #[cfg(windows)]
+        impl From<$name> for u32 {
+            fn from(value: $name) -> Self {
+                value as u32
+            }
+        }
     };
 }
 pub(crate) use from_enum;

@@ -105,7 +105,7 @@ impl TextSpan {
 
     pub fn markup_dir(&self) -> BidiDirection {
         let markup_dir = unsafe { (*self.inner).markup_dir() };
-        (markup_dir as fz_bidi_direction).try_into().unwrap()
+        fz_bidi_direction::from(markup_dir).try_into().unwrap()
     }
 
     pub fn set_markup_dir(&mut self, dir: BidiDirection) {
@@ -114,7 +114,7 @@ impl TextSpan {
 
     pub fn language(&self) -> Language {
         let lang = unsafe { (*self.inner).language() };
-        (lang as fz_text_language).try_into().unwrap()
+        fz_text_language::from(lang).try_into().unwrap()
     }
 
     pub fn set_language(&mut self, language: Language) {
