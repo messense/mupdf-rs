@@ -1,5 +1,4 @@
-use std::convert::TryInto;
-use std::slice;
+use std::{convert::TryInto, ffi::c_uint, slice};
 
 use mupdf_sys::*;
 
@@ -44,7 +43,7 @@ impl Drop for Text {
     }
 }
 
-from_enum! { fz_bidi_direction,
+from_enum! { fz_bidi_direction => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BidiDirection {
         Ltr = FZ_BIDI_LTR,
@@ -53,7 +52,7 @@ from_enum! { fz_bidi_direction,
     }
 }
 
-from_enum! { fz_text_language,
+from_enum! { fz_text_language => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Language {
         Unset = FZ_LANG_UNSET,

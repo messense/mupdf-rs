@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_int, CString},
+    ffi::{c_int, c_uint, CString},
     num::NonZero,
     ptr,
 };
@@ -16,7 +16,7 @@ use crate::{
 mod native;
 pub use native::NativeDevice;
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BlendMode {
         /* PDF 1.4 -- standard separable */
@@ -60,7 +60,7 @@ bitflags! {
     }
 }
 
-from_enum! { fz_structure,
+from_enum! { fz_structure => c_int,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Structure {
         Invalid = FZ_STRUCTURE_INVALID,
@@ -147,7 +147,7 @@ from_enum! { fz_structure,
     }
 }
 
-from_enum! { fz_metatext,
+from_enum! { fz_metatext => c_uint,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Metatext {
         ActualText = FZ_METATEXT_ACTUALTEXT,

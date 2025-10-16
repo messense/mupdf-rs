@@ -241,7 +241,7 @@ impl<A, B> AssertSizeEquals<A, B> {
 
 macro_rules! from_enum {
     (
-        $c_type:ty,
+        $c_type_from:ty => $c_type_to:ty,
         $(#[$($attr:tt)*])*
         pub enum $name:ident {
             $(
@@ -258,11 +258,11 @@ macro_rules! from_enum {
             )*
         }
 
-        impl TryFrom<$c_type> for $name {
+        impl TryFrom<$c_type_from> for $name {
             type Error = $crate::error::Error;
 
             #[allow(non_upper_case_globals)]
-            fn try_from(value: $c_type) -> Result<Self, Self::Error> {
+            fn try_from(value: $c_type_from) -> Result<Self, Self::Error> {
                 match value as _ {
                     $($value => Ok(Self::$field),)*
                     _ => Err(Self::Error::UnknownEnumVariant)
@@ -274,32 +274,15 @@ macro_rules! from_enum {
             $(
                 // have to use the highest available signed value so that we can compare all values
                 // to each other, even if the constants we're provided are `c_uint` while the
-                // `c_type` we need to use is `c_int` (which is often the case)
-                assert!((<$c_type>::MAX as i128) >= ($value as i128));
+                // `c_type_to` we need to use is `c_int` (which is often the case)
+                assert!((<$c_type_to>::MAX as i64) >= ($value as i64));
             )*
         };
 
-        impl From<$name> for $c_type {
+        impl From<$name> for $c_type_to {
             fn from(value: $name) -> Self {
                 // Validated that this won't cause truncation by the const block above this
-                value as $c_type
-            }
-        }
-
-        #[cfg(windows)]
-        const _: () = {
-            $(
-                // have to use the highest available signed value so that we can compare all values
-                // to each other, even if the constants we're provided are `c_uint` while the
-                // `c_type` we need to use is `c_int` (which is often the case)
-                assert!((u32::MAX as i128) >= ($value as i128));
-            )*
-        };
-
-        #[cfg(windows)]
-        impl From<$name> for u32 {
-            fn from(value: $name) -> Self {
-                value as u32
+                value as $c_type_to
             }
         }
     };

@@ -1,5 +1,7 @@
-use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::{
+    convert::TryFrom,
+    ffi::{c_uint, CStr, CString},
+};
 
 use mupdf_sys::*;
 
@@ -7,7 +9,7 @@ use crate::color::AnnotationColor;
 use crate::{context, from_enum, Error};
 use crate::{pdf::PdfFilterOptions, Point, Rect};
 
-from_enum! { pdf_annot_type,
+from_enum! { pdf_annot_type => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum PdfAnnotationType {
         Text = PDF_ANNOT_TEXT,
@@ -42,7 +44,7 @@ from_enum! { pdf_annot_type,
     }
 }
 
-from_enum! { pdf_line_ending,
+from_enum! { pdf_line_ending => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum LineEndingStyle {
         None = PDF_ANNOT_LE_NONE,

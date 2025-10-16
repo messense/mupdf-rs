@@ -27,7 +27,7 @@ bitflags! {
     }
 }
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Copy, Clone, PartialEq, Default)]
     pub enum Encryption {
         Aes128 = PDF_ENCRYPT_AES_128,

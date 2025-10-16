@@ -1,6 +1,5 @@
-use core::ffi::c_void;
 use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::fmt;
 use std::io::{self, BufReader, Read, Write};
 use std::slice;
@@ -327,7 +326,7 @@ impl PdfObject {
             unsafe { ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii)) }?;
         let c_str = unsafe { CStr::from_ptr(ptr) };
         let s = c_str.to_string_lossy().into_owned();
-        unsafe { fz_free(context(), ptr as *mut c_void) };
+        unsafe { fz_free(context(), ptr.cast()) };
         Ok(s)
     }
 

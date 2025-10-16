@@ -309,7 +309,7 @@ pub enum SearchHitResponse {
     AbortSearch = 1,
 }
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum TextBlockType {
         Text = FZ_STEXT_BLOCK_TEXT,

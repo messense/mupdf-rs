@@ -6,7 +6,7 @@ use mupdf_sys::*;
 
 use crate::{context, from_enum, Buffer, Error, Matrix, Path};
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum SimpleFontEncoding {
         Latin = PDF_SIMPLE_ENCODING_LATIN,
@@ -15,7 +15,7 @@ from_enum! { c_int,
     }
 }
 
-from_enum! { u32,
+from_enum! { u32 => u32,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum WriteMode {
         Horizontal = 0,
@@ -23,7 +23,7 @@ from_enum! { u32,
     }
 }
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum CjkFontOrdering {
         AdobeCns = FZ_ADOBE_CNS,

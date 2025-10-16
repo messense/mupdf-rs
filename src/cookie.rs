@@ -1,4 +1,4 @@
-use core::ffi::c_void;
+use std::ffi::c_void;
 
 use mupdf_sys::*;
 
@@ -58,9 +58,7 @@ impl Cookie {
 impl Drop for Cookie {
     fn drop(&mut self) {
         if !self.inner.is_null() {
-            unsafe {
-                fz_free(context(), self.inner as *mut c_void);
-            }
+            unsafe { fz_free(context(), self.inner.cast()) }
         }
     }
 }
