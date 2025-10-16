@@ -1,5 +1,5 @@
 use std::convert::TryFrom;
-use std::ffi::{c_void, CStr, CString};
+use std::ffi::{CStr, CString};
 use std::fmt;
 use std::io::{self, BufReader, Read, Write};
 use std::slice;

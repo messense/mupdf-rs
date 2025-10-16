@@ -1,5 +1,3 @@
-use std::ffi::c_void;
-
 use mupdf_sys::*;
 
 use crate::{context, Error};
