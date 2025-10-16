@@ -1,6 +1,6 @@
 use std::{
     convert::TryFrom,
-    ffi::{c_uint, c_int, CStr, CString},
+    ffi::{c_int, c_uint, CStr, CString},
 };
 
 use mupdf_sys::*;
