@@ -250,28 +250,6 @@ macro_rules! from_enum {
             )*
         }
     ) => {
-        from_enum! {
-            $c_type => u8,
-            $(#[$($attr)*])*
-            pub enum $name {
-                $(
-                    $(#[$($field_attr)*])*
-                    $field = $value,
-                )*
-            }
-        }
-    };
-    (
-        $c_type:ty => $repr:ty,
-        $(#[$($attr:tt)*])*
-        pub enum $name:ident {
-            $(
-                $(#[$($field_attr:tt)*])*
-                $field:ident = $value:tt,
-            )*
-        }
-    ) => {
-        #[repr($repr)]
         $(#[$($attr)*])*
         pub enum $name {
             $(

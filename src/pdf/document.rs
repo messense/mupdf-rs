@@ -37,7 +37,6 @@ from_enum! { c_int => c_int,
         Keep = PDF_ENCRYPT_KEEP,
         #[default]
         None = PDF_ENCRYPT_NONE,
-        #[default]
         Unknown = PDF_ENCRYPT_UNKNOWN,
     }
 }

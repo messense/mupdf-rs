@@ -2,7 +2,7 @@ use mupdf_sys::*;
 
 use crate::from_enum;
 
-from_enum! { pdf_intent,
+from_enum! { pdf_intent => pdf_intent,
     #[derive(Debug, Clone, Copy, PartialEq, Eq)]
     pub enum Intent {
         Default = PDF_ANNOT_IT_DEFAULT,
