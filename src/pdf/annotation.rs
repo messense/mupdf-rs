@@ -1,5 +1,7 @@
-use std::convert::TryFrom;
-use std::ffi::{CStr, CString};
+use std::{
+    convert::TryFrom,
+    ffi::{c_uint, CStr, CString},
+};
 
 use mupdf_sys::*;
 
@@ -7,7 +9,7 @@ use crate::color::AnnotationColor;
 use crate::{context, from_enum, Error};
 use crate::{pdf::PdfFilterOptions, Point, Rect};
 
-from_enum! { pdf_annot_type,
+from_enum! { pdf_annot_type => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum PdfAnnotationType {
         Text = PDF_ANNOT_TEXT,
@@ -42,7 +44,7 @@ from_enum! { pdf_annot_type,
     }
 }
 
-from_enum! { pdf_line_ending,
+from_enum! { pdf_line_ending => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum LineEndingStyle {
         None = PDF_ANNOT_LE_NONE,
@@ -109,13 +111,13 @@ impl PdfAnnotation {
                     context(),
                     self.inner,
                     1,
-                    &[g] as *const _
+                    [g].as_ptr()
                 )),
                 AnnotationColor::Rgb { red, green, blue } => ffi_try!(mupdf_pdf_set_annot_color(
                     context(),
                     self.inner,
                     3,
-                    &[red, green, blue] as *const _
+                    [red, green, blue].as_ptr()
                 )),
                 AnnotationColor::Cmyk {
                     cyan,
@@ -126,7 +128,7 @@ impl PdfAnnotation {
                     context(),
                     self.inner,
                     4,
-                    &[cyan, magenta, yellow, key] as *const _
+                    [cyan, magenta, yellow, key].as_ptr()
                 )),
             }
         }
@@ -172,7 +174,7 @@ impl PdfAnnotation {
             ffi_try!(mupdf_pdf_filter_annot_contents(
                 context(),
                 self.inner,
-                &mut opt.inner as *mut _
+                &raw mut opt.inner
             ))
         }
     }

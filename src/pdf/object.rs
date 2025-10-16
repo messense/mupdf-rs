@@ -326,7 +326,7 @@ impl PdfObject {
             unsafe { ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii)) }?;
         let c_str = unsafe { CStr::from_ptr(ptr) };
         let s = c_str.to_string_lossy().into_owned();
-        unsafe { fz_free(context(), ptr as _) };
+        unsafe { fz_free(context(), ptr.cast()) };
         Ok(s)
     }
 

@@ -133,7 +133,7 @@ impl DisplayList {
                 context(),
                 self.inner,
                 c_needle.as_ptr(),
-                hit_max as _,
+                hit_max as i32,
                 &mut hit_count
             ))
         }

@@ -27,22 +27,17 @@ bitflags! {
     }
 }
 
-from_enum! { c_int,
-    #[derive(Debug, Copy, Clone, PartialEq)]
+from_enum! { c_int => c_int,
+    #[derive(Debug, Copy, Clone, PartialEq, Default)]
     pub enum Encryption {
         Aes128 = PDF_ENCRYPT_AES_128,
         Aes256 = PDF_ENCRYPT_AES_256,
         Rc4_40 = PDF_ENCRYPT_RC4_40,
         Rc4_128 = PDF_ENCRYPT_RC4_128,
         Keep = PDF_ENCRYPT_KEEP,
+        #[default]
         None = PDF_ENCRYPT_NONE,
         Unknown = PDF_ENCRYPT_UNKNOWN,
-    }
-}
-
-impl Default for Encryption {
-    fn default() -> Encryption {
-        Self::None
     }
 }
 
@@ -184,7 +179,7 @@ impl PdfWriteOptions {
     }
 
     pub fn set_encryption(&mut self, value: Encryption) -> &mut Self {
-        self.inner.do_encrypt = value as _;
+        self.inner.do_encrypt = value.into();
         self
     }
 

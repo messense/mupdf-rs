@@ -1,5 +1,4 @@
-use std::convert::TryInto;
-use std::slice;
+use std::{convert::TryInto, ffi::c_uint, slice};
 
 use mupdf_sys::*;
 
@@ -44,7 +43,9 @@ impl Drop for Text {
     }
 }
 
-from_enum! { fz_bidi_direction,
+// this should be fz_bidi_direction but we only every interact with it as a c_uint. But a
+// fz_bidi_direction is a c_int on windows. So we just need to say it should always be a c_uint
+from_enum! { c_uint => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BidiDirection {
         Ltr = FZ_BIDI_LTR,
@@ -53,7 +54,8 @@ from_enum! { fz_bidi_direction,
     }
 }
 
-from_enum! { fz_text_language,
+// same situation here as for fz_bidi_direction
+from_enum! { c_uint => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Language {
         Unset = FZ_LANG_UNSET,
@@ -91,7 +93,7 @@ impl TextSpan {
 
     pub fn set_wmode(&mut self, wmode: WriteMode) {
         unsafe {
-            (*self.inner).set_wmode(wmode as _);
+            (*self.inner).set_wmode(wmode.into());
         }
     }
 
@@ -105,20 +107,20 @@ impl TextSpan {
 
     pub fn markup_dir(&self) -> BidiDirection {
         let markup_dir = unsafe { (*self.inner).markup_dir() };
-        (markup_dir as fz_bidi_direction).try_into().unwrap()
+        BidiDirection::try_from(markup_dir).unwrap()
     }
 
     pub fn set_markup_dir(&mut self, dir: BidiDirection) {
-        unsafe { (*self.inner).set_markup_dir(dir as _) }
+        unsafe { (*self.inner).set_markup_dir(dir.into()) }
     }
 
     pub fn language(&self) -> Language {
         let lang = unsafe { (*self.inner).language() };
-        (lang as fz_text_language).try_into().unwrap()
+        Language::try_from(lang).unwrap()
     }
 
     pub fn set_language(&mut self, language: Language) {
-        unsafe { (*self.inner).set_language(language as _) }
+        unsafe { (*self.inner).set_language(language.into()) }
     }
 
     pub fn items(&self) -> TextItemIter<'_> {

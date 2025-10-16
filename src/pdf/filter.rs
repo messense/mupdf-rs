@@ -6,8 +6,10 @@ use std::mem;
 use crate::pdf::PdfDocument;
 use crate::{Image, Matrix, Rect};
 
+type InnerCallback<'a> = Box<dyn FnMut(Matrix, &str, &Image) -> Option<Image> + 'a>;
+
 // Double indirection is required to pass trait objects trough FFI.
-type BoxedCallback<'a> = Box<Box<dyn FnMut(Matrix, &str, &Image) -> Option<Image> + 'a>>;
+type BoxedCallback<'a> = Box<InnerCallback<'a>>;
 
 pub struct PdfFilterOptions<'a> {
     pub(crate) inner: pdf_filter_options,
@@ -40,7 +42,7 @@ impl<'a> PdfFilterOptions<'a> {
         self.phantom.take().map(|_| {
             let ptr = self.inner.opaque;
             self.inner.opaque = std::ptr::null_mut();
-            unsafe { Box::from_raw(ptr as *mut _) }
+            unsafe { Box::from_raw(ptr as *mut InnerCallback<'a>) }
         })
     }
 

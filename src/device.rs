@@ -16,7 +16,7 @@ use crate::{
 mod native;
 pub use native::NativeDevice;
 
-from_enum! { c_int,
+from_enum! { c_int => c_int,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BlendMode {
         /* PDF 1.4 -- standard separable */
@@ -60,7 +60,7 @@ bitflags! {
     }
 }
 
-from_enum! { fz_structure,
+from_enum! { fz_structure => c_int,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Structure {
         Invalid = FZ_STRUCTURE_INVALID,
@@ -147,7 +147,7 @@ from_enum! { fz_structure,
     }
 }
 
-from_enum! { fz_metatext,
+from_enum! { fz_metatext => fz_metatext,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Metatext {
         ActualText = FZ_METATEXT_ACTUALTEXT,
@@ -522,7 +522,7 @@ impl Device {
                 cs.inner,
                 isolated,
                 knockout,
-                blend_mode as _,
+                blend_mode.into(),
                 alpha
             ))
         }
@@ -575,9 +575,9 @@ impl Device {
             ffi_try!(mupdf_begin_structure(
                 context(),
                 self.dev,
-                standard as _,
+                standard.into(),
                 c_raw.as_ptr(),
-                idx as _
+                idx
             ))
         }
     }
@@ -592,7 +592,7 @@ impl Device {
             ffi_try!(mupdf_begin_metatext(
                 context(),
                 self.dev,
-                meta as _,
+                meta.into(),
                 c_text.as_ptr()
             ))
         }

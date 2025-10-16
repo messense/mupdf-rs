@@ -53,7 +53,7 @@ pub(crate) unsafe extern "C" fn load_system_font(
             let font = match handle.load() {
                 Ok(f) => Font::from_bytes_with_index(
                     &f.family_name(),
-                    font_index as _,
+                    font_index as i32,
                     &f.copy_font_data().unwrap(),
                 ),
                 Err(_) => return ptr::null_mut(),

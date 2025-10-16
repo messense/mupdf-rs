@@ -56,9 +56,7 @@ impl Cookie {
 impl Drop for Cookie {
     fn drop(&mut self) {
         if !self.inner.is_null() {
-            unsafe {
-                fz_free(context(), self.inner as _);
-            }
+            unsafe { fz_free(context(), self.inner.cast()) }
         }
     }
 }

@@ -4,7 +4,7 @@ use mupdf_sys::*;
 
 use crate::{context, from_enum, Error};
 
-from_enum! { fz_linecap,
+from_enum! { fz_linecap => fz_linecap,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineCap {
         #[default]
@@ -15,7 +15,7 @@ from_enum! { fz_linecap,
     }
 }
 
-from_enum! { fz_linejoin,
+from_enum! { fz_linejoin => fz_linejoin,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineJoin {
         #[default]
@@ -47,10 +47,10 @@ impl StrokeState {
         unsafe {
             ffi_try!(mupdf_new_stroke_state(
                 context(),
-                start_cap as fz_linecap,
-                dash_cap as fz_linecap,
-                end_cap as fz_linecap,
-                line_join as fz_linejoin,
+                start_cap.into(),
+                dash_cap.into(),
+                end_cap.into(),
+                line_join.into(),
                 line_width,
                 miter_limit,
                 dash_phase,
