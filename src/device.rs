@@ -1,5 +1,5 @@
 use std::{
-    ffi::{c_int, c_uint, CString},
+    ffi::{c_int, CString},
     num::NonZero,
     ptr,
 };
@@ -147,7 +147,7 @@ from_enum! { fz_structure => c_int,
     }
 }
 
-from_enum! { fz_metatext => c_uint,
+from_enum! { fz_metatext => fz_metatext,
     #[derive(Debug, PartialEq, Eq, Clone, Copy)]
     pub enum Metatext {
         ActualText = FZ_METATEXT_ACTUALTEXT,

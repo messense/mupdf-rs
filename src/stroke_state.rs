@@ -1,10 +1,10 @@
-use std::{convert::TryFrom, ffi::c_uint};
+use std::convert::TryFrom;
 
 use mupdf_sys::*;
 
 use crate::{context, from_enum, Error};
 
-from_enum! { fz_linecap => c_uint,
+from_enum! { fz_linecap => fz_linecap,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineCap {
         #[default]
@@ -15,7 +15,7 @@ from_enum! { fz_linecap => c_uint,
     }
 }
 
-from_enum! { fz_linejoin => c_uint,
+from_enum! { fz_linejoin => fz_linejoin,
     #[derive(Debug, Default, Clone, Copy, PartialEq)]
     pub enum LineJoin {
         #[default]

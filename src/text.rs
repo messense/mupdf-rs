@@ -43,7 +43,9 @@ impl Drop for Text {
     }
 }
 
-from_enum! { fz_bidi_direction => c_uint,
+// this should be fz_bidi_direction but we only every interact with it as a c_uint. But a
+// fz_bidi_direction is a c_int on windows. So we just need to say it should always be a c_uint
+from_enum! { c_uint => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum BidiDirection {
         Ltr = FZ_BIDI_LTR,
@@ -52,7 +54,8 @@ from_enum! { fz_bidi_direction => c_uint,
     }
 }
 
-from_enum! { fz_text_language => c_uint,
+// same situation here as for fz_bidi_direction
+from_enum! { c_uint => c_uint,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum Language {
         Unset = FZ_LANG_UNSET,
@@ -104,7 +107,7 @@ impl TextSpan {
 
     pub fn markup_dir(&self) -> BidiDirection {
         let markup_dir = unsafe { (*self.inner).markup_dir() };
-        fz_bidi_direction::from(markup_dir).try_into().unwrap()
+        BidiDirection::try_from(markup_dir).unwrap()
     }
 
     pub fn set_markup_dir(&mut self, dir: BidiDirection) {
@@ -113,7 +116,7 @@ impl TextSpan {
 
     pub fn language(&self) -> Language {
         let lang = unsafe { (*self.inner).language() };
-        fz_text_language::from(lang).try_into().unwrap()
+        Language::try_from(lang).unwrap()
     }
 
     pub fn set_language(&mut self, language: Language) {
