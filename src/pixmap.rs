@@ -143,12 +143,22 @@ impl Pixmap {
 
     pub fn samples(&self) -> &[u8] {
         let len = (self.width() * self.height() * self.n() as u32) as usize;
-        unsafe { slice::from_raw_parts((*self.inner).samples, len) }
+        let ptr = unsafe { (*self.inner).samples };
+        if ptr.is_null() {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(ptr, len) }
+        }
     }
 
     pub fn samples_mut(&mut self) -> &mut [u8] {
         let len = (self.width() * self.height() * self.n() as u32) as usize;
-        unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
+        let ptr = unsafe { (*self.inner).samples };
+        if ptr.is_null() {
+            &mut []
+        } else {
+            unsafe { slice::from_raw_parts_mut(ptr, len) }
+        }
     }
 
     /// Only valid for RGBA or BGRA pixmaps
@@ -157,12 +167,19 @@ impl Pixmap {
             // invalid colorspace
             return None;
         }
+
         let size = (self.width() * self.height()) as usize;
         if size * 4 != (self.height() as usize * self.stride() as usize) {
             // invalid stride
             return None;
         }
-        Some(unsafe { slice::from_raw_parts((*self.inner).samples.cast(), size) })
+
+        let ptr = unsafe { (*self.inner).samples };
+        if ptr.is_null() {
+            Some(&[])
+        } else {
+            Some(unsafe { slice::from_raw_parts(ptr.cast(), size) })
+        }
     }
 
     /// Initialize the samples area with 0x00
@@ -318,5 +335,14 @@ mod test {
         pixmap.clear().unwrap();
         let pixels = pixmap.pixels();
         assert!(pixels.is_some());
+    }
+
+    #[test]
+    fn test_pixmap_empty() {
+        let cs = Colorspace::device_rgb();
+
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 0, 0, false).expect("Pixmap::new_with_w_h");
+        assert!(pixmap.samples().is_empty());
+        assert!(pixmap.samples_mut().is_empty());
     }
 }
