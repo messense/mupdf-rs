@@ -87,7 +87,7 @@ impl Colorspace {
         name_cstr.to_str().unwrap()
     }
 
-    /// `color` should contain a number of elements euql to [`self.n()`]. Each element within
+    /// `color` should contain a number of elements equal to [`self.n()`]. Each element within
     /// `color` should *probably* be a value between [0, 1.0] (at least, that is the case when
     /// [`Self::is_rgb()`], [`Self::is_gray()`], or [`Self::is_cmyk()`] - other colorspaces may
     /// work differently).
