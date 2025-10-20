@@ -168,7 +168,12 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
     builder = builder
         .clang_arg("-Imupdf/include")
         .header("wrapper.h")
-        .header("wrapper.c");
+        .header("wrapper.c")
+        .header("mupdf/source/fitz/context-imp.h")
+        .header("mupdf/source/fitz/color-imp.h")
+        .header("mupdf/source/fitz/draw-imp.h")
+        .header("mupdf/source/fitz/glyph-imp.h")
+        .header("mupdf/source/fitz/pixmap-imp.h");
 
     builder = builder
         .allowlist_recursively(false)
@@ -192,6 +197,7 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         .blocklist_function("Memento_vasprintf") // Memento_asprintf
         .blocklist_function("fz_vthrow") // fz_throw
         .blocklist_function("fz_vwarn") // fz_warn
+        .blocklist_function("fz_log_activity") // fz_log_activity
         .blocklist_function("fz_vlog_error_printf") // fz_log_error_printf
         .blocklist_function("fz_append_vprintf") // fz_append_printf
         .blocklist_function("fz_write_vprintf") // fz_write_printf
@@ -214,7 +220,7 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         .blocklist_type("fz_error_stack_slot")
         .blocklist_type("fz_error_context")
         .blocklist_type("fz_warn_context")
-        .blocklist_type("fz_aa_context")
+        // .blocklist_type("fz_aa_context")
         .blocklist_type("fz_activity_.*")
         .blocklist_function("fz_register_activity_logger")
         .opaque_type("fz_context")
