@@ -26,7 +26,7 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    if fs::read_dir("mupdf").is_ok_and(|d| d.count() == 0) {
+    if fs::read_dir("mupdf").map_or(true, |d| d.count() == 0) {
         Err(
             "The `mupdf` directory is empty, did you forget to pull the submodules?\n\
             Try `git submodule update --init --recursive`",

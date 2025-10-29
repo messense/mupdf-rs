@@ -10,6 +10,9 @@ jobs:
       id-token: write
     steps:
     - uses: actions/checkout@v5
+      with:
+        submodules: "recursive"
+        fetch-depth: 500
     - uses: rust-lang/crates-io-auth-action@v1
       id: auth
     - run: sudo apt-get -y install libfontconfig1-dev # required to compile mupdf
