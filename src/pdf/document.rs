@@ -432,6 +432,11 @@ impl PdfDocument {
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
+    pub fn load_name_tree(&self, d: PdfObject) -> Result<PdfObject, Error> {
+        unsafe { ffi_try!(mupdf_pdf_load_name_tree(context(), self.inner, d.inner)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+    }
+
     pub fn catalog(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_catalog(context(), self.inner)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })

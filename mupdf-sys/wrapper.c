@@ -1604,6 +1604,21 @@ pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **e
     return obj;
 }
 
+pdf_obj *mupdf_pdf_load_name_tree(fz_context *ctx, pdf_document *pdf, pdf_obj* name, mupdf_error_t **errptr)
+{
+    pdf_obj *obj = NULL;
+    fz_try(ctx)
+    {
+        obj = pdf_load_name_tree(ctx, pdf, name);
+        pdf_keep_obj(ctx, obj);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return obj;
+}
+
 pdf_obj *mupdf_pdf_catalog(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
