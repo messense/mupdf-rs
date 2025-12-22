@@ -51,18 +51,14 @@ impl Msbuild {
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
             Err("Could not find msbuild.exe. Do you have it installed?")?
         };
-        let mut args = vec![
-            r"platform\win32\mupdf.sln".to_string(),
-            "/target:libmupdf".to_string(),
-            format!("/p:Configuration={configuration}"),
-            format!("/p:Platform={platform}"),
-            format!("/p:PlatformToolset={platform_toolset}"),
-        ];
-        if platform == "ARM64" {
-            args.push("/p:AdditionalOptions=\"/guard:longjmp\"".to_string());
-        }
         let status = msbuild
-            .args(args)
+            .args([
+                r"platform\win32\mupdf.sln",
+                "/target:libmupdf",
+                &format!("/p:Configuration={configuration}"),
+                &format!("/p:Platform={platform}"),
+                &format!("/p:PlatformToolset={platform_toolset}"),
+            ])
             .current_dir(build_dir)
             .env("CL", self.cl.join(" "))
             .status()
