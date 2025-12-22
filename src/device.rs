@@ -532,6 +532,7 @@ impl Device {
         unsafe { ffi_try!(mupdf_end_group(context(), self.dev)) }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn begin_tile(
         &self,
         area: Rect,
