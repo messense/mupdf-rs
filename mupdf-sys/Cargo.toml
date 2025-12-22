@@ -47,6 +47,10 @@ exclude = [
     "mupdf/thirdparty/tesseract/test/*",
     "mupdf/thirdparty/tesseract/java/*",
     "mupdf/thirdparty/tesseract/doc/*",
+    # Exclude libzint directory containing broken symlinks. The symlinks point to
+    # ../../../zint/backend/ but the correct path is ../../../../zint/backend/
+    # (mupdf upstream also excludes this directory from their release tarballs)
+    "mupdf/thirdparty/zxing-cpp/**/libzint/*",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
