@@ -47,6 +47,7 @@ exclude = [
     "mupdf/thirdparty/tesseract/test/*",
     "mupdf/thirdparty/tesseract/java/*",
     "mupdf/thirdparty/tesseract/doc/*",
+    "mupdf/thirdparty/zxing-cpp/**/libzint/*",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
