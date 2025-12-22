@@ -156,6 +156,7 @@ pub trait NativeDevice: 'static {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
+        doc_id: Option<NonZero<i32>>,
     ) -> Option<NonZero<i32>> {
         None
     }
@@ -334,8 +335,9 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Box<T> {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
+        doc_id: Option<NonZero<i32>>,
     ) -> Option<NonZero<i32>> {
-        (**self).begin_tile(area, view, x_step, y_step, ctm, id)
+        (**self).begin_tile(area, view, x_step, y_step, ctm, id, doc_id)
     }
 
     fn end_tile(&mut self) {
@@ -539,9 +541,10 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
+        doc_id: Option<NonZero<i32>>,
     ) -> Option<NonZero<i32>> {
         self.borrow_mut()
-            .begin_tile(area, view, x_step, y_step, ctm, id)
+            .begin_tile(area, view, x_step, y_step, ctm, id, doc_id)
     }
 
     fn end_tile(&mut self) {
@@ -1018,6 +1021,7 @@ unsafe extern "C" fn begin_tile<D: NativeDevice>(
     ystep: f32,
     ctm: fz_matrix,
     id: c_int,
+    doc_id: c_int,
 ) -> c_int {
     let i = with_rust_device::<D, _>(dev, |dev| {
         dev.begin_tile(
@@ -1027,6 +1031,7 @@ unsafe extern "C" fn begin_tile<D: NativeDevice>(
             ystep,
             ctm.into(),
             NonZero::new(id as i32),
+            NonZero::new(doc_id as i32),
         )
     });
     i.map_or(0, NonZero::get) as c_int

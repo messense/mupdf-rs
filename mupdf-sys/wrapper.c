@@ -1908,9 +1908,9 @@ void mupdf_end_group(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
     TRY_CATCH_VOID(fz_end_group(ctx, device));
 }
 
-int mupdf_begin_tile(fz_context *ctx, fz_device *device, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id, mupdf_error_t **errptr)
+int mupdf_begin_tile(fz_context *ctx, fz_device *device, fz_rect area, fz_rect view, float xstep, float ystep, fz_matrix ctm, int id, int doc_id, mupdf_error_t **errptr)
 {
-    TRY_CATCH(int, 0, fz_begin_tile_id(ctx, device, area, view, xstep, ystep, ctm, id));
+    TRY_CATCH(int, 0, fz_begin_tile_tid(ctx, device, area, view, xstep, ystep, ctm, id, doc_id));
 }
 
 void mupdf_end_tile(fz_context *ctx, fz_device *device, mupdf_error_t **errptr)
