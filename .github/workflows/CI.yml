@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025]
+        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025, windows-11-arm]
     steps:
       - uses: actions/checkout@v4
         with:
