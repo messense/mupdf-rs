@@ -32,7 +32,6 @@ impl Msbuild {
         let platform = match &*target.arch {
             "i386" | "i586" | "i686" => "Win32",
             "x86_64" => "x64",
-            "aarch64" => "ARM64",
             _ => Err(format!(
                 "mupdf currently only supports Win32 and x64 with msvc\n\
                 Try compiling using mingw for potential {:?} support",
@@ -70,12 +69,12 @@ impl Msbuild {
             })?;
         }
 
-        if platform == "Win32" {
-            println!("cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}");
-        } else {
+        if platform == "x64" {
             println!(
-                "cargo:rustc-link-search=native={build_dir}/platform/win32/{platform}/{configuration}"
+                "cargo:rustc-link-search=native={build_dir}/platform/win32/x64/{configuration}"
             );
+        } else {
+            println!("cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}");
         }
 
         if configuration == "Debug" {
