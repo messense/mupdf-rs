@@ -174,7 +174,9 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
         .allowlist_recursively(false)
         .allowlist_type("wchar_t")
         .allowlist_type("FILE")
-        .opaque_type("FILE");
+        .opaque_type("FILE")
+        .allowlist_item("max_align_t")
+        .opaque_type("max_align_t");
 
     builder = builder
         .allowlist_item("fz_.*")
