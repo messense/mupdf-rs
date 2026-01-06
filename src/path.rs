@@ -1,4 +1,3 @@
-use std::mem;
 use std::os::raw::c_void;
 
 use mupdf_sys::*;
@@ -46,7 +45,9 @@ impl<W: PathWalker + ?Sized> PathWalker for &mut W {
 }
 
 unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
-    f(unsafe { &mut *arg.cast::<W>() });
+    let c_walker: *mut W = arg.cast();
+    let rust_walker = unsafe { &mut *c_walker };
+    f(rust_walker);
 }
 
 unsafe extern "C" fn path_walk_move_to<W: PathWalker>(
