@@ -1,4 +1,3 @@
-use std::mem;
 use std::os::raw::c_void;
 
 use mupdf_sys::*;
@@ -46,9 +45,9 @@ impl<W: PathWalker + ?Sized> PathWalker for &mut W {
 }
 
 unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
-    let mut walker: Box<W> = unsafe { Box::from_raw(arg.cast()) };
-    f(&mut walker);
-    mem::forget(walker);
+    let c_walker: *mut W = arg.cast();
+    let rust_walker = unsafe { &mut *c_walker };
+    f(rust_walker);
 }
 
 unsafe extern "C" fn path_walk_move_to<W: PathWalker>(
@@ -126,7 +125,7 @@ impl Path {
         unsafe { ffi_try!(mupdf_clone_path(context(), self.inner)) }.map(|inner| Self { inner })
     }
 
-    pub fn walk<W: PathWalker>(&self, walker: W) -> Result<(), Error> {
+    pub fn walk<W: PathWalker>(&self, mut walker: W) -> Result<(), Error> {
         unsafe {
             let c_walker = fz_path_walker {
                 moveto: Some(path_walk_move_to::<W>),
@@ -138,14 +137,12 @@ impl Path {
                 curvetoy: Some(path_walk_curve_to_y::<W>),
                 rectto: Some(path_walk_rect::<W>),
             };
-            let raw_ptr = Box::into_raw(Box::new(walker));
             ffi_try!(mupdf_walk_path(
                 context(),
                 self.inner,
                 &c_walker,
-                raw_ptr.cast()
+                (&raw mut walker).cast()
             ))?;
-            drop(Box::from_raw(raw_ptr));
         }
         Ok(())
     }
