@@ -20,19 +20,24 @@ use core::ffi::{c_int, CStr};
 /// a new instance of `T`, but only the `fz_device` portion will be initialized. The rest is
 /// currently being zero-initialized, but this might change in the future.
 ///
+/// The `*mut T` pointer returned is only guaranteed to be well aligned up to the alignment
+/// of [`max_align_t`].
+///
 /// # Example
 ///
 /// This is how a compliant `T` might look like. The `repr(C)` is necessary as `repr(Rust)` does
 /// not guarantee stable field orderings.
 ///
 /// ```rust
-/// use mupdf_sys::fz_device;
+/// use mupdf_sys::{fz_device, max_align_t};
 ///
 /// #[repr(C)]
 /// struct MyDevice {
 ///     base: fz_device,
 ///     foo: u32,
 /// }
+///
+/// const { assert!(align_of::<MyDevice>() <= align_of::<max_align_t>()); }
 /// ```
 pub unsafe fn mupdf_new_derived_device<T>(
     ctx: *mut fz_context,

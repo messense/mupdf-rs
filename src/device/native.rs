@@ -584,7 +584,21 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
     }
 }
 
+/// ```compile_fail
+/// use mupdf::{Device, NativeDevice};
+///
+/// #[repr(align(32))]
+/// struct U256(#[allow(dead_code)] [u128; 2]);
+///
+/// impl NativeDevice for U256 {}
+///
+/// Device::from_native(U256([0, 0])).unwrap();
+/// ```
 pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
+    const {
+        assert!(align_of::<D>() <= align_of::<max_align_t>());
+    }
+
     let ret = unsafe {
         let c_device: *mut CDevice<D> =
             ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"))?;
