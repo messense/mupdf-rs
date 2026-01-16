@@ -78,6 +78,7 @@ impl Drop for DocumentWriter {
 }
 
 #[cfg(not(target_arch = "wasm32"))]
+#[cfg(feature = "tesseract")]
 #[cfg(test)]
 mod test {
     use crate::{pdf::PdfDocument, ColorParams, Image, Matrix, Rect};
