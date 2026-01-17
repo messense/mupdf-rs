@@ -15,7 +15,14 @@ include = [
     "mupdf/generated/resources/hyphen/*.c",
 
     "mupdf/Make*",
+
+    # Windows MSVC build requirements
     "mupdf/platform/win32/*",
+    "mupdf/source/helpers/pkcs7/*.c",
+    "mupdf/scripts/zxing-cpp/*.cpp",
+    "mupdf/scripts/zxing-cpp/*.h",
+    "mupdf/thirdparty/gumbo-parser/visualc/include/*.h",
+    "mupdf/thirdparty/tesseract/include/tesseract/*.h",
 
     "mupdf/include/mupdf/*.h",
 
