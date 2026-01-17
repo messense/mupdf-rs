@@ -17,13 +17,20 @@ impl Msbuild {
     pub fn define(&mut self, var: &str, val: &str) {
         self.cl.push(format!("/D{var}#{val}"));
         match var {
-            "TOFU_CJK" if val == "1" => self.tofu_cjk = true,
-            "TOFU" if val == "1" => {
-                self.tofu_noto = true;
-                self.tofu_sil = true;
+            "TOFU_CJK" => {
+                self.tofu_cjk = val == "1";
             }
-            "TOFU_NOTO" if val == "1" => self.tofu_noto = true,
-            "TOFU_SIL" if val == "1" => self.tofu_sil = true,
+            "TOFU" => {
+                let enabled = val == "1";
+                self.tofu_noto = enabled;
+                self.tofu_sil = enabled;
+            }
+            "TOFU_NOTO" => {
+                self.tofu_noto = val == "1";
+            }
+            "TOFU_SIL" => {
+                self.tofu_sil = val == "1";
+            }
             _ => {}
         }
     }
@@ -50,12 +57,18 @@ impl Msbuild {
         }
 
         let pattern = patterns.join("|");
-        let re = Regex::new(&pattern).unwrap();
+        let re = Regex::new(&pattern)
+            .map_err(|e| format!("Failed to compile libresources regex '{pattern}': {e}"))?;
+        let line_ending = if content.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
         let patched: String = content
             .lines()
             .filter(|line| !re.is_match(line))
             .collect::<Vec<_>>()
-            .join("\n");
+            .join(line_ending);
 
         fs::write(&file_path, patched)
             .map_err(|e| format!("Failed to write patched libresources.vcxproj: {e}"))?;
