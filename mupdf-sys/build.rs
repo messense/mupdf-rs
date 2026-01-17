@@ -61,8 +61,16 @@ fn run() -> Result<()> {
 
         copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
 
-        println!("cargo:rerun-if-changed=wrapper.h");
-        println!("cargo:rerun-if-changed=wrapper.c");
+        println!("cargo:rerun-if-changed=wrapper");
+        for entry in fs::read_dir("wrapper")? {
+            let entry = entry?;
+            let path = entry.path();
+            if let Some(ext) = path.extension() {
+                if ext == "c" || ext == "h" {
+                    println!("cargo:rerun-if-changed={}", path.display());
+                }
+            }
+        }
 
         Build::new(&target).run(&target, build_dir)?;
         build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
@@ -126,7 +134,14 @@ fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
 
 fn build_wrapper(target: &Target) -> Result<()> {
     let mut build = cc::Build::new();
-    build.file("wrapper.c").include("mupdf/include");
+    for entry in fs::read_dir("wrapper")? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "c") {
+            build.file(&path);
+        }
+    }
+    build.include("mupdf/include").include("wrapper");
     if target.os == "android" {
         build.define("HAVE_ANDROID", None);
     }
@@ -167,8 +182,16 @@ fn generate_bindings(target: &Target, path: &Path, sysroot: Option<String>) -> R
 
     builder = builder
         .clang_arg("-Imupdf/include")
-        .header("wrapper.h")
-        .header("wrapper.c");
+        .clang_arg("-Iwrapper")
+        .header("wrapper/wrapper.h");
+
+    for entry in fs::read_dir("wrapper")? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.extension().is_some_and(|ext| ext == "c") {
+            builder = builder.header(path.to_str().unwrap());
+        }
+    }
 
     builder = builder
         .allowlist_recursively(false)
