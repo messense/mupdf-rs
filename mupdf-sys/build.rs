@@ -314,7 +314,9 @@ impl Build {
         self.fz_enable("JS", cfg!(feature = "js"));
 
         for font in &FONTS {
-            self.define_bool(font, cfg!(feature = "all-fonts"));
+            // TOFU flags skip fonts when set to 1
+            // So we invert: all-fonts=true means TOFU=0 (include fonts)
+            self.define_bool(font, !cfg!(feature = "all-fonts"));
         }
 
         match self {
