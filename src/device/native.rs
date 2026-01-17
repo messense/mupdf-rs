@@ -156,7 +156,7 @@ pub trait NativeDevice: 'static {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
-        doc_id: Option<NonZero<i32>>,
+        doc_id: i32,
     ) -> Option<NonZero<i32>> {
         None
     }
@@ -335,7 +335,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Box<T> {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
-        doc_id: Option<NonZero<i32>>,
+        doc_id: i32,
     ) -> Option<NonZero<i32>> {
         (**self).begin_tile(area, view, x_step, y_step, ctm, id, doc_id)
     }
@@ -541,7 +541,7 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
         y_step: f32,
         ctm: Matrix,
         id: Option<NonZero<i32>>,
-        doc_id: Option<NonZero<i32>>,
+        doc_id: i32,
     ) -> Option<NonZero<i32>> {
         self.borrow_mut()
             .begin_tile(area, view, x_step, y_step, ctm, id, doc_id)
@@ -1045,7 +1045,7 @@ unsafe extern "C" fn begin_tile<D: NativeDevice>(
             ystep,
             ctm.into(),
             NonZero::new(id as i32),
-            NonZero::new(doc_id as i32),
+            doc_id as i32,
         )
     });
     i.map_or(0, NonZero::get) as c_int
