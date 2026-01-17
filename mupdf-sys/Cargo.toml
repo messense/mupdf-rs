@@ -24,12 +24,14 @@ include = [
     # Windows MSVC build requirements
     "mupdf/platform/win32/*",
     "mupdf/source/helpers/pkcs7/*.c",
+    "mupdf/scripts/*.c",
     "mupdf/scripts/zxing-cpp/*.cpp",
     "mupdf/scripts/zxing-cpp/*.h",
     "mupdf/thirdparty/gumbo-parser/visualc/include/*.h",
     "mupdf/thirdparty/tesseract/include/tesseract/*.h",
 
     "mupdf/include/mupdf/*.h",
+    "mupdf/include/mupdf/helpers/*.h",
 
     "mupdf/source/fitz/*.h",
     "mupdf/source/fitz/*.c",
@@ -149,6 +151,7 @@ include = [
     "mupdf/thirdparty/tesseract/src/cutil/*.cpp",
     "mupdf/thirdparty/tesseract/src/cutil/*.h",
     "mupdf/scripts/tesseract/*.h",
+    "mupdf/scripts/tesseract/tesseract/*.h",
 
     "mupdf/thirdparty/extract/src/*.c",
     "mupdf/thirdparty/extract/src/*.h",
