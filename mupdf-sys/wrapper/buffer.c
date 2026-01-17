@@ -6,6 +6,8 @@ size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsig
     size_t remaining_input = 0;
     unsigned char *data;
     size_t len = fz_buffer_storage(ctx, buf, &data);
+    /* If the offset is exactly at the end of the buffer, there are no bytes left to read.
+     * This is not necessarily an EOF condition; it just means 0 bytes are available. */
     if (at == len)
     {
         // EOF
