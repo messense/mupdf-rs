@@ -8,7 +8,7 @@ include = [
     "AUTHORS*",
 
     "*.rs",
-    "wrapper.*",
+    "wrapper/*",
     "androidfonts.c",
 
     "mupdf/resources/hyphen/hyph-all.zip",
