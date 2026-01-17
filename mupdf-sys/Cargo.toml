@@ -20,6 +20,7 @@ include = [
     "mupdf/generated/resources/hyphen/*.c",
 
     "mupdf/Make*",
+    "mupdf/platform/win32/*",
 
     "mupdf/include/mupdf/*.h",
 
