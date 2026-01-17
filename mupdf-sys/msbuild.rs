@@ -1,17 +1,79 @@
 use std::{env, fs, path::Path};
 
 use cc::windows_registry::{self, find_vs_version, VsVers};
+use regex::Regex;
 
 use crate::{Result, Target};
 
 #[derive(Default)]
 pub struct Msbuild {
     cl: Vec<String>,
+    tofu_cjk: bool,
+    tofu_noto: bool,
+    tofu_sil: bool,
 }
 
 impl Msbuild {
     pub fn define(&mut self, var: &str, val: &str) {
         self.cl.push(format!("/D{var}#{val}"));
+        match var {
+            "TOFU_CJK" => {
+                self.tofu_cjk = val == "1";
+            }
+            "TOFU" => {
+                let enabled = val == "1";
+                self.tofu_noto = enabled;
+                self.tofu_sil = enabled;
+            }
+            "TOFU_NOTO" => {
+                self.tofu_noto = val == "1";
+            }
+            "TOFU_SIL" => {
+                self.tofu_sil = val == "1";
+            }
+            _ => {}
+        }
+    }
+
+    fn patch_libresources(&self, build_dir: &str) -> Result<()> {
+        let file_path = Path::new(build_dir).join("platform/win32/libresources.vcxproj");
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read libresources.vcxproj: {e}"))?;
+
+        let mut patterns: Vec<&str> = Vec::new();
+        if self.tofu_cjk {
+            patterns.push(r#"fonts\\han\\"#);
+            patterns.push(r#"fonts\\droid\\"#);
+        }
+        if self.tofu_noto {
+            patterns.push(r#"fonts\\noto\\"#);
+        }
+        if self.tofu_sil {
+            patterns.push(r#"fonts\\sil\\"#);
+        }
+
+        if patterns.is_empty() {
+            return Ok(());
+        }
+
+        let pattern = patterns.join("|");
+        let re = Regex::new(&pattern)
+            .map_err(|e| format!("Failed to compile libresources regex '{pattern}': {e}"))?;
+        let line_ending = if content.contains("\r\n") {
+            "\r\n"
+        } else {
+            "\n"
+        };
+        let patched: String = content
+            .lines()
+            .filter(|line| !re.is_match(line))
+            .collect::<Vec<_>>()
+            .join(line_ending);
+
+        fs::write(&file_path, patched)
+            .map_err(|e| format!("Failed to write patched libresources.vcxproj: {e}"))?;
+
+        Ok(())
     }
 
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
@@ -22,6 +84,8 @@ impl Msbuild {
         let content = fs::read_to_string(&file_path).expect("Failed to read geometry.c file");
         let patched_content = content.replace("NAN", "(0.0/0.0)");
         fs::write(&file_path, patched_content).expect("Failed to write patched geometry.c file");
+
+        self.patch_libresources(build_dir)?;
 
         let configuration = if target.debug_profile() {
             "Debug"

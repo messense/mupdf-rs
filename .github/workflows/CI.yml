@@ -51,7 +51,7 @@ jobs:
       - run: cargo test --features serde
 
       - name: Test package mupdf-sys
-        if: matrix.os == 'ubuntu-latest'
+        if: matrix.os != 'windows-2025'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
 
   test-wasm:
