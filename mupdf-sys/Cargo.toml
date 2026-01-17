@@ -11,11 +11,6 @@ include = [
     "wrapper/*",
     "androidfonts.c",
 
-    "mupdf/resources/hyphen/hyph-all.zip",
-    "mupdf/resources/hyphen/hyph-std.zip",
-
-    "mupdf/resources/fonts/urw/*.cff",
-
     "mupdf/generated/resources/fonts/urw/*.c",
     "mupdf/generated/resources/hyphen/*.c",
 
