@@ -14,14 +14,50 @@ impl Msbuild {
         self.cl.push(format!("/D{var}#{val}"));
     }
 
+    fn patch_nan(&self, build_dir: &str) -> Result<()> {
+        let file_path = Path::new(build_dir).join("source/fitz/geometry.c");
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read geometry.c: {e}"))?;
+
+        // work around https://developercommunity.visualstudio.com/t/NAN-is-no-longer-compile-time-constant-i/10688907
+        let patched_content = content.replace("NAN", "(0.0/0.0)");
+
+        fs::write(&file_path, patched_content)
+            .map_err(|e| format!("Failed to write patched geometry.c: {e}"))?;
+
+        Ok(())
+    }
+
+    fn remove_libresources_fonts(&self, build_dir: &str) -> Result<()> {
+        let file_path = Path::new(build_dir).join("platform/win32/libresources.vcxproj");
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read libresources.vcxproj: {e}"))?;
+
+        let patched: String = content
+            .lines()
+            .filter(|line| {
+                !line.contains(r"fonts\han\")
+                    && !line.contains(r"fonts\droid\")
+                    && !line.contains(r"fonts\noto\")
+                    && !line.contains(r"fonts\sil\")
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+
+        fs::write(&file_path, patched)
+            .map_err(|e| format!("Failed to write patched libresources.vcxproj: {e}"))?;
+
+        Ok(())
+    }
+
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
         self.cl.push("/MP".to_owned());
 
-        // work around https://developercommunity.visualstudio.com/t/NAN-is-no-longer-compile-time-constant-i/10688907
-        let file_path = Path::new(build_dir).join("source/fitz/geometry.c");
-        let content = fs::read_to_string(&file_path).expect("Failed to read geometry.c file");
-        let patched_content = content.replace("NAN", "(0.0/0.0)");
-        fs::write(&file_path, patched_content).expect("Failed to write patched geometry.c file");
+        self.patch_nan(build_dir)?;
+
+        if !cfg!(feature = "all-fonts") {
+            self.remove_libresources_fonts(build_dir)?;
+        }
 
         let configuration = if target.debug_profile() {
             "Debug"

@@ -13,12 +13,18 @@ include = [
 
     "mupdf/resources/hyphen/hyph-all.zip",
     "mupdf/resources/hyphen/hyph-std.zip",
+    "mupdf/generated/resources/hyphen/*.c",
 
     "mupdf/resources/fonts/urw/*.cff",
+    "mupdf/generated/resources/fonts/urw/*.c",
 
     "mupdf/Make*",
+    "mupdf/platform/win32/*",
 
+    "mupdf/scripts/*.c",
+    "mupdf/source/helpers/pkcs7/*.c",
     "mupdf/include/mupdf/*.h",
+    "mupdf/include/mupdf/helpers/*.h",
 
     "mupdf/source/fitz/*.h",
     "mupdf/source/fitz/*.c",
@@ -81,6 +87,7 @@ include = [
 
     "mupdf/thirdparty/gumbo-parser/src/*.c",
     "mupdf/thirdparty/gumbo-parser/src/*.h",
+    "mupdf/thirdparty/gumbo-parser/visualc/include/*.h",
 
     "mupdf/thirdparty/harfbuzz/src/*.cc",
     "mupdf/thirdparty/harfbuzz/src/*.h",
@@ -137,7 +144,9 @@ include = [
     "mupdf/thirdparty/tesseract/src/wordrec/*.h",
     "mupdf/thirdparty/tesseract/src/cutil/*.cpp",
     "mupdf/thirdparty/tesseract/src/cutil/*.h",
+    "mupdf/thirdparty/tesseract/include/tesseract/*.h",
     "mupdf/scripts/tesseract/*.h",
+    "mupdf/scripts/tesseract/tesseract/*.h",
 
     "mupdf/thirdparty/extract/src/*.c",
     "mupdf/thirdparty/extract/src/*.h",
@@ -160,6 +169,7 @@ include = [
     "mupdf/thirdparty/zxing-cpp/core/src/pdf417/*.h",
     "mupdf/thirdparty/zxing-cpp/core/src/qrcode/*.cpp",
     "mupdf/thirdparty/zxing-cpp/core/src/qrcode/*.h",
+    "mupdf/scripts/zxing-cpp/*.cpp",
     "mupdf/scripts/zxing-cpp/*.h",
 
     "mupdf/thirdparty/zxing-cpp/core/src/libzueci/*.c",
