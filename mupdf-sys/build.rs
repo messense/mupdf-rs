@@ -61,17 +61,6 @@ fn run() -> Result<()> {
 
         copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
 
-        println!("cargo:rerun-if-changed=wrapper");
-        for entry in fs::read_dir("wrapper")? {
-            let entry = entry?;
-            let path = entry.path();
-            if let Some(ext) = path.extension() {
-                if ext == "c" || ext == "h" {
-                    println!("cargo:rerun-if-changed={}", path.display());
-                }
-            }
-        }
-
         Build::new(&target).run(&target, build_dir)?;
         build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
     }
