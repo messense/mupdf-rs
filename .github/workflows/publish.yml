@@ -15,7 +15,7 @@ jobs:
         fetch-depth: 500
     - uses: rust-lang/crates-io-auth-action@v1
       id: auth
-    - run: sudo apt-get -y install libfontconfig1-dev # required to compile mupdf
+    - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev # required to compile mupdf
     - run: cargo publish -p mupdf-sys
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
