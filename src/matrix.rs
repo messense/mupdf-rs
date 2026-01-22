@@ -137,18 +137,65 @@ impl Matrix {
     pub fn expansion(&self) -> f32 {
         (self.a * self.d - self.b * self.c).abs().sqrt()
     }
+
+    /// Inverts this matrix.
+    ///
+    /// Returns the inverse matrix, or [`Matrix::IDENTITY`] if the matrix is singular
+    /// (determinant is zero or near-zero).
+    ///
+    /// # Behavior on singular matrices
+    ///
+    /// Unlike MuPDF's [`fz_invert_matrix`] which returns a zero matrix `(0,0,0,0,0,0)`
+    /// for singular matrices, this method returns [`Matrix::IDENTITY`]. This ensures
+    /// that coordinates are preserved unchanged when the matrix cannot be inverted,
+    /// rather than collapsing them to the origin.
+    ///
+    /// # MuPDF parity
+    ///
+    /// Ported from [`fz_invert_matrix`] in MuPDF ([source/fitz/geometry.c]). This native
+    /// implementation gives the Rust compiler better context for optimization
+    /// and removes the overhead of cross-language calls.
+    ///
+    /// [source/fitz/geometry.c]: https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/fitz/geometry.c#L257
+    #[inline]
+    pub fn invert(&self) -> Self {
+        // Use double precision for intermediate calculations (matching MuPDF)
+        let sa = self.a as f64;
+        let sb = self.b as f64;
+        let sc = self.c as f64;
+        let sd = self.d as f64;
+
+        let det = sa * sd - sb * sc;
+
+        // Check for singular matrix
+        if det.abs() > f64::EPSILON {
+            let det = 1.0 / det;
+            let da = sd * det;
+            let db = -sb * det;
+            let dc = -sc * det;
+            let dd = sa * det;
+            let de = -(self.e as f64) * da - (self.f as f64) * dc;
+            let df = -(self.e as f64) * db - (self.f as f64) * dd;
+
+            Self {
+                a: da as f32,
+                b: db as f32,
+                c: dc as f32,
+                d: dd as f32,
+                e: de as f32,
+                f: df as f32,
+            }
+        } else {
+            // Return identity to preserve coordinates unchanged
+            // (MuPDF returns zeros here, but that would destroy coordinates)
+            Self::IDENTITY
+        }
+    }
 }
 
 impl Default for Matrix {
     fn default() -> Self {
-        Matrix {
-            a: 1.0,
-            b: 0.0,
-            c: 0.0,
-            d: 1.0,
-            e: 0.0,
-            f: 0.0,
-        }
+        Matrix::IDENTITY
     }
 }
 
