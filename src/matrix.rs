@@ -107,8 +107,8 @@ impl Matrix {
         } else if (270.0 - degrees).abs() < 0.0001 {
             let save_a = self.a;
             let save_b = self.b;
-            self.a = self.c;
-            self.b = self.d;
+            self.a = -self.c;
+            self.b = -self.d;
             self.c = save_a;
             self.d = save_b;
         } else {
