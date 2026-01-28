@@ -18,7 +18,7 @@ impl Destination {
     /// Encode this destination into a PDF "Dest" array.
     ///
     /// # MuPDF parity / Source
-    /// Ported from MuPDF `pdf_new_dest_from_link(...)` (pdf/pdf-link.c).
+    /// Ported from MuPDF [`pdf_new_dest_from_link`] (pdf/pdf-link.c).
     ///
     /// In MuPDF logic:
     ///
@@ -43,10 +43,21 @@ impl Destination {
     pub fn encode_into(self, array: &mut PdfObject) -> Result<(), Error> {
         debug_assert_eq!(array.len()?, 0);
 
+        #[cold]
+        fn push_null(array: &mut PdfObject) -> Result<(), Error> {
+            array.array_push(PdfObject::new_null())
+        }
+
         #[inline]
         fn push_real_or_null(array: &mut PdfObject, v: Option<f32>) -> Result<(), Error> {
             match v {
-                Some(v) => array.array_push(PdfObject::new_real(v)?),
+                Some(v) => {
+                    if !v.is_nan() {
+                        array.array_push(PdfObject::new_real(v)?)
+                    } else {
+                        push_null(array) // move out from hot path
+                    }
+                }
                 None => array.array_push(PdfObject::new_null()),
             }
         }
@@ -58,41 +69,28 @@ impl Destination {
         match self.kind {
             DestinationKind::Fit => array.array_push(PdfObject::new_name("Fit")?),
 
-            DestinationKind::FitB => array.array_push(PdfObject::new_name("FitB")?),
-
             DestinationKind::FitH { top } => {
                 array.array_push(PdfObject::new_name("FitH")?)?;
-                // MuPDF: if isnan(p.y) push NULL else real (pdf/pdf-link.c: 1340)
-                push_real_or_null(array, top)
-            }
-
-            DestinationKind::FitBH { top } => {
-                array.array_push(PdfObject::new_name("FitBH")?)?;
-                // MuPDF: (pdf/pdf-link.c: 1348)
+                // MuPDF: if isnan(p.y) push NULL else real
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1340
                 push_real_or_null(array, top)
             }
 
             DestinationKind::FitV { left } => {
                 array.array_push(PdfObject::new_name("FitV")?)?;
-                // MuPDF: (pdf/pdf-link.c: 1356)
-                push_real_or_null(array, left)
-            }
-
-            DestinationKind::FitBV { left } => {
-                array.array_push(PdfObject::new_name("FitBV")?)?;
-                // MuPDF: (pdf/pdf-link.c: 1364)
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1356
                 push_real_or_null(array, left)
             }
 
             DestinationKind::XYZ { left, top, zoom } => {
                 array.array_push(PdfObject::new_name("XYZ")?)?;
-                // MuPDF: (pdf/pdf-link.c: 1391)
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1391
                 push_real_or_null(array, left)?;
-                // MuPDF: (pdf/pdf-link.c: 1395)
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1395
                 push_real_or_null(array, top)?;
 
-                // MuPDF: (pdf/pdf-link.c: 1399) stores zoom as percent (100 == 100%),
-                // but PDF wants scale (1.0 == 100%)
+                // MuPDF: stores zoom as percent (100 == 100%), but PDF wants scale (1.0 == 100%)
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1399
                 push_real_or_null(array, zoom.map(|z| z / 100.0))
             }
 
@@ -104,17 +102,31 @@ impl Destination {
             } => {
                 array.array_push(PdfObject::new_name("FitR")?)?;
                 // In PDF all 4 coordinates are required -> always real.
-                // (pdf/pdf-link.c: 1411..1414)
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1411
                 array.array_push(PdfObject::new_real(left)?)?;
                 array.array_push(PdfObject::new_real(bottom)?)?;
                 array.array_push(PdfObject::new_real(right)?)?;
                 array.array_push(PdfObject::new_real(top)?)
             }
+
+            DestinationKind::FitB => array.array_push(PdfObject::new_name("FitB")?),
+
+            DestinationKind::FitBH { top } => {
+                array.array_push(PdfObject::new_name("FitBH")?)?;
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1348
+                push_real_or_null(array, top)
+            }
+
+            DestinationKind::FitBV { left } => {
+                array.array_push(PdfObject::new_name("FitBV")?)?;
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1364
+                push_real_or_null(array, left)
+            }
         }
     }
 }
 
-/// A MuPDF link destination view kind (backed by `fz_link_dest`).
+/// A MuPDF link destination view kind (backed by [`fz_link_dest`]).
 ///
 /// This enum represents destinations produced by MuPDF across multiple document
 /// handlers that support link destinations (PDF and some non-PDF formats).
@@ -164,9 +176,15 @@ pub enum DestinationKind {
     /// of the window and the page magnified by factor `zoom`.
     ///
     /// For PDF format:
+    ///
     /// - `left`/`top`/`zoom` being `None` represents missing (`null`) parameters (unchanged).
-    /// - MuPDF stores `zoom` as percent (100.0 == 100%), while PDF expects scale (1.0 == 100%).
-    ///   Serialization should handle this conversion.
+    ///
+    /// - `zoom` is specified as a percentage. For example, pass `Some(100.0)` for 100% zoom
+    ///   (actual size), or `Some(50.0)` for 50%. Note that in [PDF 32000-1:2008, 12.3.2.2]
+    ///   the `/XYZ` zoom value is a **scale factor**, not a percentage. If you convert this
+    ///   value for PDF serialization, divide it by 100.0 (`zoom / 100.0`).
+    ///
+    /// [PDF 32000-1:2008, 12.3.2.2]: https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf
     XYZ {
         left: Option<f32>,
         top: Option<f32>,
@@ -204,8 +222,8 @@ impl DestinationKind {
     /// Transforms destination coordinates using a matrix.
     ///
     /// This is primarily used to convert MuPDF-resolved destination coordinates
-    /// (MuPDF page/user space) into PDF destination coordinates (page space)
-    /// before serializing to a PDF Dest array.
+    /// (MuPDF user space) into PDF destination coordinates before serializing to
+    /// a PDF Dest array.
     ///
     /// # Note on Non-PDF formats
     ///
@@ -213,20 +231,52 @@ impl DestinationKind {
     /// their target space. Applying a transform unless specifically intended may yield
     /// incorrect results.
     ///
-    /// # Matrix Parameter
+    /// # PDF coordinate space
     ///
-    /// The `matrix` parameter should typically be the **inverse** of the page CTM.
+    /// In PDF, explicit destinations (`/XYZ`, `/FitH`, `/FitV`, `/FitR`, etc.) store all
+    /// coordinates in the **default user space** of the destination page
+    /// ([PDF 32000-1:2008, 12.3.2.2](https://opensource.adobe.com/dc-acrobat-sdk-docs/pdfstandards/PDF32000_2008.pdf)).
+    ///
+    /// # MuPDF coordinate space
+    ///
+    /// For PDF documents, MuPDF exposes destination coordinates in MuPDF (fitz) page
+    /// space, which may differ from PDF default user space.
+    ///
+    /// Therefore, `matrix` must convert from **current destination coords** into **PDF default user space**.
+    ///
+    /// # Choosing the matrix
+    ///
+    /// ## Local destinations (GoTo)
+    ///
+    /// For local destinations, MuPDF uses a page transformation matrix (called `ctm` in the
+    /// MuPDF source) to convert PDF default user space into MuPDF page space
+    /// (see [sourse](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L96)).
+    ///
+    /// To convert destination coordinates back into **PDF default user space**, pass the
+    /// inverse matrix (MuPDF [`invctm`](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1328)):
     ///
     /// ```text
-    /// let inv_ctm = page.page_ctm()?.invert();
-    /// let transformed = dest_kind.transform(&inv_ctm);
+    /// let mu_to_pdf = page.page_ctm()?.invert();
+    /// let pdf_dest = dest_kind.transform(&mu_to_pdf);
     /// ```
+    ///
+    /// ## Remote destinations (GoToR)
+    ///
+    /// For remote destinations, MuPDF uses coordinates already in **PDF default user space**
+    /// (see [sourse](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L77)),
+    /// so no additional conversion is needed. You can pass `Matrix::IDENTITY`, matching MuPDF
+    /// [behaviour](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1320):
+    ///
+    /// ```text
+    /// let pdf_dest = dest_kind.transform(&Matrix::IDENTITY);
+    /// ```
+    ///
     /// # Implementation Note
     ///
-    /// Ported from `pdf_new_dest_from_link` in MuPDF (`pdf/pdf-link.c`).
+    /// Ported from [`pdf_new_dest_from_link`] in MuPDF (`pdf/pdf-link.c`).
     pub fn transform(self, matrix: &Matrix) -> Self {
-        // Helper function, similar to `fz_transform_point_xy` (fitz/geometry.c: 344)
-        // from C. Performs bare math without checking for NaN.
+        // Helper function, similar to `fz_transform_point_xy` from C. Performs bare math without checking for NaN.
+        // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/fitz/geometry.c#L344
         #[inline(always)]
         fn transform_xy(m: &Matrix, x: f32, y: f32) -> (f32, f32) {
             (x * m.a + y * m.c + m.e, x * m.b + y * m.d + m.f)
@@ -236,8 +286,8 @@ impl DestinationKind {
             Self::Fit => Self::Fit,
             Self::FitB => Self::FitB,
 
-            // MuPDF: (pdf/pdf-link.c: 1337)
-            //     p = fz_transform_point_xy(0, val.y, invctm);
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1337
+            // MuPDF: p = fz_transform_point_xy(0, val.y, invctm);
             // write NULL if isnan(p.y). Here we only do the transform, `null`
             // emission should be done in encode step.
             Self::FitH { top } => {
@@ -245,25 +295,25 @@ impl DestinationKind {
                 Self::FitH { top }
             }
 
-            // MuPDF: (pdf/pdf-link.c: 1345)
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1345
             Self::FitBH { top } => {
                 let top = top.map(|t| transform_xy(matrix, 0.0, t).1);
                 Self::FitBH { top }
             }
 
-            // MuPDF: (pdf/pdf-link.c: 1353)
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1353
             Self::FitV { left } => {
                 let left = left.map(|l| transform_xy(matrix, l, 0.0).0);
                 Self::FitV { left }
             }
 
-            // MuPDF: (pdf/pdf-link.c: 1361)
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1361
             Self::FitBV { left } => {
                 let left = left.map(|l| transform_xy(matrix, l, 0.0).0);
                 Self::FitBV { left }
             }
 
-            // MuPDF: (pdf/pdf-link.c: 1369)
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1369
             // MuPDF uses NaN to represent missing val.x/val.y.
             // For 90/270 degrees, missing X becomes missing Y after rotation and vice versa
             Self::XYZ { left, top, zoom } => {
@@ -287,6 +337,7 @@ impl DestinationKind {
 
                 Self::XYZ { left, top, zoom }
             }
+            // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1404
             Self::FitR {
                 left,
                 bottom,
