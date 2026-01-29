@@ -83,13 +83,7 @@ impl Matrix {
     }
 
     pub fn rotate(&mut self, degrees: f32) -> &mut Self {
-        let mut degrees = degrees;
-        while degrees < 0.0 {
-            degrees += 360.0;
-        }
-        while degrees >= 360.0 {
-            degrees -= 360.0
-        }
+        let degrees = degrees.rem_euclid(360.0);
         if (0.0 - degrees).abs() < 0.0001 {
             // Nothing to do
         } else if (90.0 - degrees).abs() < 0.0001 {
