@@ -257,3 +257,18 @@ void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupd
         mupdf_save_error(ctx, errptr);
     }
 }
+
+void mupdf_pdf_begin_operation(fz_context *ctx, pdf_document *doc, const char *operation, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_begin_operation(ctx, doc, operation));
+}
+
+void mupdf_pdf_end_operation(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_end_operation(ctx, doc));
+}
+
+void mupdf_pdf_abandon_operation(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_abandon_operation(ctx, doc));
+}

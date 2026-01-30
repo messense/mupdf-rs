@@ -182,6 +182,16 @@ impl Matrix {
 
         None // MuPDF returns zeros here
     }
+
+    // Helper function, similar to `fz_transform_point_xy` from C. Performs bare math without checking for NaN.
+    // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/fitz/geometry.c#L344
+    #[inline(always)]
+    pub fn transform_xy(&self, x: f32, y: f32) -> (f32, f32) {
+        (
+            x * self.a + y * self.c + self.e,
+            x * self.b + y * self.d + self.f,
+        )
+    }
 }
 
 impl Default for Matrix {

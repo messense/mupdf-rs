@@ -76,6 +76,7 @@ pub enum Error {
     InvalidUtf8,
     UnexpectedNullPtr,
     UnknownEnumVariant,
+    InvalidDestination(String),
 }
 
 impl fmt::Display for Error {
@@ -93,6 +94,7 @@ impl fmt::Display for Error {
                 "An FFI function call returned a null ptr when we expected a non-null ptr"
             ),
             Error::UnknownEnumVariant => write!(f, "unknown enum variant provided"),
+            Error::InvalidDestination(msg) => write!(f, "invalid PDF destination: {msg}"),
         }
     }
 }

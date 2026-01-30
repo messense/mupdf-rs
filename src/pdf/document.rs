@@ -249,6 +249,10 @@ impl PdfDocument {
         Self { inner: ptr, doc }
     }
 
+    pub(crate) fn as_raw(&self) -> *mut pdf_document {
+        self.inner
+    }
+
     pub fn new() -> Self {
         Self::default()
     }
@@ -300,8 +304,18 @@ impl PdfDocument {
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
+    pub fn new_array_with_capacity(&self, capacity: i32) -> Result<PdfObject, Error> {
+        unsafe { ffi_try!(mupdf_pdf_new_array(context(), self.inner, capacity)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+    }
+
     pub fn new_dict(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_dict(context(), self.inner, 0)) }
+            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+    }
+
+    pub fn new_dict_with_capacity(&self, capacity: i32) -> Result<PdfObject, Error> {
+        unsafe { ffi_try!(mupdf_pdf_new_dict(context(), self.inner, capacity)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
@@ -509,6 +523,24 @@ impl PdfDocument {
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
+    /// Given a page object reference, returns its zero-based page number.
+    pub fn lookup_page_number(&self, page_obj: &PdfObject) -> Result<i32, Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_lookup_page_number(
+                context(),
+                self.inner,
+                page_obj.inner
+            ))
+        }
+    }
+
+    /// Loads a PdfPage from a page index.
+    /// Helper function to convert from Document page loading to PdfPage.
+    pub fn load_pdf_page(&self, page_no: i32) -> Result<PdfPage, Error> {
+        let page = self.doc.load_page(page_no)?;
+        PdfPage::try_from(page)
+    }
+
     pub fn new_page_at<T: Into<Size>>(&mut self, page_no: i32, size: T) -> Result<PdfPage, Error> {
         let size = size.into();
         let inner = unsafe {
@@ -541,6 +573,25 @@ impl PdfDocument {
 
     pub fn delete_page(&mut self, page_no: i32) -> Result<(), Error> {
         unsafe { ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no)) }
+    }
+
+    pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
+        let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_begin_operation(
+                context(),
+                self.inner,
+                c_op.as_ptr()
+            ))
+        }
+    }
+
+    pub fn end_operation(&self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_end_operation(context(), self.inner)) }
+    }
+
+    pub fn abandon_operation(&self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_abandon_operation(context(), self.inner)) }
     }
 
     pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {

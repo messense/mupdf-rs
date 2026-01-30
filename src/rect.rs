@@ -2,6 +2,7 @@ use std::fmt;
 
 use mupdf_sys::*;
 
+use crate::pdf::PdfObject;
 use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
 
 const FZ_MIN_INF_RECT: i32 = 0x80000000u32 as i32;
@@ -210,6 +211,13 @@ impl Rect {
 
     pub fn translate(&self, xoff: f32, yoff: f32) -> Self {
         unsafe { fz_translate_rect((*self).into(), xoff, yoff) }.into()
+    }
+
+    pub fn encode_into(self, array: &mut PdfObject) -> Result<(), Error> {
+        array.array_push(PdfObject::new_real(self.x0)?)?;
+        array.array_push(PdfObject::new_real(self.y0)?)?;
+        array.array_push(PdfObject::new_real(self.x1)?)?;
+        array.array_push(PdfObject::new_real(self.y1)?)
     }
 }
 

@@ -59,3 +59,8 @@ void mupdf_pdf_filter_annot_contents(fz_context *ctx, pdf_annot *annot, pdf_filt
 {
     TRY_CATCH_VOID(pdf_filter_annot_contents(ctx, pdf_annot_page(ctx, annot)->doc, annot, filter));
 }
+
+int mupdf_pdf_lookup_page_number(fz_context *ctx, pdf_document *doc, pdf_obj *page_obj, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, -1, pdf_lookup_page_number(ctx, doc, page_obj));
+}

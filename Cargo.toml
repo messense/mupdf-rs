@@ -61,6 +61,7 @@ serde = ["dep:serde"]
 mupdf-sys = { version = "0.6.0", path = "mupdf-sys", features = ["zerocopy"] }
 once_cell = "1.3.1"
 bitflags = "2.0.2"
+percent-encoding = "2.3.1"
 serde = { version = "1.0.201", features = ["derive"], optional = true }
 zerocopy = { version = "0.8.17", features = ["derive"] }
 

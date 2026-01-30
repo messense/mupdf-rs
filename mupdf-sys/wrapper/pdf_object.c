@@ -401,6 +401,11 @@ void mupdf_pdf_write_stream_buffer(fz_context *ctx, pdf_obj *obj, fz_buffer *buf
     TRY_CATCH_VOID(pdf_update_stream(ctx, pdf, obj, buf, compressed));
 }
 
+pdf_obj *mupdf_pdf_copy_array(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_obj*, NULL, pdf_copy_array(ctx, obj));
+}
+
 int mupdf_pdf_array_len(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     TRY_CATCH(int, 0, pdf_array_len(ctx, obj));
