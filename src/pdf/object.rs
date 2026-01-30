@@ -300,11 +300,29 @@ impl PdfObject {
         unsafe { ffi_try!(mupdf_pdf_array_push(context(), self.inner, value.inner)) }
     }
 
+    pub(crate) fn array_push_ref(&mut self, value: &Self) -> Result<(), Error> {
+        // From MUPDF (https://ghostscript.com/~robin/mupdf_explored.pdf, p. 238)
+        // The array will take new references to the object passed in - that is, after the call,
+        // both the array and the caller will hold references to the object. In cases where the
+        // object to be inserted is a ‘borrowed’ reference, this is ideal.
+        unsafe { ffi_try!(mupdf_pdf_array_push(context(), self.inner, value.inner)) }
+    }
+
     pub fn array_delete(&mut self, index: i32) -> Result<(), Error> {
         unsafe { ffi_try!(mupdf_pdf_array_delete(context(), self.inner, index)) }
     }
 
     pub fn dict_put<K: IntoPdfDictKey>(&mut self, key: K, value: Self) -> Result<(), Error> {
+        self.dict_put_ref(key, &value)
+    }
+
+    pub(crate) fn dict_put_ref<K: IntoPdfDictKey>(
+        &mut self,
+        key: K,
+        value: &Self,
+    ) -> Result<(), Error> {
+        // The same as array_push_ref, look at
+        // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-object.c#L2505
         let key_obj = key.into_pdf_dict_key()?;
         unsafe {
             ffi_try!(mupdf_pdf_dict_put(
