@@ -40,7 +40,7 @@ impl Destination {
     ///
     /// This method does **not** apply any coordinate transforms.
     /// It expects `self.kind` coordinates to already be in PDF user space for the *target page*.
-    pub fn encode_into(self, array: &mut PdfObject) -> Result<(), Error> {
+    pub(crate) fn encode_into(self, array: &mut PdfObject) -> Result<(), Error> {
         debug_assert_eq!(array.len()?, 0);
 
         #[cold]
@@ -250,7 +250,7 @@ impl DestinationKind {
     ///
     /// For local destinations, MuPDF uses a page transformation matrix (called `ctm` in the
     /// MuPDF source) to convert PDF default user space into MuPDF page space
-    /// (see [sourse](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L96)).
+    /// (see [source](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L96)).
     ///
     /// To convert destination coordinates back into **PDF default user space**, pass the
     /// inverse matrix (MuPDF [`invctm`](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1328)):
@@ -263,7 +263,7 @@ impl DestinationKind {
     /// ## Remote destinations (GoToR)
     ///
     /// For remote destinations, MuPDF uses coordinates already in **PDF default user space**
-    /// (see [sourse](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L77)),
+    /// (see [source](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L77)),
     /// so no additional conversion is needed. You can pass `Matrix::IDENTITY`, matching MuPDF
     /// [behaviour](https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1320):
     ///
@@ -397,7 +397,7 @@ impl From<fz_link_dest> for DestinationKind {
 }
 
 #[inline]
-pub fn not_nan(val: f32) -> Option<f32> {
+pub(crate) fn not_nan(val: f32) -> Option<f32> {
     if val.is_nan() {
         None
     } else {
