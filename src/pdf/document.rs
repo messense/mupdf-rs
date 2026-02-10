@@ -10,8 +10,8 @@ use mupdf_sys::*;
 
 use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
 use crate::{
-    context, from_enum, Buffer, CjkFontOrdering, Destination, DestinationKind, Document, Error,
-    FilePath, Font, Image, Matrix, Outline, SimpleFontEncoding, Size, WriteMode,
+    context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
+    Image, Outline, SimpleFontEncoding, Size, WriteMode,
 };
 
 bitflags! {
