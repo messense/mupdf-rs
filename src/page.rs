@@ -250,7 +250,11 @@ impl Page {
         let doc_ptr = unsafe { (*self.inner.as_ptr()).doc };
         let doc = unsafe { Document::from_raw(fz_keep_document(context(), doc_ptr)) };
 
-        Ok(LinkIter { next, doc })
+        Ok(LinkIter {
+            links_head: next,
+            next,
+            doc,
+        })
     }
 
     pub fn separations(&self) -> Result<Separations, Error> {
@@ -289,8 +293,19 @@ impl Clone for Page {
 
 #[derive(Debug)]
 pub struct LinkIter {
+    links_head: *mut fz_link,
     next: *mut fz_link,
     doc: Document,
+}
+
+impl Drop for LinkIter {
+    fn drop(&mut self) {
+        if !self.links_head.is_null() {
+            unsafe {
+                fz_drop_link(context(), self.links_head);
+            }
+        }
+    }
 }
 
 impl Iterator for LinkIter {
