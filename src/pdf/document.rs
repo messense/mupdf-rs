@@ -587,8 +587,10 @@ impl PdfDocument {
                     //
                     // This matches MuPDF's logic in `pdf_new_dest_from_link`
                     // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1328
-                    let inv_ctm = ctm.invert();
-                    let dest_kind = dest.kind.transform(&inv_ctm);
+                    let dest_kind = ctm
+                        .invert()
+                        .map(|inv_ctm| dest.kind.transform(&inv_ctm))
+                        .unwrap_or(dest.kind);
                     let dest = Destination::new(page, dest_kind);
 
                     let mut array = self.new_array()?;
