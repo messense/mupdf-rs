@@ -181,7 +181,7 @@ pub(super) fn is_external_link(uri: &str) -> bool {
 pub(super) fn is_pdf_path(file_name: &str) -> bool {
     file_name
         .get(file_name.len().saturating_sub(4)..)
-        .is_some_and(|extention| extention.eq_ignore_ascii_case(".pdf"))
+        .is_some_and(|extension| extension.eq_ignore_ascii_case(".pdf"))
 }
 
 #[derive(Debug, PartialEq)]

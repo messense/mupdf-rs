@@ -104,7 +104,7 @@ where
                 // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1325
                 dest.array_push_ref(dest_page_obj)?;
 
-                // MuPDF uses inv_ctm to transform coodinates
+                // MuPDF uses inv_ctm to transform coordinates
                 // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L1328
                 let dest_kind = dest_inv_ctm
                     .as_ref()

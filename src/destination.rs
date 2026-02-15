@@ -369,7 +369,7 @@ impl DestinationKind {
 
 impl Default for DestinationKind {
     fn default() -> Self {
-        // This analogue of MuPDF's `fz_make_link_dest_none` function
+        // This is an analogue of MuPDF's `fz_make_link_dest_none` function
         // (https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/fitz/link.c#L96)
         DestinationKind::XYZ {
             left: None,
