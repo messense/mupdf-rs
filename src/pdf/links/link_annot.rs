@@ -127,8 +127,7 @@ impl PdfLinkAnnot {
 
         set_link_action_on_annot_dict(operation.doc, &mut self.inner, action, resolver)?;
 
-        operation.commit();
-        Ok(())
+        operation.commit()
     }
 
     /// Writes `rect` (in Fitz coordinate space) as the annotation's `/Rect` entry.
@@ -152,8 +151,7 @@ impl PdfLinkAnnot {
         pdf_rect.encode_into(&mut rect_array)?;
         self.inner.dict_put("Rect", rect_array)?;
 
-        operation.commit();
-        Ok(())
+        operation.commit()
     }
 
     /// Combines [`rect`](Self::rect) and [`action`](Self::action) into a [`PdfLink`].

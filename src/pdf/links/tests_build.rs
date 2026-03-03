@@ -280,7 +280,7 @@ impl PdfTester {
 
     fn extract_links_from_annotations(&self) -> TestResult<Vec<PdfLink>> {
         self.load_page()?
-            .links_from_annotations()
+            .links_from_annotations_lossy()
             .context("[link_annotations] Extraction failed")
     }
 
@@ -1399,7 +1399,7 @@ fn test_link_annotations_filters_non_link_annots() {
         .unwrap();
 
     assert_eq!(link_annots.len(), 1);
-    let from_annots = page.links_from_annotations().unwrap();
+    let from_annots = page.links_from_annotations_lossy().unwrap();
     assert_eq!(from_annots, links);
 }
 

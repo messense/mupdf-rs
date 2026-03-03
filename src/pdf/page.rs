@@ -225,11 +225,13 @@ impl PdfPage {
     ///
     /// - The `/Dest` and `/A` destinations (as [`LinkAction::Dest`] and [`LinkAction::Action`])
     /// - Named destinations as [`PdfDestination::Named`] (not resolved to page numbers)
-    /// - Preserves `Launch` actions exactly as specified in the PDF document
+    /// - `Launch` actions exactly as specified in the PDF document
     /// - Does not clamp local coordinates to the page bounds
     ///
-    /// Links with no recognizable action are silently skipped.
-    pub fn links_from_annotations(&self) -> Result<Vec<PdfLink>, Error> {
+    /// Links with no recognizable action, as well as malformed or unparseable annotations,
+    /// are silently skipped. If you need error reporting, iterate over [`PdfLinkAnnotIter`]
+    /// manually and call [`PdfLinkAnnot::to_pdf_link`] on each item.
+    pub fn links_from_annotations_lossy(&self) -> Result<Vec<PdfLink>, Error> {
         let doc_ptr =
             NonNull::new(unsafe { (*self.inner.as_ptr()).doc }).ok_or(Error::UnexpectedNullPtr)?;
         let doc = unsafe { PdfDocument::from_raw(pdf_keep_document(context(), doc_ptr.as_ptr())) };
@@ -258,7 +260,7 @@ impl PdfPage {
     ///
     /// Like [`add_links_with_inv_ctm`](Self::add_links_with_inv_ctm), this updates
     /// `/Annots` but does not refresh MuPDF's in-memory `fz_link` list. Use
-    /// [`links_from_annotations`](Self::links_from_annotations) for immediate reads,
+    /// [`links_from_annotations_lossy`](Self::links_from_annotations_lossy) for immediate reads,
     /// or reload page before calling [`resolved_links`](Self::resolved_links).
     pub fn add_links(&mut self, doc: &mut PdfDocument, links: &[PdfLink]) -> Result<(), Error> {
         let mut cache = HashMap::new();
@@ -314,7 +316,7 @@ impl PdfPage {
     /// This method modifies the page's `/Annots` dictionary but does not update
     /// MuPDF's in-memory `fz_link` list. As a result:
     ///
-    /// - [`links_from_annotations`](Self::links_from_annotations) reflects the new
+    /// - [`links_from_annotations_lossy`](Self::links_from_annotations_lossy) reflects the new
     ///   links immediately (reads the dict directly).
     /// - [`resolved_links`](Self::resolved_links) will **not** include the new links until
     ///   the page is reloaded.
@@ -366,8 +368,7 @@ impl PdfPage {
             page_obj.dict_put("Annots", annots)?;
         }
 
-        operation.commit();
-        Ok(())
+        operation.commit()
     }
 }
 

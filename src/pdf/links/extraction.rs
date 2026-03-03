@@ -730,7 +730,7 @@ fn parse_action_dict(
                         let page_obj = dest.get_array(0)?.ok_or_else(|| {
                             Error::InvalidDestination("missing page in GoToR dest".into())
                         })?;
-                        let page = page_obj.as_int()? as u32;
+                        let page = page_obj.as_int()?.max(0) as u32;
                         let kind = DestinationKind::decode_from(&dest)?;
                         PdfDestination::Page { page, kind }
                     } else if dest.is_name()? {

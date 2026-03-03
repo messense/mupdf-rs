@@ -18,6 +18,7 @@ pub use links::{
 pub use object::PdfObject;
 pub use page::PdfPage;
 
+#[must_use]
 pub struct DocOperation<'a> {
     doc: &'a mut PdfDocument,
     success: bool,
@@ -32,16 +33,16 @@ impl<'a> DocOperation<'a> {
         })
     }
 
-    fn commit(mut self) {
+    pub fn commit(mut self) -> Result<(), crate::Error> {
+        self.doc.end_operation()?;
         self.success = true;
+        Ok(())
     }
 }
 
 impl Drop for DocOperation<'_> {
     fn drop(&mut self) {
-        if self.success {
-            let _ = self.doc.end_operation();
-        } else {
+        if !self.success {
             let _ = self.doc.abandon_operation();
         }
     }
