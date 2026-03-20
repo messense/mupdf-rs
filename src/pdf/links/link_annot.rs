@@ -116,6 +116,7 @@ impl PdfLinkAnnot {
     ) -> Result<(), Error> {
         let operation = DocOperation::begin(doc, "Set link action")?;
 
+        let _ = self.inner.dict_delete("AA");
         match action {
             LinkAction::Action(_) => {
                 let _ = self.inner.dict_delete("Dest");

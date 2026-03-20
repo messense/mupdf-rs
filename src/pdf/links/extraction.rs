@@ -94,7 +94,14 @@ pub(crate) fn parse_external_link(uri: &str) -> Option<PdfAction> {
         let dest = match parse_params(params) {
             ParsedFragment::Explicit(page, kind) => PdfDestination::Page { page, kind },
             ParsedFragment::Named(name) => PdfDestination::Named(name),
-            ParsedFragment::ContainsUnknownKeys => PdfDestination::Named(uri.to_string()),
+            ParsedFragment::ContainsUnknownKeys => {
+                // Matches MuPDF's `parse_uri_named_dest` behavior
+                // https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L908
+                let name = strip_prefix_icase(params, "nameddest=")
+                    .map(|raw| raw.split_once(['&', '#']).map_or(raw, |(head, _)| head))
+                    .unwrap_or(params);
+                PdfDestination::Named(decode_uri_component(name).into_owned())
+            }
             ParsedFragment::Empty => return None,
         };
 

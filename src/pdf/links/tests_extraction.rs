@@ -154,17 +154,19 @@ fn test_parse_page_params() {
 }
 
 #[test]
-fn test_parse_named_dest2() {
+fn test_parse_named_dest() {
     let cases = [
         ("#nameddest=Chapter1", "Chapter1"),
         ("#nameddest=%E7%AB%A0%E8%8A%82", "章节"), // UTF-8 encoded
+        ("#nameddest=Chapter1&foo=bar", "Chapter1"),
         ("#Introduction", "Introduction"),
         ("#%E7%AB%A0%E8%8A%82", "章节"), // UTF-8 encoded
+        ("#page=2&comment=keep-me", "page=2&comment=keep-me"),
     ];
 
     for (input, expected_name) in cases {
         let expected = Some(PdfAction::GoTo(PdfDestination::Named(expected_name.into())));
-        assert_eq!(parse_external_link(input), expected,);
+        assert_eq!(parse_external_link(input), expected);
     }
 }
 

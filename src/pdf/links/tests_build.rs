@@ -1503,3 +1503,34 @@ fn test_links_on_different_page_sizes() {
         tester.assert_links(&links).unwrap();
     }
 }
+
+#[test]
+fn test_named_dest_with_extra_keys() {
+    let page_count = 3;
+    let name = "Chapter1&foo=bar";
+
+    let links = [PdfAction::GoTo(PdfDestination::Named(name.into()))].create_links();
+
+    let resolved = repeat_n(LinkAction::Action(NAMED_DEST_RESOLVED), 1).create_links();
+
+    let mut tr = PdfTester::with_links(page_count, &links);
+    tr.add_named_destinations(&[name]).unwrap();
+
+    // URI-flattening paths resolve named dests to page numbers. Raw URIs and
+    // link annotations preserve named destinations as written. Here we test that named
+    // destinations containing URI control characters, like "Chapter1&foo=bar", are resolvable.
+    // This succeeds (except for the `links_from_annotations_lossy` call) because MuPDF uses
+    // `fz_encode_uri_component`. Thus, "Chapter1&foo=bar" becomes "Chapter1%26foo%3Dbar",
+    // which prevents the parser from inappropriately splitting on the `&` character.
+    tr.assert_links_split(&resolved, &links, &links).unwrap();
+
+    let extracted = tr.extract_raw_uri_links().unwrap();
+    assert_eq!(&extracted, &["#nameddest=Chapter1%26foo%3Dbar"]);
+
+    // However, if we provide the unescaped string "#nameddest=Chapter1&foo=bar" directly
+    // to the Rust parsing logic, the extra keys are stripped/clipped. This exactly matches
+    // the behavior of MuPDF's `parse_uri_named_dest` function.
+    let action = parse_external_link("#nameddest=Chapter1&foo=bar");
+    let expected = PdfAction::GoTo(PdfDestination::Named("Chapter1".into()));
+    assert_eq!(action, Some(expected));
+}

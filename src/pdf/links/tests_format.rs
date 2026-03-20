@@ -113,6 +113,10 @@ fn test_pdf_action_format() {
             goto_named("Name/With/Slashes"),
             "#nameddest=Name%2FWith%2FSlashes",
         ),
+        (
+            goto_named("Chapter1&foo=bar"),
+            "#nameddest=Chapter1%26foo%3Dbar",
+        ),
         (goto_named("page=10"), "#nameddest=page%3D10"),
         (
             goto_named("a-b_c.d!e~f*g'h(i)j"),

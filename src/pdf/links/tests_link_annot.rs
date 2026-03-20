@@ -396,6 +396,33 @@ fn test_set_action_misc() {
 }
 
 #[test]
+fn test_parse_link_action_errors_on_out_of_range_page_index() {
+    let mut tester = LinkAnnotTester::new(3);
+
+    let mut dest_array = tester.doc.new_array_with_capacity(2).unwrap();
+    dest_array
+        .array_push(PdfObject::new_int(9999).unwrap())
+        .unwrap();
+    dest_array
+        .array_push(PdfObject::new_name("Fit").unwrap())
+        .unwrap();
+
+    let mut action_dict = tester.doc.new_dict_with_capacity(2).unwrap();
+    action_dict
+        .dict_put("S", PdfObject::new_name("GoTo").unwrap())
+        .unwrap();
+    action_dict.dict_put("D", dest_array).unwrap();
+
+    // Rust fails on out-of-range pages
+    let annot = tester.build_annotation_object(AnnotSetup::new().with_action(action_dict));
+
+    // MuPDF simply drops the invalid link
+    assert!(parse_link_action_from_annot_dict(&annot, &tester.doc, None).is_err());
+    let links = tester.doc.load_page(0).unwrap().links().unwrap();
+    assert_eq!(links.count(), 0);
+}
+
+#[test]
 fn test_switches_between_dest_and_action_entries() {
     let mut tester = LinkAnnotTester::new(2);
     let mut annot = tester.add_link_annot();
@@ -429,6 +456,34 @@ fn test_switches_between_dest_and_action_entries() {
         annot.get_dict("A").unwrap().is_none(),
         "/A should be absent after writing /Dest"
     );
+
+    let mut tester = LinkAnnotTester::new(2);
+    let aa_d = tester.encode_action(&LinkAction::Action(PdfAction::GoTo(
+        PdfDestination::default(),
+    )));
+    let aa_u = tester.encode_action(&LinkAction::Action(PdfAction::Uri(
+        "https://other_example.com".into(),
+    )));
+    let annot_obj =
+        tester.build_annotation_object(AnnotSetup::new().with_aa_d(aa_d).with_aa_u(aa_u));
+    let mut annot = PdfLinkAnnot::new(annot_obj);
+
+    annot.set_action(tester.doc_mut(), &as_action).unwrap();
+    assert!(
+        annot.get_dict("AA").unwrap().is_none(),
+        "/AA should be absent after replacing with /A"
+    );
+    assert_eq!(
+        annot.action(&tester.doc, None).unwrap(),
+        Some(as_action.clone())
+    );
+
+    annot.set_action(tester.doc_mut(), &as_dest).unwrap();
+    assert!(
+        annot.get_dict("AA").unwrap().is_none(),
+        "/AA should stay absent"
+    );
+    assert_eq!(annot.action(&tester.doc, None).unwrap(), Some(as_dest));
 }
 
 /// `set_rect` — with `None` CTM writes coordinates as-is.
