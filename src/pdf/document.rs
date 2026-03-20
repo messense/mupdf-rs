@@ -472,6 +472,17 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_calculate_form(context(), self.inner)) }
     }
 
+    pub fn bake_document(&mut self, bake_annots: bool, bake_widgets: bool) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_bake_document(
+                context(),
+                self.inner,
+                bake_annots,
+                bake_widgets
+            ))
+        }
+    }
+
     pub fn trailer(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_trailer(context(), self.inner)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
@@ -831,6 +842,12 @@ mod test {
         let bytes = include_bytes!("../../tests/files/dummy.pdf");
         let doc = PdfDocument::from_bytes(bytes).unwrap();
         assert!(!doc.needs_password().unwrap());
+    }
+
+    #[test]
+    fn test_pdf_document_bake_document() {
+        let mut doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        doc.bake_document(false, false).unwrap();
     }
 
     #[test]
