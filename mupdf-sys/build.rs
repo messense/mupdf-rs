@@ -40,6 +40,8 @@ fn run() -> Result<()> {
         )
     })?;
 
+    std::env::set_var("CFLAGS_wasm32-unknown-emscripten", "-sSUPPORT_LONGJMP=wasm");
+
     let src_dir = current_dir().unwrap().join("mupdf");
     let out_dir =
         PathBuf::from(env::var_os("OUT_DIR").ok_or("Missing OUT_DIR environment variable")?);
