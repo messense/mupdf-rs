@@ -541,7 +541,7 @@ impl Device {
         ystep: f32,
         ctm: &Matrix,
         id: Option<NonZero<i32>>,
-        doc_id: Option<NonZero<i32>>,
+        doc_id: i32,
     ) -> Result<Option<NonZero<i32>>, Error> {
         unsafe {
             ffi_try!(mupdf_begin_tile(
@@ -553,7 +553,7 @@ impl Device {
                 ystep,
                 ctm.into(),
                 id.map_or(0, NonZero::get),
-                doc_id.map_or(0, NonZero::get)
+                doc_id
             ))
         }
         .map(NonZero::new)
