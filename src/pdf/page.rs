@@ -61,7 +61,11 @@ impl PdfPage {
                 subtype as i32
             ))
         }
-        .map(|annot| unsafe { PdfAnnotation::from_raw(annot) })
+        .map(|annot| {
+            // SAFETY: `mupdf_pdf_create_annot` returns an owned pointer (refcount = 1)
+            // and `self` (the page) is alive.
+            unsafe { PdfAnnotation::from_raw(annot) }
+        })
     }
 
     pub fn delete_annotation(&mut self, annot: &PdfAnnotation) -> Result<(), Error> {
@@ -69,14 +73,21 @@ impl PdfPage {
             ffi_try!(mupdf_pdf_delete_annot(
                 context(),
                 self.as_mut_ptr(),
-                annot.inner
+                annot.inner.as_ptr()
             ))
         }
     }
 
     pub fn annotations(&self) -> AnnotationIter {
-        let next = unsafe { pdf_first_annot(context(), self.as_ptr().cast_mut()) };
-        AnnotationIter { next }
+        let page = self.as_ptr().cast_mut();
+        let next = unsafe { pdf_first_annot(context(), page) };
+        // SAFETY: `self` is alive so `page` is valid. We keep the page so
+        // the iterator (and any annotations it yields) can outlive `self`.
+        unsafe { pdf_keep_page(context(), page) };
+        AnnotationIter {
+            next: NonNull::new(next),
+            page: unsafe { NonNull::new_unchecked(page) },
+        }
     }
 
     pub fn update(&mut self) -> Result<bool, Error> {
@@ -505,21 +516,27 @@ impl DerefMut for PdfPage {
 
 #[derive(Debug)]
 pub struct AnnotationIter {
-    next: *mut pdf_annot,
+    next: Option<NonNull<pdf_annot>>,
+    page: NonNull<pdf_page>,
 }
 
 impl Iterator for AnnotationIter {
     type Item = PdfAnnotation;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.next.is_null() {
-            return None;
-        }
-        let node = self.next;
+        let node = self.next?.as_ptr();
         unsafe {
-            self.next = pdf_next_annot(context(), node);
-            Some(PdfAnnotation::from_raw(node))
+            self.next = NonNull::new(pdf_next_annot(context(), node));
+            // SAFETY: `node` is a borrowed pointer from the page's annotation
+            // list, and `self.page` keeps the page alive.
+            Some(PdfAnnotation::from_raw_keep_ref(node))
         }
+    }
+}
+
+impl Drop for AnnotationIter {
+    fn drop(&mut self) {
+        unsafe { pdf_drop_page(context(), self.page.as_ptr()) };
     }
 }
 

@@ -7,6 +7,9 @@ pub mod links;
 pub mod object;
 pub mod page;
 
+#[cfg(test)]
+mod tests_annotation;
+
 pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
 pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
 pub use filter::PdfFilterOptions;

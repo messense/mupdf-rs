@@ -1,6 +1,7 @@
 use std::{
     convert::TryFrom,
     ffi::{c_int, c_uint, CStr, CString},
+    ptr::NonNull,
 };
 
 use mupdf_sys::*;
@@ -62,17 +63,46 @@ from_enum! { pdf_line_ending => c_uint,
 
 #[derive(Debug)]
 pub struct PdfAnnotation {
-    pub(crate) inner: *mut pdf_annot,
+    pub(crate) inner: NonNull<pdf_annot>,
+    /// Ref-counted page pointer that keeps the parent page (and transitively
+    /// the document) alive for as long as this annotation exists.
+    page: NonNull<pdf_page>,
 }
 
 impl PdfAnnotation {
+    /// Create a `PdfAnnotation` from pointer.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must be non-null and point to a valid `pdf_annot`.
+    /// * The caller must own one reference to `ptr` (e.g. from a create call)
+    ///   and must not drop it afterwards — this wrapper assumes ownership.
+    /// * The parent page must be alive at the time of this call.
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_annot) -> Self {
-        Self { inner: ptr }
+        let page = pdf_annot_page(context(), ptr);
+        pdf_keep_page(context(), page);
+        Self {
+            inner: NonNull::new_unchecked(ptr),
+            page: NonNull::new_unchecked(page),
+        }
+    }
+
+    /// Create a `PdfAnnotation` from a borrowed pointer.
+    ///
+    /// Increments the annotation's reference count before taking ownership.
+    ///
+    /// # Safety
+    ///
+    /// * `ptr` must be non-null and point to a valid `pdf_annot`.
+    /// * The parent page must be alive at the time of this call.
+    pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_annot) -> Self {
+        pdf_keep_annot(context(), ptr);
+        Self::from_raw(ptr)
     }
 
     /// Get the [`PdfAnnotationType`] of this annotation
     pub fn r#type(&self) -> Result<PdfAnnotationType, Error> {
-        unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner)) }.map(|subtype| {
+        unsafe { ffi_try!(mupdf_pdf_annot_type(context(), self.inner.as_ptr())) }.map(|subtype| {
             PdfAnnotationType::try_from(subtype).unwrap_or(PdfAnnotationType::Unknown)
         })
     }
@@ -80,24 +110,24 @@ impl PdfAnnotation {
     /// Check if the annotation is hot (i.e. that the pointing device's cursor is hovering over the
     /// annotation)
     pub fn is_hot(&self) -> bool {
-        unsafe { pdf_annot_hot(context(), self.inner) != 0 }
+        unsafe { pdf_annot_hot(context(), self.inner.as_ptr()) != 0 }
     }
 
     /// Make this "hot" (see [`Self::is_hot()`])
     pub fn set_hot(&mut self, hot: bool) {
         // Just kinda trusting it would be insane of them to throw here
-        unsafe { pdf_set_annot_hot(context(), self.inner, i32::from(hot)) }
+        unsafe { pdf_set_annot_hot(context(), self.inner.as_ptr(), i32::from(hot)) }
     }
 
     pub fn is_active(&self) -> bool {
-        unsafe { pdf_annot_active(context(), self.inner) != 0 }
+        unsafe { pdf_annot_active(context(), self.inner.as_ptr()) != 0 }
     }
 
     pub fn set_line(&mut self, start: Point, end: Point) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_line(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 start.into(),
                 end.into()
             ))
@@ -109,13 +139,13 @@ impl PdfAnnotation {
             match color {
                 AnnotationColor::Gray(g) => ffi_try!(mupdf_pdf_set_annot_color(
                     context(),
-                    self.inner,
+                    self.inner.as_ptr(),
                     1,
                     [g].as_ptr()
                 )),
                 AnnotationColor::Rgb { red, green, blue } => ffi_try!(mupdf_pdf_set_annot_color(
                     context(),
-                    self.inner,
+                    self.inner.as_ptr(),
                     3,
                     [red, green, blue].as_ptr()
                 )),
@@ -126,7 +156,7 @@ impl PdfAnnotation {
                     key,
                 } => ffi_try!(mupdf_pdf_set_annot_color(
                     context(),
-                    self.inner,
+                    self.inner.as_ptr(),
                     4,
                     [cyan, magenta, yellow, key].as_ptr()
                 )),
@@ -138,7 +168,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_flags(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 flags.bits()
             ))
         }
@@ -146,11 +176,17 @@ impl PdfAnnotation {
 
     /// Set the bounding box of the annotation
     pub fn set_rect(&mut self, rect: Rect) -> Result<(), Error> {
-        unsafe { ffi_try!(mupdf_pdf_set_annot_rect(context(), self.inner, rect.into())) }
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_rect(
+                context(),
+                self.inner.as_ptr(),
+                rect.into()
+            ))
+        }
     }
 
     pub fn author(&self) -> Result<Option<&str>, Error> {
-        let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner)) }?;
+        let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner.as_ptr())) }?;
         if ptr.is_null() {
             return Ok(None);
         }
@@ -163,7 +199,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_author(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 c_author.as_ptr()
             ))
         }
@@ -173,7 +209,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_filter_annot_contents(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 &raw mut opt.inner
             ))
         }
@@ -183,7 +219,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_popup(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 fz_rect::from(rect)
             ))
         }
@@ -193,7 +229,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_active(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 c_int::from(active)
             ))
         }
@@ -203,7 +239,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_border_width(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 width
             ))
         }
@@ -213,7 +249,7 @@ impl PdfAnnotation {
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_intent(
                 context(),
-                self.inner,
+                self.inner.as_ptr(),
                 pdf_intent::from(intent)
             ))
         }
@@ -222,10 +258,9 @@ impl PdfAnnotation {
 
 impl Drop for PdfAnnotation {
     fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                pdf_drop_annot(context(), self.inner);
-            }
+        unsafe {
+            pdf_drop_annot(context(), self.inner.as_ptr());
+            pdf_drop_page(context(), self.page.as_ptr());
         }
     }
 }
