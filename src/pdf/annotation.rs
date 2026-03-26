@@ -1,10 +1,11 @@
 use std::{
     convert::TryFrom,
-    ffi::{c_int, c_uint, CStr, CString},
+    ffi::{c_int, c_uint, CStr},
 };
 
 use mupdf_sys::*;
 
+use crate::pdf::object::TryAsCStr;
 use crate::{color::AnnotationColor, pdf::Intent};
 use crate::{context, from_enum, Error};
 use crate::{pdf::PdfFilterOptions, Point, Rect};
@@ -158,8 +159,8 @@ impl PdfAnnotation {
         Ok(Some(c_str.to_str().unwrap()))
     }
 
-    pub fn set_author(&mut self, author: &str) -> Result<(), Error> {
-        let c_author = CString::new(author)?;
+    pub fn set_author(&mut self, author: impl TryAsCStr) -> Result<(), Error> {
+        let c_author = author.try_as_c_str()?;
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_author(
                 context(),
