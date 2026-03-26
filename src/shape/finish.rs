@@ -337,7 +337,7 @@ mod tests {
         (0..properties.dict_len().unwrap())
             .map(|index| {
                 let key = properties.get_dict_key(index as i32).unwrap().unwrap();
-                let key = str::from_utf8(key.as_name().unwrap()).unwrap().to_owned();
+                let key = str::from_utf8(&key.as_name().unwrap()).unwrap().to_owned();
                 let value = properties.get_dict_val(index as i32).unwrap().unwrap();
                 (key, value)
             })
@@ -349,7 +349,7 @@ mod tests {
         (0..ext_gstates.dict_len().unwrap())
             .map(|index| {
                 let key = ext_gstates.get_dict_key(index as i32).unwrap().unwrap();
-                let key = str::from_utf8(key.as_name().unwrap()).unwrap().to_owned();
+                let key = str::from_utf8(&key.as_name().unwrap()).unwrap().to_owned();
                 let value = ext_gstates.get_dict_val(index as i32).unwrap().unwrap();
                 (key, value)
             })

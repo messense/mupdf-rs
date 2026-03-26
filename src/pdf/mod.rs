@@ -10,6 +10,8 @@ pub mod page;
 #[cfg(test)]
 mod tests_annotation;
 
+pub use compact_cstr::{CompactCBytes, CompactCString};
+
 pub use annotation::{
     AnnotationArea, AnnotationBorderEffect, AnnotationBorderStyle, AnnotationDefaultAppearance,
     AnnotationFlags, AnnotationQuadPoints, AnnotationTextAlign, LineEndingStyle, PdfAnnotation,
@@ -23,7 +25,7 @@ pub use intent::Intent;
 pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
-pub use object::PdfObject;
+pub use object::{IntoPdfDictKey, PdfObject, TryAsCStr};
 pub use page::{FontInfo, InsertFontOptions, PdfPage};
 
 #[must_use]
