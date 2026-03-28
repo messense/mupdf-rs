@@ -43,6 +43,15 @@ from_enum! { c_int => c_int,
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct PdfLayerConfig {
+    pub text: String,
+    pub depth: u32,
+    pub pdf_layer_config_ui_type: u32,
+    pub selected: bool,
+    pub locked: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct PdfWriteOptions {
     inner: pdf_write_options,
@@ -1858,6 +1867,33 @@ impl PdfDocument {
         }
 
         Ok(())
+    }
+
+    pub fn layer_ui_configs(&self) -> Vec<PdfLayerConfig> {
+        let num = unsafe { ffi_try!(mupdf_pdf_count_layer_config_ui(context(), self.inner)) };
+        let mut configs = Vec::new();
+        for i in 0..num.unwrap() {
+            let mut info = std::mem::MaybeUninit::<pdf_layer_config_ui>::uninit();
+            unsafe {
+                let _ = ffi_try!(mupdf_pdf_layer_config_ui_info(
+                    context(),
+                    self.inner,
+                    i,
+                    info.as_mut_ptr()
+                ));
+            };
+            let info = unsafe { info.assume_init() };
+            let c_str = unsafe { CStr::from_ptr(info.text) };
+            let info = PdfLayerConfig {
+                text: c_str.to_string_lossy().into_owned(),
+                depth: info.depth as u32,
+                pdf_layer_config_ui_type: info.type_ as u32,
+                selected: info.selected != 0,
+                locked: info.selected != 0,
+            };
+            configs.push(info);
+        }
+        configs
     }
 }
 

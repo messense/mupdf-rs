@@ -328,3 +328,111 @@ void mupdf_pdf_abandon_operation(fz_context *ctx, pdf_document *doc, mupdf_error
 {
     TRY_CATCH_VOID(pdf_abandon_operation(ctx, doc));
 }
+
+int mupdf_pdf_count_layer_configs(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+	TRY_CATCH(int, 0, pdf_count_layer_configs(ctx, pdf));
+}
+
+int mupdf_pdf_count_layers(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+	TRY_CATCH(int, 0, pdf_count_layers(ctx, pdf));
+}
+
+const char *mupdf_pdf_layer_name(fz_context *ctx, pdf_document *pdf, int layer, mupdf_error_t **errptr)
+{
+	if(layer < 0 || layer > mupdf_pdf_count_layers(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("layer num is not in range");
+        return "";
+	}
+	TRY_CATCH(const char *, NULL, pdf_layer_name(ctx, pdf, layer));
+}
+
+
+int mupdf_pdf_layer_is_enabled(fz_context *ctx, pdf_document *pdf, int layer, mupdf_error_t **errptr)
+{
+	if(layer < 0 || layer > mupdf_pdf_count_layers(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("layer num is not in range");
+        return 0;
+	}
+	TRY_CATCH(int, 0, pdf_layer_is_enabled(ctx, pdf, layer));
+}
+
+void mupdf_pdf_enable_layer(fz_context *ctx, pdf_document *pdf, int layer, int enabled, mupdf_error_t **errptr)
+{
+	if(layer < 0 || layer > mupdf_pdf_count_layers(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("layer num is not in range");
+        return;
+	}
+	TRY_CATCH_VOID(pdf_enable_layer(ctx, pdf, layer, enabled));
+}
+
+void mupdf_pdf_layer_config_info(fz_context *ctx, pdf_document *pdf, int config_num, pdf_layer_config *info, mupdf_error_t **errptr)
+{
+	if(config_num < 0 || config_num > mupdf_pdf_count_layer_configs(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("config_num is not in range");
+        return;
+	}
+	TRY_CATCH_VOID(pdf_layer_config_info(ctx, pdf, config_num, info));
+}
+
+const char *mupdf_pdf_layer_config_creator(fz_context *ctx, pdf_document *pdf, int config_num, mupdf_error_t **errptr)
+{
+	if(config_num < 0 || config_num > mupdf_pdf_count_layer_configs(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("config_num is not in range");
+        return "";
+	}
+	TRY_CATCH(const char *, NULL, pdf_layer_config_creator(ctx, pdf, config_num));
+}
+
+const char *mupdf_pdf_layer_config_name(fz_context *ctx, pdf_document *pdf, int config_num, mupdf_error_t **errptr)
+{
+	if(config_num < 0 || config_num > mupdf_pdf_count_layer_configs(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("config_num is not in range");
+        return "";
+	}
+	TRY_CATCH(const char *, NULL, pdf_layer_config_name(ctx, pdf, config_num));
+}
+
+void mupdf_pdf_select_layer_config(fz_context *ctx, pdf_document *pdf, int config_num, mupdf_error_t **errptr)
+{
+	if(config_num < 0 || config_num > mupdf_pdf_count_layer_configs(ctx, pdf, errptr)) {
+        *errptr = mupdf_new_error_from_str("config_num is not in range");
+        return;
+	}
+	TRY_CATCH_VOID(pdf_select_layer_config(ctx, pdf, config_num));
+}
+
+int mupdf_pdf_count_layer_config_ui(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
+{
+	TRY_CATCH(int, 0, pdf_count_layer_config_ui(ctx, pdf));
+}
+
+void mupdf_pdf_select_layer_config_ui(fz_context *ctx, pdf_document *pdf, int ui, mupdf_error_t **errptr)
+{
+	TRY_CATCH_VOID(pdf_select_layer_config_ui(ctx, pdf, ui));
+}
+
+void mupdf_pdf_toggle_layer_config_ui(fz_context *ctx, pdf_document *pdf, int ui, mupdf_error_t **errptr)
+{
+	TRY_CATCH_VOID(pdf_toggle_layer_config_ui(ctx, pdf, ui));
+}
+
+const char *mupdf_pdf_layer_config_ui_type_to_string(fz_context *ctx, pdf_layer_config_ui_type type, mupdf_error_t **errptr)
+{
+	TRY_CATCH(const char *, NULL, pdf_layer_config_ui_type_to_string(type));
+}
+
+pdf_layer_config_ui_type mupdf_pdf_layer_config_ui_type_from_string(fz_context *ctx, const char *str, mupdf_error_t **errptr)
+{
+	TRY_CATCH(pdf_layer_config_ui_type, 0, pdf_layer_config_ui_type_from_string(str));
+}
+
+void mupdf_pdf_layer_config_ui_info(fz_context *ctx, pdf_document *pdf, int ui, pdf_layer_config_ui *info, mupdf_error_t **errptr) 
+{
+	TRY_CATCH_VOID(pdf_layer_config_ui_info(ctx, pdf, ui, info));
+};
+
+void mupdf_pdf_set_layer_config_as_default(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr) {
+	TRY_CATCH_VOID(pdf_set_layer_config_as_default(ctx, pdf));
+}
