@@ -413,6 +413,11 @@ void mupdf_pdf_select_layer_config_ui(fz_context *ctx, pdf_document *pdf, int ui
 	TRY_CATCH_VOID(pdf_select_layer_config_ui(ctx, pdf, ui));
 }
 
+void mupdf_pdf_deselect_layer_config_ui(fz_context *ctx, pdf_document *pdf, int ui, mupdf_error_t **errptr)
+{
+	TRY_CATCH_VOID(pdf_deselect_layer_config_ui(ctx, pdf, ui));
+}
+
 void mupdf_pdf_toggle_layer_config_ui(fz_context *ctx, pdf_document *pdf, int ui, mupdf_error_t **errptr)
 {
 	TRY_CATCH_VOID(pdf_toggle_layer_config_ui(ctx, pdf, ui));

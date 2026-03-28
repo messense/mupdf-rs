@@ -43,7 +43,7 @@ from_enum! { c_int => c_int,
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct PdfLayerConfig {
     pub text: String,
     pub depth: u32,
@@ -1889,11 +1889,37 @@ impl PdfDocument {
                 depth: info.depth as u32,
                 pdf_layer_config_ui_type: info.type_ as u32,
                 selected: info.selected != 0,
-                locked: info.selected != 0,
+                locked: info.locked != 0,
             };
             configs.push(info);
         }
         configs
+    }
+
+    pub fn set_layer_ui_configs(&self, configs: Vec<PdfLayerConfig>) {
+        let old: Vec<PdfLayerConfig> = self.layer_ui_configs();
+
+        for (i, config) in configs.into_iter().enumerate() {
+            if old[i].selected != config.selected {
+                if config.selected {
+                    unsafe {
+                        let _ = ffi_try!(mupdf_pdf_select_layer_config_ui(
+                            context(),
+                            self.inner,
+                            i as i32
+                        ));
+                    };
+                } else {
+                    unsafe {
+                        let _ = ffi_try!(mupdf_pdf_deselect_layer_config_ui(
+                            context(),
+                            self.inner,
+                            i as i32
+                        ));
+                    };
+                }
+            }
+        }
     }
 }
 
