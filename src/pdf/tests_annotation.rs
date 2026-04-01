@@ -78,43 +78,67 @@ fn annotation_properties_and_soundness() {
     line_annot.set_intent(Intent::LineArrow).unwrap();
 }
 
+const TYPES: [PdfAnnotationType; 3] = [
+    PdfAnnotationType::Text,
+    PdfAnnotationType::Highlight,
+    PdfAnnotationType::Square,
+];
+
 #[test]
 fn annotation_iteration_and_deletion() {
     let tester = AnnotTester::new();
 
     assert_eq!(tester.page().annotations().count(), 0);
 
-    tester.create(PdfAnnotationType::Text);
-    tester.create(PdfAnnotationType::Highlight);
-    tester.create(PdfAnnotationType::Square);
+    for ty in TYPES {
+        tester.create(ty);
+    }
 
-    let first_annot = {
-        let page = tester.page();
-        let mut iter = page.annotations();
+    let page = tester.page();
+    let annots: Vec<_> = page.annotations().collect();
+    assert_eq!(annots.len(), TYPES.len());
+    for (annot, expected) in annots.iter().zip(TYPES) {
+        assert_eq!(annot.r#type().unwrap(), expected);
+    }
 
-        drop(page);
+    // Annotations remain valid after the page is dropped
+    drop(page);
+    for (annot, expected) in annots.iter().zip(TYPES) {
+        assert_eq!(annot.r#type().unwrap(), expected);
+    }
 
-        let first = iter.next().unwrap();
-        assert_eq!(first.r#type().unwrap(), PdfAnnotationType::Text);
+    let tester = AnnotTester::new();
 
-        let remaining: Vec<_> = iter.collect();
-        assert_eq!(remaining.len(), 2);
-        assert_eq!(remaining[0].r#type().unwrap(), PdfAnnotationType::Highlight);
+    for ty in TYPES {
+        tester.create(ty);
+    }
 
-        first
-    };
-
-    assert_eq!(first_annot.r#type().unwrap(), PdfAnnotationType::Text);
-
+    // Collect annotations, then delete the first one
     let mut page = tester.page();
-    page.delete_annotation(&first_annot).unwrap();
+    let mut annots: Vec<_> = page.annotations().collect();
+    let first = annots.remove(0);
+    page.delete_annotation(first).unwrap();
 
-    let final_annots: Vec<_> = page.annotations().collect();
-    assert_eq!(final_annots.len(), 2);
-    assert_eq!(
-        final_annots[0].r#type().unwrap(),
-        PdfAnnotationType::Highlight
-    );
+    let remaining: Vec<_> = page.annotations().collect();
+    assert_eq!(remaining.len(), TYPES.len() - 1);
+    for (annot, expected) in remaining.iter().zip(&TYPES[1..]) {
+        assert_eq!(annot.r#type().unwrap(), *expected);
+    }
+
+    let tester = AnnotTester::new();
+
+    for ty in TYPES {
+        tester.create(ty);
+    }
+
+    // Collect then delete all annotations
+    let mut page = tester.page();
+    let annots: Vec<_> = page.annotations().collect();
+    for annot in annots {
+        page.delete_annotation(annot).unwrap();
+    }
+
+    assert_eq!(page.annotations().count(), 0);
 }
 
 #[test]
