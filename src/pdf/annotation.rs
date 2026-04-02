@@ -149,6 +149,18 @@ impl PdfAnnotation {
         unsafe { ffi_try!(mupdf_pdf_set_annot_rect(context(), self.inner, rect.into())) }
     }
 
+    /// Get the annotation rectangle, if this annotation type defines one.
+    pub fn bounds(&self) -> Result<Option<Rect>, Error> {
+        let has_rect = unsafe { ffi_try!(mupdf_pdf_annot_has_rect(context(), self.inner)) }?;
+        if has_rect == 0 {
+            return Ok(None);
+        }
+
+        unsafe { ffi_try!(mupdf_pdf_annot_rect(context(), self.inner)) }
+            .map(Into::into)
+            .map(Some)
+    }
+
     pub fn author(&self) -> Result<Option<&str>, Error> {
         let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner)) }?;
         if ptr.is_null() {
@@ -242,5 +254,24 @@ bitflags::bitflags! {
         const IS_LOCKED = PDF_ANNOT_IS_LOCKED as _;
         const IS_TOGGLE_NO_VIEW = PDF_ANNOT_IS_TOGGLE_NO_VIEW as _;
         const IS_LOCKED_CONTENTS = PDF_ANNOT_IS_LOCKED_CONTENTS as _;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::PdfAnnotationType;
+    use crate::pdf::PdfDocument;
+    use crate::{Rect, Size};
+
+    #[test]
+    fn test_annotation_bounds() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut annot = page.create_annotation(PdfAnnotationType::Text).unwrap();
+
+        let expected = Rect::new(10.0, 20.0, 110.0, 120.0);
+        annot.set_rect(expected).unwrap();
+
+        assert_eq!(annot.bounds().unwrap(), Some(expected));
     }
 }
