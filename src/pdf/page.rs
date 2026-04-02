@@ -550,8 +550,8 @@ impl TryFrom<Page> for PdfPage {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
-    use crate::pdf::{PdfAnnotation, PdfDocument, PdfPage};
-    use crate::{Matrix, Rect};
+    use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfPage};
+    use crate::{Matrix, Rect, Size};
 
     #[test]
     fn test_page_properties() {
@@ -591,5 +591,20 @@ mod test {
         let page0 = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
         let annots: Vec<PdfAnnotation> = page0.annotations().collect();
         assert_eq!(annots.len(), 0);
+    }
+
+    #[test]
+    fn test_page_annotations_keep_refs() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut created = page.create_annotation(PdfAnnotationType::Text).unwrap();
+        let expected = Rect::new(10.0, 20.0, 110.0, 120.0);
+        created.set_rect(expected).unwrap();
+        drop(created);
+
+        let annots: Vec<PdfAnnotation> = page.annotations().collect();
+        assert_eq!(annots.len(), 1);
+        assert_eq!(annots[0].r#type().unwrap(), PdfAnnotationType::Text);
+        assert_eq!(annots[0].bounds().unwrap(), Some(expected));
     }
 }
