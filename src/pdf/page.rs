@@ -597,6 +597,6 @@ mod test {
         let annots: Vec<PdfAnnotation> = page.annotations().collect();
         assert_eq!(annots.len(), 1);
         assert_eq!(annots[0].r#type().unwrap(), PdfAnnotationType::Text);
-        assert_eq!(annots[0].bounds().unwrap(), Some(expected));
+        assert_eq!(annots[0].rect().unwrap(), expected);
     }
 }
