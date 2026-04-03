@@ -185,16 +185,9 @@ impl PdfAnnotation {
         }
     }
 
-    /// Get the annotation rectangle, if this annotation type defines one.
-    pub fn bounds(&self) -> Result<Option<Rect>, Error> {
-        let has_rect = unsafe { ffi_try!(mupdf_pdf_annot_has_rect(context(), self.inner)) }?;
-        if has_rect == 0 {
-            return Ok(None);
-        }
-
-        unsafe { ffi_try!(mupdf_pdf_annot_rect(context(), self.inner)) }
-            .map(Into::into)
-            .map(Some)
+    /// Get the annotation rectangle.
+    pub fn rect(&self) -> Result<Rect, Error> {
+        unsafe { ffi_try!(mupdf_pdf_annot_rect(context(), self.inner.as_ptr())) }.map(Into::into)
     }
 
     pub fn author(&self) -> Result<Option<&str>, Error> {
@@ -319,7 +312,7 @@ mod test {
     use crate::{Rect, Size};
 
     #[test]
-    fn test_annotation_bounds() {
+    fn test_annotation_rect() {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut annot = page.create_annotation(PdfAnnotationType::Text).unwrap();
@@ -327,6 +320,6 @@ mod test {
         let expected = Rect::new(10.0, 20.0, 110.0, 120.0);
         annot.set_rect(expected).unwrap();
 
-        assert_eq!(annot.bounds().unwrap(), Some(expected));
+        assert_eq!(annot.rect().unwrap(), expected);
     }
 }

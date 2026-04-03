@@ -28,14 +28,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             };
 
-            match annot.bounds() {
-                Ok(Some(bounds)) => {
+            match annot.rect() {
+                Ok(rect) => {
                     found += 1;
-                    println!("page {display_page_no} type={kind:?} bounds={bounds}");
-                }
-                Ok(None) => {
-                    found += 1;
-                    println!("page {display_page_no} type={kind:?} bounds=<none>");
+                    println!("page {display_page_no} type={kind:?} rect={rect}");
                 }
                 Err(err) => {
                     eprintln!("page {display_page_no} type={kind:?} error={err}");
@@ -66,7 +62,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
                     match link.rect(Some(&page_ctm)) {
                         Ok(bounds) => {
                             found += 1;
-                            println!("page {display_page_no} type=Link bounds={bounds}");
+                            println!("page {display_page_no} type=Link rect={bounds}");
                         }
                         Err(err) => {
                             eprintln!("page {display_page_no} type=Link error={err}");
