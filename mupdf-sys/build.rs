@@ -319,6 +319,8 @@ const FONTS: [&str; 6] = [
     "TOFU_SIL",
 ];
 
+const BASE14_FONT_PRUNE_FLAG: &str = "TOFU_BASE14";
+
 enum Build {
     Make(Make),
     Msbuild(Msbuild),
@@ -400,6 +402,13 @@ impl Build {
             // TOFU flags skip fonts when set to 1. Keep non-URW fonts out of
             // mupdf-sys so the crate remains below crates.io's package limit.
             self.define_bool(font, true);
+        }
+
+        if !cfg!(feature = "base14-fonts") {
+            // Skip the URW base14 fonts too (warning: makes plain PDFs render
+            // without text unless replacement fonts are provided at runtime,
+            // e.g. via mupdf's FontLoader hooks).
+            self.define_bool(BASE14_FONT_PRUNE_FLAG, true);
         }
 
         match self {

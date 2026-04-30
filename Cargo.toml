@@ -21,6 +21,7 @@ default = [
     "tesseract",
     "brotli",
     "docx-output",
+    "base14-fonts",
 ]
 
 # Use system libs for all thirdparty libs
@@ -52,6 +53,10 @@ sys-lib-zxingcpp = ["mupdf-sys/sys-lib-zxingcpp"]
 # Use system brotli
 sys-lib-brotli = ["mupdf-sys/sys-lib-brotli"]
 
+# Compile the URW base14 fonts into mupdf-sys (~600KB). Disabling this makes
+# plain PDFs render without text unless replacement fonts are provided at
+# runtime, e.g. via a `FontLoader`.
+base14-fonts = ["mupdf-sys/base14-fonts"]
 system-fonts = ["font-kit"]
 
 # Runtime bundled font providers. These load fonts through MuPDF's system font
