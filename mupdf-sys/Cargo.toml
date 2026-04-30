@@ -216,6 +216,7 @@ sys-lib-zxingcpp = []
 sys-lib-brotli = []
 
 all-fonts = []
+base14-fonts = []
 
 js = []
 xps = []

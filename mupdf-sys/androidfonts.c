@@ -46,6 +46,17 @@ static fz_font *load_noto_try(fz_context *ctx, const char *stem)
 	return font;
 }
 
+static const char *android_style_suffix(int bold, int italic)
+{
+	if (bold && italic)
+		return "-BoldItalic";
+	if (bold)
+		return "-Bold";
+	if (italic)
+		return "-Italic";
+	return "-Regular";
+}
+
 enum { JP, KR, SC, TC };
 
 fz_font *load_droid_fallback_font(fz_context *ctx, int script, int language, int serif, int bold, int italic)
@@ -237,5 +248,50 @@ fz_font *load_droid_cjk_font(fz_context *ctx, const char *name, int ros, int ser
 
 fz_font *load_droid_font(fz_context *ctx, const char *name, int bold, int italic, int needs_exact_metrics)
 {
+	fz_font *font = NULL;
+	const char *style = android_style_suffix(bold, italic);
+
+	(void)needs_exact_metrics;
+
+	if (!name)
+		return NULL;
+
+	if (!fz_strcasecmp(name, "Helvetica") || !fz_strcasecmp(name, "Arial") || strstr(name, "Helvetica") || strstr(name, "Arial"))
+	{
+		font = load_noto(ctx, "Roboto", "", style, 0);
+		if (!font) font = load_noto(ctx, "NotoSans", "", style, 0);
+		if (!font) font = load_noto(ctx, "DroidSans", "", style, 0);
+		return font;
+	}
+
+	if (!fz_strcasecmp(name, "Times") || !fz_strcasecmp(name, "Times-Roman") || strstr(name, "Times"))
+	{
+		font = load_noto(ctx, "NotoSerif", "", style, 0);
+		if (!font) font = load_noto(ctx, "RobotoSerif", "", style, 0);
+		if (!font) font = load_noto(ctx, "DroidSerif", "", style, 0);
+		return font;
+	}
+
+	if (!fz_strcasecmp(name, "Courier") || strstr(name, "Courier"))
+	{
+		font = load_noto(ctx, "DroidSans", "Mono", "", 0);
+		if (!font) font = load_noto(ctx, "NotoSans", "Mono", "-Regular", 0);
+		return font;
+	}
+
+	if (!fz_strcasecmp(name, "Symbol") || strstr(name, "Symbol"))
+	{
+		font = load_noto(ctx, "NotoSans", "Symbols", "-Regular", 0);
+		if (!font) font = load_noto(ctx, "NotoSans", "Symbols2", "-Regular", 0);
+		return font;
+	}
+
+	if (!fz_strcasecmp(name, "ZapfDingbats") || strstr(name, "Dingbats"))
+	{
+		font = load_noto(ctx, "NotoSans", "Symbols", "-Regular", 0);
+		if (!font) font = load_noto(ctx, "NotoSans", "Symbols2", "-Regular", 0);
+		return font;
+	}
+
 	return NULL;
 }
