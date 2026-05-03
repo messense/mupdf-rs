@@ -7,6 +7,8 @@ pub mod links;
 pub mod object;
 pub mod page;
 
+pub use compact_cstr::{CompactCBytes, CompactCString};
+
 pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
 pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
 pub use filter::PdfFilterOptions;
@@ -15,7 +17,7 @@ pub use intent::Intent;
 pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
-pub use object::PdfObject;
+pub use object::{IntoPdfDictKey, PdfObject, TryAsCStr};
 pub use page::PdfPage;
 
 #[must_use]
