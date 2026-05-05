@@ -25,6 +25,10 @@ impl Make {
         self.build.define(var, val);
     }
 
+    pub fn define_flag(&mut self, var: &str) {
+        self.build.define(var, None);
+    }
+
     fn make_var(&mut self, var: &str, val: impl AsRef<OsStr>) {
         let mut flag = OsString::from(var);
         flag.push("=");

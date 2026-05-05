@@ -26,6 +26,8 @@ fn main() {
 }
 
 fn run() -> Result<()> {
+    println!("cargo:rerun-if-changed=androidfonts.c");
+
     if fs::read_dir("mupdf").map_or(true, |d| d.count() == 0) {
         Err(
             "The `mupdf` directory is empty, did you forget to pull the submodules?\n\
@@ -130,7 +132,10 @@ fn build_wrapper(target: &Target) -> Result<()> {
             build.file(&path);
         }
     }
-    build.include("mupdf/include").include("wrapper");
+    build
+        .include("mupdf/include")
+        .include("wrapper")
+        .include(".");
     if target.os == "android" {
         build.define("HAVE_ANDROID", None);
     }
@@ -264,6 +269,8 @@ const FONTS: [&str; 6] = [
     "TOFU_SIL",
 ];
 
+const BASE14_FONT_PRUNE_FLAG: &str = "TOFU_BASE14";
+
 enum Build {
     Make(Make),
     Msbuild(Msbuild),
@@ -285,6 +292,13 @@ impl Build {
         };
     }
 
+    fn define_flag(&mut self, var: &str) {
+        match self {
+            Self::Make(m) => m.define_flag(var),
+            Self::Msbuild(m) => m.define_flag(var),
+        };
+    }
+
     fn define_bool(&mut self, var: &str, val: bool) {
         self.define(var, if val { "1" } else { "0" });
     }
@@ -301,11 +315,14 @@ impl Build {
         self.fz_enable("HTML", cfg!(feature = "html"));
         self.fz_enable("EPUB", cfg!(feature = "epub"));
         self.fz_enable("JS", cfg!(feature = "js"));
+        if !cfg!(feature = "all-fonts") {
+            for font in &FONTS {
+                self.define_flag(font);
+            }
 
-        for font in &FONTS {
-            // TOFU flags skip fonts when set to 1
-            // So we invert: all-fonts=true means TOFU=0 (include fonts)
-            self.define_bool(font, !cfg!(feature = "all-fonts"));
+            if !cfg!(feature = "base14-fonts") {
+                self.define_flag(BASE14_FONT_PRUNE_FLAG);
+            }
         }
 
         match self {

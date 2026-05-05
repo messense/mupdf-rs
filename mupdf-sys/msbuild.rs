@@ -14,6 +14,10 @@ impl Msbuild {
         self.cl.push(format!("/D{var}#{val}"));
     }
 
+    pub fn define_flag(&mut self, var: &str) {
+        self.cl.push(format!("/D{var}"));
+    }
+
     fn patch_nan(&self, build_dir: &str) -> Result<()> {
         let file_path = Path::new(build_dir).join("source/fitz/geometry.c");
         let content = fs::read_to_string(&file_path)
