@@ -598,6 +598,51 @@ mod test {
     }
 
     #[test]
+    fn test_text_char_font_and_flags() {
+        use crate::TextCharFlags;
+
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let block = text_page.blocks().next().expect("at least one block");
+        let line = block.lines().next().expect("at least one line");
+        let first_char = line.chars().next().expect("at least one char");
+
+        assert_eq!(first_char.char(), Some('D'));
+        assert_eq!(first_char.argb(), 0xff000000);
+        assert!(first_char.flags().contains(TextCharFlags::FILLED));
+
+        let font = first_char.font().expect("char should have a font");
+        assert!(!font.name().is_empty());
+    }
+
+    #[test]
+    fn test_text_char_font_outlives_text_page() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let (font, expected_name) = {
+            let block = text_page.blocks().next().expect("at least one block");
+            let line = block.lines().next().expect("at least one line");
+            let text_char = line.chars().next().expect("at least one char");
+            let font = text_char.font().expect("char should have a font");
+            let expected_name = font.name().to_owned();
+            (font, expected_name)
+        };
+
+        drop(text_page);
+        drop(page0);
+        drop(doc);
+
+        assert_eq!(font.name(), expected_name);
+        assert!(!font.name().is_empty());
+        let _ = font.is_bold();
+        let _ = font.ascender();
+    }
+
+    #[test]
     fn test_text_page_cb_search() {
         let doc = test_document!("..", "files/dummy.pdf").unwrap();
         let page0 = doc.load_page(0).unwrap();
