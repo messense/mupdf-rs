@@ -323,7 +323,6 @@ impl Build {
         self.fz_enable("JS", js);
         self.fz_enable("BROTLI", brotli);
         self.fz_enable("DOCX_OUTPUT", docx_output);
-        self.fz_enable("HYPHEN", false);
 
         // gates which features get built
         self.make_bool("xps", xps);
