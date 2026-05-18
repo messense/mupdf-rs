@@ -10,6 +10,16 @@ const char *mupdf_pdf_annot_author(fz_context *ctx, pdf_annot *annot, mupdf_erro
     TRY_CATCH(const char *, NULL, pdf_annot_author(ctx, annot));
 }
 
+const char *mupdf_pdf_annot_contents(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    TRY_CATCH(const char *, NULL, pdf_annot_contents(ctx, annot));
+}
+
+void mupdf_pdf_set_annot_contents(fz_context *ctx, pdf_annot *annot, const char *text, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_set_annot_contents(ctx, annot, text));
+}
+
 void mupdf_pdf_set_annot_author(fz_context *ctx, pdf_annot *annot, const char *author, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_set_annot_author(ctx, annot, author));
