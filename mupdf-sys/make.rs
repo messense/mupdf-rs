@@ -196,9 +196,11 @@ impl Make {
         self.make_bool("HAVE_GLUT", false);
         self.make_bool("HAVE_CURL", false);
 
-        if target.arch == "wasm32" {
-            self.make_bool("HAVE_OBJCOPY", false);
-        }
+        // let cc-rs handle compiler selection, not the Makefile.
+        // fill to not be empty and therefore `uname` being used.
+        self.make_var("OS", "not empty");
+
+        self.make_bool("HAVE_OBJCOPY", target.os == "linux");
 
         self.make_bool("verbose", true);
 
