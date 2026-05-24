@@ -205,6 +205,26 @@ impl PdfAnnotation {
         }
     }
 
+    pub fn contents(&self) -> Result<Option<&str>, Error> {
+        let ptr = unsafe { ffi_try!(mupdf_pdf_annot_contents(context(), self.inner.as_ptr())) }?;
+        if ptr.is_null() {
+            return Ok(None);
+        }
+        let c_str = unsafe { CStr::from_ptr(ptr) };
+        Ok(Some(c_str.to_str().unwrap()))
+    }
+
+    pub fn set_contents(&mut self, contents: &str) -> Result<(), Error> {
+        let c_contents = CString::new(contents)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_set_annot_contents(
+                context(),
+                self.inner.as_ptr(),
+                c_contents.as_ptr()
+            ))
+        }
+    }
+
     pub fn filter(&mut self, mut opt: PdfFilterOptions) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_filter_annot_contents(
