@@ -35,6 +35,11 @@ void mupdf_pdf_set_annot_rect(fz_context *ctx, pdf_annot *annot, fz_rect rect, m
     TRY_CATCH_VOID(pdf_set_annot_rect(ctx, annot, rect));
 }
 
+fz_rect mupdf_pdf_annot_rect(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_rect, fz_make_rect(0, 0, 0, 0), pdf_annot_rect(ctx, annot));
+}
+
 void mupdf_pdf_set_annot_color(fz_context *ctx, pdf_annot *annot, int n, const float *color, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_set_annot_color(ctx, annot, n, color));

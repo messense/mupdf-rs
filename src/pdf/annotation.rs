@@ -185,6 +185,11 @@ impl PdfAnnotation {
         }
     }
 
+    /// Get the annotation rectangle.
+    pub fn rect(&self) -> Result<Rect, Error> {
+        unsafe { ffi_try!(mupdf_pdf_annot_rect(context(), self.inner.as_ptr())) }.map(Into::into)
+    }
+
     pub fn author(&self) -> Result<Option<&str>, Error> {
         let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner.as_ptr())) }?;
         if ptr.is_null() {
@@ -297,5 +302,24 @@ bitflags::bitflags! {
         const IS_LOCKED = PDF_ANNOT_IS_LOCKED as _;
         const IS_TOGGLE_NO_VIEW = PDF_ANNOT_IS_TOGGLE_NO_VIEW as _;
         const IS_LOCKED_CONTENTS = PDF_ANNOT_IS_LOCKED_CONTENTS as _;
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::PdfAnnotationType;
+    use crate::pdf::PdfDocument;
+    use crate::{Rect, Size};
+
+    #[test]
+    fn test_annotation_rect() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut annot = page.create_annotation(PdfAnnotationType::Text).unwrap();
+
+        let expected = Rect::new(10.0, 20.0, 110.0, 120.0);
+        annot.set_rect(expected).unwrap();
+
+        assert_eq!(annot.rect().unwrap(), expected);
     }
 }
