@@ -7,6 +7,7 @@ mod finish;
 mod operators;
 mod options;
 
+pub use drawing::RectRadius;
 pub use options::{FinishOptions, PdfColor};
 
 /// Builder for accumulating drawing and text operations on a PDF page.
@@ -432,7 +433,7 @@ mod tests {
         shape.draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0)).unwrap();
 
         assert_eq!(shape.draw_cont(), "10 20 30 40 re\n");
-        assert_eq!(shape.last_point(), Some(Point::new(10.0, 20.0)));
+        assert_eq!(shape.last_point(), Some(Point::new(10.0, 60.0)));
         assert_eq!(shape.rect(), Some(Rect::new(10.0, 20.0, 40.0, 60.0)));
     }
 
@@ -518,6 +519,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(shape.draw_cont(), "10 20 m\n30 40 l\n40 50 30 40 re\n");
-        assert_eq!(shape.last_point(), Some(Point::new(40.0, 50.0)));
+        assert_eq!(shape.last_point(), Some(Point::new(40.0, 90.0)));
     }
 }

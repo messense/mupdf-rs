@@ -4,6 +4,86 @@ use crate::{Error, Point, Quad, Rect};
 
 const CURVE_KAPPA: f32 = 0.552_284_8;
 
+/// Radius specification for [`Shape::draw_rect_with_radius`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum RectRadius {
+    /// A uniform radius in user-space units, clamped to half the shorter side.
+    Absolute(f32),
+    /// Per-axis radii in user-space units, clamped to half their corresponding sides.
+    AbsoluteXY(f32, f32),
+    /// Per-axis fractions of the rectangle width and height.
+    Fractional(f32, f32),
+}
+
+impl RectRadius {
+    /// Creates a uniform absolute radius.
+    #[inline]
+    pub const fn absolute(radius: f32) -> Self {
+        Self::Absolute(radius)
+    }
+
+    /// Creates per-axis absolute radii.
+    #[inline]
+    pub const fn absolute_xy(rx: f32, ry: f32) -> Self {
+        Self::AbsoluteXY(rx, ry)
+    }
+
+    /// Creates per-axis fractional radii.
+    #[inline]
+    pub const fn fractional(rx: f32, ry: f32) -> Self {
+        Self::Fractional(rx, ry)
+    }
+
+    fn resolve(self, rect: Rect) -> (f32, f32) {
+        let width = (rect.x1 - rect.x0).abs();
+        let height = (rect.y1 - rect.y0).abs();
+        let half_width = width / 2.0;
+        let half_height = height / 2.0;
+        let half_shortest = half_width.min(half_height);
+
+        match self {
+            Self::Absolute(radius) => {
+                let radius = finite_abs(radius).min(half_shortest);
+                (radius, radius)
+            }
+            Self::AbsoluteXY(rx, ry) => (
+                finite_abs(rx).min(half_width),
+                finite_abs(ry).min(half_height),
+            ),
+            Self::Fractional(rx, ry) => {
+                let rx = finite_abs(rx);
+                let ry = finite_abs(ry);
+                let mut resolved_x = rx * width;
+                let mut resolved_y = ry * height;
+                if rx > 0.5 || ry > 0.5 {
+                    resolved_x = resolved_x.min(half_shortest);
+                    resolved_y = resolved_y.min(half_shortest);
+                } else {
+                    resolved_x = resolved_x.min(half_width);
+                    resolved_y = resolved_y.min(half_height);
+                }
+                (resolved_x, resolved_y)
+            }
+        }
+    }
+}
+
+impl From<f32> for RectRadius {
+    fn from(radius: f32) -> Self {
+        Self::Absolute(radius)
+    }
+}
+
+impl From<(f32, f32)> for RectRadius {
+    fn from((rx, ry): (f32, f32)) -> Self {
+        if finite_abs(rx) <= 1.0 && finite_abs(ry) <= 1.0 {
+            Self::Fractional(rx, ry)
+        } else {
+            Self::AbsoluteXY(rx, ry)
+        }
+    }
+}
+
 impl Shape<'_> {
     /// Draws a straight line from `p1` to `p2`.
     ///
@@ -46,7 +126,6 @@ impl Shape<'_> {
 
     /// Draws an axis-aligned rectangle using the PDF `re` operator.
     ///
-    /// Rounded corners are intentionally not supported by this milestone.
     /// Equivalent of PyMuPDF `Shape.draw_rect` for the non-rounded case.
     pub fn draw_rect(&mut self, rect: &Rect) -> Result<&mut Self, Error> {
         let top_left = rect.tl();
@@ -66,7 +145,41 @@ impl Shape<'_> {
             format_g(y1 - y0)
         ));
         self.update_rect_with_rect(*rect);
-        self.set_last_point(top_left);
+        self.set_last_point(rect.bl());
+        Ok(self)
+    }
+
+    /// Draws an axis-aligned rectangle with rounded corners.
+    ///
+    /// The path is emitted as line segments plus cubic Bézier curves using the same
+    /// κ approximation as [`Shape::draw_curve`]. Use [`Shape::draw_rect`] to keep
+    /// the compact PDF `re` operator for non-rounded rectangles.
+    pub fn draw_rect_with_radius<R>(&mut self, rect: &Rect, radius: R) -> Result<&mut Self, Error>
+    where
+        R: Into<RectRadius>,
+    {
+        let rect = normalize_drawing_rect(*rect);
+        let (rx, ry) = radius.into().resolve(rect);
+        if rx <= f32::EPSILON || ry <= f32::EPSILON {
+            return self.draw_rect(&rect);
+        }
+
+        let tl = rect.tl();
+        let tr = rect.tr();
+        let bl = rect.bl();
+        let br = rect.br();
+        let start = Point::new(tl.x, tl.y + ry);
+
+        self.draw_line(start, Point::new(bl.x, bl.y - ry))?;
+        self.draw_curve(Point::new(bl.x, bl.y - ry), bl, Point::new(bl.x + rx, bl.y))?;
+        self.draw_line(Point::new(bl.x + rx, bl.y), Point::new(br.x - rx, br.y))?;
+        self.draw_curve(Point::new(br.x - rx, br.y), br, Point::new(br.x, br.y - ry))?;
+        self.draw_line(Point::new(br.x, br.y - ry), Point::new(tr.x, tr.y + ry))?;
+        self.draw_curve(Point::new(tr.x, tr.y + ry), tr, Point::new(tr.x - rx, tr.y))?;
+        self.draw_line(Point::new(tr.x - rx, tr.y), Point::new(tl.x + rx, tl.y))?;
+        self.draw_curve(Point::new(tl.x + rx, tl.y), tl, start)?;
+        self.update_rect_with_rect(rect);
+        self.set_last_point(start);
         Ok(self)
     }
 
@@ -269,6 +382,23 @@ fn point_between(start: Point, control: Point, scale: f32) -> Point {
     Point::new(
         start.x + (control.x - start.x) * scale,
         start.y + (control.y - start.y) * scale,
+    )
+}
+
+fn finite_abs(value: f32) -> f32 {
+    if value.is_finite() {
+        value.abs()
+    } else {
+        0.0
+    }
+}
+
+fn normalize_drawing_rect(rect: Rect) -> Rect {
+    Rect::new(
+        rect.x0.min(rect.x1),
+        rect.y0.min(rect.y1),
+        rect.x0.max(rect.x1),
+        rect.y0.max(rect.y1),
     )
 }
 
@@ -482,5 +612,118 @@ mod tests {
 
         assert_eq!(actual, expected);
         assert_eq!(actual, "0 0 m\n100 0 l\n100 50 l\n0 50 l\n0 0 l\n");
+    }
+
+    #[test]
+    fn draw_rect_without_radius_uses_re_operator() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = shape_with_identity_ctm(&mut page);
+
+        shape
+            .draw_rect(&Rect::new(10.0, 20.0, 110.0, 80.0))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 20 100 60 re\n");
+        assert!(!shape.draw_cont().contains(" m\n"));
+        assert!(!shape.draw_cont().contains(" l\n"));
+        assert!(!shape.draw_cont().contains(" c\n"));
+        assert_eq!(
+            shape.last_point(),
+            Some(Rect::new(10.0, 20.0, 110.0, 80.0).bl())
+        );
+        assert_eq!(shape.rect(), Some(Rect::new(10.0, 20.0, 110.0, 80.0)));
+    }
+
+    #[test]
+    fn draw_rect_with_radius_emits_compound_path() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = shape_with_identity_ctm(&mut page);
+
+        shape
+            .draw_rect_with_radius(&Rect::new(0.0, 0.0, 100.0, 50.0), (10.0, 10.0))
+            .unwrap();
+
+        assert_eq!(
+            shape.draw_cont(),
+            concat!(
+                "0 10 m\n",
+                "0 40 l\n",
+                "0 45.5228 4.47715 50 10 50 c\n",
+                "90 50 l\n",
+                "95.5229 50 100 45.5228 100 40 c\n",
+                "100 10 l\n",
+                "100 4.47715 95.5229 0 90 0 c\n",
+                "10 0 l\n",
+                "4.47715 0 0 4.47715 0 10 c\n",
+            )
+        );
+        assert!(!shape.draw_cont().contains(" re\n"));
+        assert_eq!(shape.draw_cont().matches(" m\n").count(), 1);
+        assert_eq!(shape.draw_cont().matches(" l\n").count(), 4);
+        assert_eq!(shape.draw_cont().matches(" c\n").count(), 4);
+    }
+
+    #[test]
+    fn draw_rect_radius_clamped_to_half_min_side() {
+        let rect = Rect::new(0.0, 0.0, 40.0, 20.0);
+
+        let mut doc = PdfDocument::new();
+        let mut absolute_page = doc.new_page(Size::A4).unwrap();
+        let absolute = {
+            let mut shape = shape_with_identity_ctm(&mut absolute_page);
+            shape.draw_rect_with_radius(&rect, 50.0).unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        let mut fractional_page = doc.new_page(Size::A4).unwrap();
+        let fractional = {
+            let mut shape = shape_with_identity_ctm(&mut fractional_page);
+            shape
+                .draw_rect_with_radius(&rect, RectRadius::fractional(0.5, 1.0))
+                .unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        assert_eq!(absolute, fractional);
+        assert_eq!(
+            absolute,
+            concat!(
+                "0 10 m\n",
+                "0 10 l\n",
+                "0 15.5228 4.47715 20 10 20 c\n",
+                "30 20 l\n",
+                "35.5228 20 40 15.5228 40 10 c\n",
+                "40 10 l\n",
+                "40 4.47715 35.5228 0 30 0 c\n",
+                "10 0 l\n",
+                "4.47715 0 0 4.47715 0 10 c\n",
+            )
+        );
+    }
+
+    #[test]
+    fn draw_rect_radius_fractional_form() {
+        let rect = Rect::new(0.0, 0.0, 100.0, 40.0);
+
+        let mut doc = PdfDocument::new();
+        let mut fractional_page = doc.new_page(Size::A4).unwrap();
+        let fractional = {
+            let mut shape = shape_with_identity_ctm(&mut fractional_page);
+            shape.draw_rect_with_radius(&rect, (0.25, 0.5)).unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        let mut absolute_page = doc.new_page(Size::A4).unwrap();
+        let absolute = {
+            let mut shape = shape_with_identity_ctm(&mut absolute_page);
+            shape
+                .draw_rect_with_radius(&rect, RectRadius::absolute_xy(25.0, 20.0))
+                .unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        assert_eq!(fractional, absolute);
     }
 }
