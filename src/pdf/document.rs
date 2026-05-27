@@ -346,6 +346,26 @@ impl PdfDocument {
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
 
+    /// Adds a new indirect PDF stream object with the given buffer and optional dictionary.
+    pub fn add_stream(
+        &mut self,
+        buf: &Buffer,
+        obj: Option<&PdfObject>,
+        compressed: bool,
+    ) -> Result<PdfObject, Error> {
+        let obj = obj.map_or(ptr::null_mut(), |obj| obj.inner);
+        unsafe {
+            ffi_try!(mupdf_pdf_add_stream(
+                context(),
+                self.inner,
+                buf.inner,
+                obj,
+                compressed as c_int
+            ))
+        }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+    }
+
     pub fn create_object(&mut self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_create_object(context(), self.inner)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
@@ -747,6 +767,7 @@ impl<'a> IntoIterator for &'a PdfDocument {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
+    use crate::Buffer;
 
     use super::{PdfDocument, PdfWriteOptions, Permission};
 
@@ -907,5 +928,60 @@ mod test {
     fn test_pdf_document_find_page() {
         let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
         let _page = doc.find_page(0).unwrap();
+    }
+
+    #[test]
+    fn test_pdf_document_add_stream_returns_indirect_stream() {
+        let mut pdf = PdfDocument::new();
+
+        for compressed in [false, true] {
+            let buf = Buffer::from_bytes(b"hello world").unwrap();
+            let obj = pdf.add_stream(&buf, None, compressed).unwrap();
+
+            assert!(obj.is_indirect().unwrap());
+            assert!(obj.as_indirect().unwrap() > 0);
+            assert!(obj.is_stream().unwrap());
+        }
+    }
+
+    #[test]
+    fn test_pdf_document_add_stream_preserves_payload_bytes() {
+        let mut pdf = PdfDocument::new();
+        let payloads = [
+            Vec::new(),
+            b"q 1 0 0 1 10 10 cm Q\n".to_vec(),
+            (0..4096)
+                .scan(0x1234_5678_u32, |state, _| {
+                    *state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    Some((*state >> 24) as u8)
+                })
+                .collect::<Vec<_>>(),
+        ];
+
+        for payload in payloads {
+            let buf = Buffer::from_bytes(&payload).unwrap();
+            let mut obj = pdf.add_stream(&buf, None, false).unwrap();
+            assert_eq!(obj.read_stream().unwrap(), payload);
+
+            let rewritten = Buffer::from_bytes(&payload).unwrap();
+            obj.write_stream_buffer(&rewritten).unwrap();
+            assert_eq!(obj.read_stream().unwrap(), payload);
+        }
+    }
+
+    #[test]
+    fn test_pdf_document_add_stream_accepts_optional_dict() {
+        let mut pdf = PdfDocument::new();
+        let mut dict = pdf.new_dict().unwrap();
+        dict.dict_put("X-Test", pdf.new_string("foo").unwrap())
+            .unwrap();
+
+        let buf = Buffer::from_bytes(b"dict payload").unwrap();
+        let obj = pdf.add_stream(&buf, Some(&dict), false).unwrap();
+        let sentinel = obj.get_dict("X-Test").unwrap().unwrap();
+
+        assert_eq!(sentinel.as_string().unwrap(), "foo");
+        assert_eq!(sentinel.to_string(), "(foo)");
+        assert_eq!(obj.read_stream().unwrap(), b"dict payload");
     }
 }
