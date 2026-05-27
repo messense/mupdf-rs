@@ -7,6 +7,25 @@ impl Shape<'_> {
     /// Finishes the currently accumulated drawing path and appends it to the total buffer.
     ///
     /// Equivalent of PyMuPDF `Shape.finish` for stroke/fill path painting options.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, PdfColor, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_line(Point::new(72.0, 72.0), Point::new(180.0, 72.0))?
+    ///     .finish(&FinishOptions {
+    ///         color: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+    ///         width: 2.0,
+    ///         ..Default::default()
+    ///     })?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn finish(&mut self, opts: &FinishOptions) -> Result<&mut Self, Error> {
         if self.draw_cont.is_empty() {
             return Ok(self);
@@ -94,6 +113,21 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.commit`. When `overlay` is true, existing page contents are
     /// wrapped in a balanced `q` / `Q` graphics-state pair before the shape stream is appended.
     /// When `overlay` is false, the shape stream is inserted before existing page contents.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_line(Point::new(72.0, 72.0), Point::new(180.0, 72.0))?
+    ///     .finish(&FinishOptions::default())?;
+    /// shape.commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn commit(&mut self, doc: &mut PdfDocument, overlay: bool) -> Result<(), Error> {
         if !self.text_cont.is_empty() {
             self.total_cont.push_str(&self.text_cont);

@@ -16,6 +16,21 @@ pub use options::{FinishOptions, PdfColor, TextAlign, TextOptions, TextboxOption
 /// `Shape` owns a mutable borrow of its page for as long as the builder is alive. This
 /// intentionally prevents other mutable page operations from aliasing the builder's page state:
 ///
+/// ```
+/// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+///
+/// # fn main() -> Result<(), mupdf::Error> {
+/// let mut doc = PdfDocument::new();
+/// let mut page = doc.new_page(Size::A4)?;
+/// let mut shape = Shape::new(&mut page)?;
+/// shape
+///     .draw_line(Point::new(72.0, 72.0), Point::new(180.0, 72.0))?
+///     .finish(&FinishOptions::default())?
+///     .commit(&mut doc, true)?;
+/// # Ok(())
+/// # }
+/// ```
+///
 /// ```compile_fail
 /// use mupdf::{pdf::PdfDocument, Shape, Size};
 ///
@@ -46,6 +61,18 @@ impl<'a> Shape<'a> {
     ///
     /// The constructor caches the page crop-box geometry and current transformation
     /// matrix so later drawing methods can consistently transform coordinates.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let shape = Shape::new(&mut page)?;
+    /// assert!(shape.width() > 0.0);
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn new(page: &'a mut PdfPage) -> Result<Self, Error> {
         let crop_box = page.crop_box()?;
         let pctm = page.ctm()?;

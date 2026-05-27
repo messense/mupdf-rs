@@ -21,3 +21,6 @@ mod m5_opacity_extgstate;
 
 #[path = "shape/m5_custom_fonts.rs"]
 mod m5_custom_fonts;
+
+#[path = "shape/test_kitchen_sink.rs"]
+mod test_kitchen_sink;

@@ -26,6 +26,20 @@ impl Shape<'_> {
     /// single PDF text object using `Tm` and `TJ`; newline-separated input creates one
     /// `TJ` operation per line. Only text rotations of 0, 90, 180, and 270 degrees are
     /// supported.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, Point, Shape, Size, TextOptions};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .insert_text(Point::new(72.0, 96.0), "Hello Shape", &TextOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn insert_text(
         &mut self,
         point: Point,
@@ -140,6 +154,27 @@ impl Shape<'_> {
     /// last line of each paragraph and single-word lines stay left-aligned. The return
     /// value is the unused height when all lines fit, or a negative deficit of
     /// `missing_lines * fontsize * lineheight` when text overflows.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, Rect, Shape, Size, TextAlign, TextboxOptions};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// let unused = shape.insert_textbox(
+    ///     Rect::new(72.0, 72.0, 260.0, 160.0),
+    ///     "Wrapped text inside a rectangle.",
+    ///     &TextboxOptions {
+    ///         align: TextAlign::Center,
+    ///         ..Default::default()
+    ///     },
+    /// )?;
+    /// assert!(unused >= 0.0);
+    /// shape.commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn insert_textbox(
         &mut self,
         rect: Rect,

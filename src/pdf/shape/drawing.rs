@@ -6,6 +6,21 @@ const CURVE_KAPPA: f32 = 0.552_284_8;
 const SQUIGGLE_CONTROL_SCALE: f32 = 2.414_213_7;
 
 /// Radius specification for [`Shape::draw_rect_with_radius`].
+///
+/// ```
+/// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, RectRadius, Shape, Size};
+///
+/// # fn main() -> Result<(), mupdf::Error> {
+/// let mut doc = PdfDocument::new();
+/// let mut page = doc.new_page(Size::A4)?;
+/// let mut shape = Shape::new(&mut page)?;
+/// shape
+///     .draw_rect_with_radius(&Rect::new(72.0, 72.0, 180.0, 132.0), RectRadius::absolute(8.0))?
+///     .finish(&FinishOptions::default())?
+///     .commit(&mut doc, true)?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum RectRadius {
     /// A uniform radius in user-space units, clamped to half the shorter side.
@@ -89,6 +104,21 @@ impl Shape<'_> {
     /// Draws a straight line from `p1` to `p2`.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_line`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_line(Point::new(72.0, 72.0), Point::new(180.0, 72.0))?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_line(&mut self, p1: Point, p2: Point) -> Result<&mut Self, Error> {
         self.move_to_if_needed(p1);
         self.line_to(p2);
@@ -101,6 +131,25 @@ impl Shape<'_> {
     /// are emitted and path bookkeeping is left unchanged.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_polyline`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_polyline(&[
+    ///         Point::new(72.0, 72.0),
+    ///         Point::new(120.0, 120.0),
+    ///         Point::new(168.0, 72.0),
+    ///     ])?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_polyline(&mut self, points: &[Point]) -> Result<&mut Self, Error> {
         let Some((first, rest)) = points.split_first() else {
             return Ok(self);
@@ -128,6 +177,21 @@ impl Shape<'_> {
     /// Draws an axis-aligned rectangle using the PDF `re` operator.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_rect` for the non-rounded case.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_rect(&Rect::new(72.0, 72.0, 180.0, 132.0))?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_rect(&mut self, rect: &Rect) -> Result<&mut Self, Error> {
         let top_left = rect.tl();
         let bottom_right = rect.br();
@@ -155,6 +219,21 @@ impl Shape<'_> {
     /// The path is emitted as line segments plus cubic Bézier curves using the same
     /// κ approximation as [`Shape::draw_curve`]. Use [`Shape::draw_rect`] to keep
     /// the compact PDF `re` operator for non-rounded rectangles.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_rect_with_radius(&Rect::new(72.0, 72.0, 180.0, 132.0), 10.0)?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_rect_with_radius<R>(&mut self, rect: &Rect, radius: R) -> Result<&mut Self, Error>
     where
         R: Into<RectRadius>,
@@ -187,6 +266,26 @@ impl Shape<'_> {
     /// Draws a cubic Bézier curve from `p1` to `p4` using controls `p2` and `p3`.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_bezier`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_bezier(
+    ///         Point::new(72.0, 120.0),
+    ///         Point::new(96.0, 72.0),
+    ///         Point::new(156.0, 168.0),
+    ///         Point::new(180.0, 120.0),
+    ///     )?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_bezier(
         &mut self,
         p1: Point,
@@ -219,6 +318,21 @@ impl Shape<'_> {
     ///
     /// The curve is converted to a cubic Bézier using κ = 0.55228474983.
     /// Equivalent of PyMuPDF `Shape.draw_curve`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_curve(Point::new(72.0, 120.0), Point::new(126.0, 72.0), Point::new(180.0, 120.0))?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_curve(&mut self, p1: Point, p2: Point, p3: Point) -> Result<&mut Self, Error> {
         let k1 = point_between(p1, p2, CURVE_KAPPA);
         let k2 = point_between(p3, p2, CURVE_KAPPA);
@@ -231,6 +345,21 @@ impl Shape<'_> {
     /// convention. When `full_sector` is false this emits only the arc path.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_sector`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_sector(Point::new(126.0, 126.0), Point::new(180.0, 126.0), 120.0, true)?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_sector(
         &mut self,
         center: Point,
@@ -274,6 +403,21 @@ impl Shape<'_> {
     /// Draws a circle with `center` and `radius`.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_circle`, implemented as a full `draw_sector` arc.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_circle(Point::new(126.0, 126.0), 54.0)?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_circle(&mut self, center: Point, radius: f32) -> Result<&mut Self, Error> {
         let radius = radius.abs();
         let point = Point::new(center.x + radius, center.y);
@@ -283,6 +427,21 @@ impl Shape<'_> {
     /// Draws an oval inside a rectangle or quadrilateral.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_oval`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_oval(Rect::new(72.0, 72.0, 180.0, 132.0))?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_oval(&mut self, tetra: impl Into<Quad>) -> Result<&mut Self, Error> {
         let quad = tetra.into();
         let middle_top = point_between(quad.ul, quad.ur, 0.5);
@@ -303,6 +462,26 @@ impl Shape<'_> {
     /// Draws a quadrilateral outline.
     ///
     /// Equivalent of PyMuPDF `Shape.draw_quad`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Quad, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_quad(Quad::new(
+    ///         Point::new(72.0, 72.0),
+    ///         Point::new(180.0, 90.0),
+    ///         Point::new(84.0, 150.0),
+    ///         Point::new(192.0, 168.0),
+    ///     ))?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_quad(&mut self, quad: Quad) -> Result<&mut Self, Error> {
         self.draw_polyline(&[quad.ul, quad.ur, quad.lr, quad.ll, quad.ul])
     }
@@ -311,6 +490,21 @@ impl Shape<'_> {
     ///
     /// A `breadth` of zero degenerates to [`Shape::draw_line`] byte-for-byte.
     /// Equivalent of PyMuPDF `Shape.draw_zigzag`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_zigzag(Point::new(72.0, 120.0), Point::new(220.0, 120.0), 6.0)?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_zigzag(&mut self, p1: Point, p2: Point, breadth: f32) -> Result<&mut Self, Error> {
         if breadth == 0.0 {
             return self.draw_line(p1, p2);
@@ -339,6 +533,21 @@ impl Shape<'_> {
     ///
     /// A `breadth` of zero degenerates to [`Shape::draw_line`] byte-for-byte.
     /// Equivalent of PyMuPDF `Shape.draw_squiggle`.
+    ///
+    /// ```
+    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    ///
+    /// # fn main() -> Result<(), mupdf::Error> {
+    /// let mut doc = PdfDocument::new();
+    /// let mut page = doc.new_page(Size::A4)?;
+    /// let mut shape = Shape::new(&mut page)?;
+    /// shape
+    ///     .draw_squiggle(Point::new(72.0, 120.0), Point::new(220.0, 120.0), 6.0)?
+    ///     .finish(&FinishOptions::default())?
+    ///     .commit(&mut doc, true)?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn draw_squiggle(
         &mut self,
         p1: Point,

@@ -1,6 +1,14 @@
 use crate::{CjkFontOrdering, Matrix, Point, SimpleFontEncoding, WriteMode};
 
 /// Color components for Shape drawing operators.
+///
+/// ```
+/// use mupdf::PdfColor;
+///
+/// let stroke = PdfColor::rgb(1.0, 0.0, 0.0);
+/// let fill = PdfColor::gray(0.5);
+/// assert_ne!(stroke, fill);
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub enum PdfColor {
     /// DeviceGray color component.
@@ -55,6 +63,26 @@ impl From<[f32; 4]> for PdfColor {
 }
 
 /// Options controlling how the currently accumulated Shape path is painted.
+///
+/// ```
+/// use mupdf::{pdf::PdfDocument, FinishOptions, PdfColor, Point, Shape, Size};
+///
+/// # fn main() -> Result<(), mupdf::Error> {
+/// let mut doc = PdfDocument::new();
+/// let mut page = doc.new_page(Size::A4)?;
+/// let mut shape = Shape::new(&mut page)?;
+/// let opts = FinishOptions {
+///     color: Some(PdfColor::rgb(0.0, 0.0, 1.0)),
+///     width: 2.0,
+///     ..Default::default()
+/// };
+/// shape
+///     .draw_line(Point::new(72.0, 72.0), Point::new(180.0, 72.0))?
+///     .finish(&opts)?
+///     .commit(&mut doc, true)?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct FinishOptions {
     /// Stroke color. `None` disables stroking.
@@ -106,6 +134,25 @@ impl Default for FinishOptions {
 }
 
 /// Options controlling text inserted by [`Shape::insert_text`](super::Shape::insert_text).
+///
+/// ```
+/// use mupdf::{pdf::PdfDocument, PdfColor, Point, Shape, Size, TextOptions};
+///
+/// # fn main() -> Result<(), mupdf::Error> {
+/// let mut doc = PdfDocument::new();
+/// let mut page = doc.new_page(Size::A4)?;
+/// let mut shape = Shape::new(&mut page)?;
+/// let opts = TextOptions {
+///     fontsize: 18.0,
+///     fill: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
+///     ..Default::default()
+/// };
+/// shape
+///     .insert_text(Point::new(72.0, 96.0), "Hello", &opts)?
+///     .commit(&mut doc, true)?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextOptions<'a> {
     /// Font size in PDF user-space units.
@@ -172,6 +219,16 @@ impl Default for TextOptions<'_> {
 }
 
 /// Text alignment for [`Shape::insert_textbox`](super::Shape::insert_textbox).
+///
+/// ```
+/// use mupdf::{TextAlign, TextboxOptions};
+///
+/// let opts = TextboxOptions {
+///     align: TextAlign::Justify,
+///     ..Default::default()
+/// };
+/// assert_eq!(opts.align, TextAlign::Justify);
+/// ```
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum TextAlign {
     /// Align each line to the leading edge of the textbox.
@@ -186,6 +243,28 @@ pub enum TextAlign {
 }
 
 /// Options controlling text inserted by [`Shape::insert_textbox`](super::Shape::insert_textbox).
+///
+/// ```
+/// use mupdf::{pdf::PdfDocument, Rect, Shape, Size, TextboxOptions};
+///
+/// # fn main() -> Result<(), mupdf::Error> {
+/// let mut doc = PdfDocument::new();
+/// let mut page = doc.new_page(Size::A4)?;
+/// let mut shape = Shape::new(&mut page)?;
+/// let opts = TextboxOptions {
+///     fontsize: 14.0,
+///     ..Default::default()
+/// };
+/// let unused = shape.insert_textbox(
+///     Rect::new(72.0, 72.0, 220.0, 150.0),
+///     "A short text box example.",
+///     &opts,
+/// )?;
+/// assert!(unused >= 0.0);
+/// shape.commit(&mut doc, true)?;
+/// # Ok(())
+/// # }
+/// ```
 #[derive(Clone, Debug, PartialEq)]
 pub struct TextboxOptions<'a> {
     /// Font size in PDF user-space units.
