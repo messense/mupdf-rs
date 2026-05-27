@@ -1,8 +1,9 @@
-use super::operators::format_g;
+use super::operators::{format_g, util_hor_matrix};
 use super::Shape;
 use crate::{Error, Point, Quad, Rect};
 
 const CURVE_KAPPA: f32 = 0.552_284_8;
+const SQUIGGLE_CONTROL_SCALE: f32 = 2.414_213_7;
 
 /// Radius specification for [`Shape::draw_rect_with_radius`].
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -306,6 +307,77 @@ impl Shape<'_> {
         self.draw_polyline(&[quad.ul, quad.ur, quad.lr, quad.ll, quad.ul])
     }
 
+    /// Draws a zigzag line from `p1` to `p2`.
+    ///
+    /// A `breadth` of zero degenerates to [`Shape::draw_line`] byte-for-byte.
+    /// Equivalent of PyMuPDF `Shape.draw_zigzag`.
+    pub fn draw_zigzag(&mut self, p1: Point, p2: Point, breadth: f32) -> Result<&mut Self, Error> {
+        if breadth == 0.0 {
+            return self.draw_line(p1, p2);
+        }
+
+        let breadth = checked_breadth(breadth)?;
+        let distance = (p2 - p1).length();
+        let tooth_count = wave_tooth_count(distance, breadth)?;
+        let inverse = util_hor_matrix(p1, p2)
+            .invert()
+            .ok_or(Error::NonInvertibleMatrix)?;
+
+        let mut points = Vec::with_capacity(tooth_count + 2);
+        points.push(p1);
+        for tooth in 0..tooth_count {
+            let x = ((2 * tooth + 1) as f32) * breadth;
+            let y = if tooth % 2 == 0 { -breadth } else { breadth };
+            points.push(Point::new(x, y).mul_matrix(&inverse));
+        }
+        points.push(p2);
+
+        self.draw_polyline(&points)
+    }
+
+    /// Draws a squiggly line from `p1` to `p2`.
+    ///
+    /// A `breadth` of zero degenerates to [`Shape::draw_line`] byte-for-byte.
+    /// Equivalent of PyMuPDF `Shape.draw_squiggle`.
+    pub fn draw_squiggle(
+        &mut self,
+        p1: Point,
+        p2: Point,
+        breadth: f32,
+    ) -> Result<&mut Self, Error> {
+        if breadth == 0.0 {
+            return self.draw_line(p1, p2);
+        }
+
+        let breadth = checked_breadth(breadth)?;
+        let distance = (p2 - p1).length();
+        let tooth_count = wave_tooth_count(distance, breadth)?;
+        let inverse = util_hor_matrix(p1, p2)
+            .invert()
+            .ok_or(Error::NonInvertibleMatrix)?;
+
+        let mut start = p1;
+        for tooth in 0..tooth_count {
+            let control_x = ((2 * tooth + 1) as f32) * breadth;
+            let control_y = if tooth % 2 == 0 {
+                -SQUIGGLE_CONTROL_SCALE * breadth
+            } else {
+                SQUIGGLE_CONTROL_SCALE * breadth
+            };
+            let end_x = if tooth + 1 == tooth_count {
+                distance
+            } else {
+                ((2 * tooth + 2) as f32) * breadth
+            };
+            let control = Point::new(control_x, control_y).mul_matrix(&inverse);
+            let end = Point::new(end_x, 0.0).mul_matrix(&inverse);
+            self.draw_curve(start, control, end)?;
+            start = end;
+        }
+
+        Ok(self)
+    }
+
     fn move_to_if_needed(&mut self, point: Point) {
         if self.needs_move_to(&point) {
             let transformed = self.transform_point(point);
@@ -390,6 +462,27 @@ fn finite_abs(value: f32) -> f32 {
         value.abs()
     } else {
         0.0
+    }
+}
+
+fn checked_breadth(breadth: f32) -> Result<f32, Error> {
+    if breadth.is_finite() && breadth > 0.0 {
+        Ok(breadth)
+    } else {
+        Err(Error::InvalidArgument(
+            "wave breadth must be a positive finite number, or zero for a straight line".to_owned(),
+        ))
+    }
+}
+
+fn wave_tooth_count(distance: f32, breadth: f32) -> Result<usize, Error> {
+    let count = (distance / (2.0 * breadth)).floor() as usize;
+    if count == 0 {
+        Err(Error::InvalidArgument(
+            "wave endpoints are too close for the requested breadth".to_owned(),
+        ))
+    } else {
+        Ok(count)
     }
 }
 
@@ -725,5 +818,129 @@ mod tests {
         };
 
         assert_eq!(fractional, absolute);
+    }
+
+    #[test]
+    fn draw_zigzag_uses_util_hor_matrix() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = shape_with_identity_ctm(&mut page);
+
+        shape
+            .draw_zigzag(Point::new(0.0, 0.0), Point::new(16.0, 0.0), 2.0)
+            .unwrap();
+
+        assert_eq!(
+            shape.draw_cont(),
+            concat!(
+                "0 0 m\n",
+                "2 -2 l\n",
+                "6 2 l\n",
+                "10 -2 l\n",
+                "14 2 l\n",
+                "16 0 l\n",
+            )
+        );
+        assert_eq!(shape.last_point(), Some(Point::new(16.0, 0.0)));
+    }
+
+    #[test]
+    fn draw_squiggle_emits_curves_not_lines() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = shape_with_identity_ctm(&mut page);
+
+        shape
+            .draw_squiggle(Point::new(0.0, 0.0), Point::new(16.0, 0.0), 2.0)
+            .unwrap();
+
+        assert_eq!(
+            shape.draw_cont(),
+            concat!(
+                "0 0 m\n",
+                "1.10457 -2.66667 2.89543 -2.66667 4 0 c\n",
+                "5.10457 2.66667 6.89543 2.66667 8 0 c\n",
+                "9.10457 -2.66667 10.8954 -2.66667 12 0 c\n",
+                "13.1046 2.66667 14.8954 2.66667 16 0 c\n",
+            )
+        );
+        assert_eq!(shape.draw_cont().matches(" c\n").count(), 4);
+        assert!(!shape.draw_cont().contains(" l\n"));
+        assert_eq!(shape.last_point(), Some(Point::new(16.0, 0.0)));
+    }
+
+    #[test]
+    fn draw_zigzag_squiggle_breadth_zero_degenerates_to_line() {
+        let p1 = Point::new(3.0, 4.0);
+        let p2 = Point::new(15.0, 20.0);
+
+        let mut doc = PdfDocument::new();
+        let mut line_page = doc.new_page(Size::A4).unwrap();
+        let line = {
+            let mut shape = shape_with_identity_ctm(&mut line_page);
+            shape.draw_line(p1, p2).unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        let mut zigzag_page = doc.new_page(Size::A4).unwrap();
+        let zigzag = {
+            let mut shape = shape_with_identity_ctm(&mut zigzag_page);
+            shape.draw_zigzag(p1, p2, 0.0).unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        let mut squiggle_page = doc.new_page(Size::A4).unwrap();
+        let squiggle = {
+            let mut shape = shape_with_identity_ctm(&mut squiggle_page);
+            shape.draw_squiggle(p1, p2, 0.0).unwrap();
+            shape.draw_cont().to_owned()
+        };
+
+        assert_eq!(zigzag, line);
+        assert_eq!(squiggle, line);
+    }
+
+    #[test]
+    fn draw_zigzag_diagonal_orientation() {
+        let p1 = Point::new(0.0, 0.0);
+        let p2 = Point::new(100.0, 100.0);
+        let breadth = 4.0;
+
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = shape_with_identity_ctm(&mut page);
+
+        shape.draw_zigzag(p1, p2, breadth).unwrap();
+
+        let matrix = util_hor_matrix(p1, p2);
+        let vertices = shape
+            .draw_cont()
+            .lines()
+            .filter_map(parse_line_to_vertex)
+            .collect::<Vec<_>>();
+        let internal_vertices = &vertices[..vertices.len() - 1];
+        assert_eq!(
+            internal_vertices.len(),
+            ((p2 - p1).length() / (2.0 * breadth)).floor() as usize
+        );
+
+        for (index, vertex) in internal_vertices.iter().copied().enumerate() {
+            let transformed = vertex.mul_matrix(&matrix);
+            let expected = if index % 2 == 0 { -breadth } else { breadth };
+            assert!(
+                (transformed.y - expected).abs() <= 1e-4,
+                "vertex {index}={vertex:?} transformed to {transformed:?}, expected y={expected}"
+            );
+        }
+
+        let endpoint = vertices.last().copied().unwrap().mul_matrix(&matrix);
+        assert!(endpoint.y.abs() <= 1e-4);
+    }
+
+    fn parse_line_to_vertex(line: &str) -> Option<Point> {
+        let mut parts = line.split_whitespace();
+        let x = parts.next()?.parse::<f32>().ok()?;
+        let y = parts.next()?.parse::<f32>().ok()?;
+        (parts.next()? == "l").then_some(Point::new(x, y))
     }
 }

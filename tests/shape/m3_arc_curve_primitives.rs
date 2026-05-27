@@ -235,4 +235,34 @@ pub mod drawing {
 
         assert_eq!(absolute.samples(), fractional.samples());
     }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn wave_primitives_snapshot() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let rendered = {
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_zigzag(Point::new(60.0, 80.0), Point::new(270.0, 80.0), 6.0)
+                .unwrap()
+                .draw_zigzag(Point::new(330.0, 70.0), Point::new(520.0, 160.0), 6.0)
+                .unwrap()
+                .draw_squiggle(Point::new(60.0, 250.0), Point::new(270.0, 250.0), 6.0)
+                .unwrap()
+                .draw_squiggle(Point::new(330.0, 230.0), Point::new(520.0, 340.0), 6.0)
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
+                    width: 0.75,
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        assert_snapshot("tests/shape/snapshots/m3_waves.png", &rendered);
+    }
 }

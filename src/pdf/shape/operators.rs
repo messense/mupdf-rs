@@ -1,3 +1,5 @@
+use crate::{Matrix, Point};
+
 #[derive(Clone, Copy)]
 pub(super) enum ColorRole {
     Stroke,
@@ -96,9 +98,32 @@ pub(super) fn color_code(components: &[f32], role: ColorRole) -> String {
     format!("{components} {operator}\n")
 }
 
+pub(super) fn util_hor_matrix(c: Point, p: Point) -> Matrix {
+    let s = (p - c).unit();
+    Matrix::new(
+        s.x,
+        -s.y,
+        s.y,
+        s.x,
+        -(c.x * s.x + c.y * s.y),
+        c.x * s.y - c.y * s.x,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn assert_point_near(actual: Point, expected: Point, epsilon: f32) {
+        assert!(
+            (actual.x - expected.x).abs() <= epsilon,
+            "x mismatch: actual={actual:?}, expected={expected:?}"
+        );
+        assert!(
+            (actual.y - expected.y).abs() <= epsilon,
+            "y mismatch: actual={actual:?}, expected={expected:?}"
+        );
+    }
 
     #[test]
     fn format_g_matches_python_percent_g_representatives() {
@@ -210,5 +235,19 @@ mod tests {
             color_code(&[0.123_456_79, 0.0, 0.0], ColorRole::Fill),
             expected
         );
+    }
+
+    #[test]
+    fn util_hor_matrix_maps_start_to_origin_and_end_to_positive_x_axis() {
+        let c = Point::new(10.0, 20.0);
+        let p = Point::new(40.0, 60.0);
+        let matrix = util_hor_matrix(c, p);
+
+        assert_point_near(c.mul_matrix(&matrix), Point::new(0.0, 0.0), 1e-5);
+
+        let transformed = p.mul_matrix(&matrix);
+        assert!((transformed.x - 50.0).abs() <= 1e-5);
+        assert!(transformed.x > 0.0);
+        assert!(transformed.y.abs() <= 1e-5);
     }
 }
