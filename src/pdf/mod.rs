@@ -6,6 +6,7 @@ pub mod intent;
 pub mod links;
 pub mod object;
 pub mod page;
+pub mod shape;
 
 #[cfg(test)]
 mod tests_annotation;
