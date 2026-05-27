@@ -20,7 +20,7 @@ pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
 pub use object::PdfObject;
-pub use page::PdfPage;
+pub use page::{FontInfo, InsertFontOptions, PdfPage};
 pub use shape::{FinishOptions, PdfColor, RectRadius, Shape};
 
 #[must_use]

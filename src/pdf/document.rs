@@ -1,3 +1,5 @@
+use std::cell::RefCell;
+use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::{c_int, CStr, CString};
 use std::io::{self, Write};
@@ -8,7 +10,7 @@ use bitflags::bitflags;
 
 use mupdf_sys::*;
 
-use crate::pdf::{PdfGraftMap, PdfObject, PdfPage};
+use crate::pdf::{FontInfo, PdfGraftMap, PdfObject, PdfPage};
 use crate::{
     context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
     Image, Outline, SimpleFontEncoding, Size, WriteMode,
@@ -233,20 +235,29 @@ impl PdfWriteOptions {
 pub struct PdfDocument {
     inner: *mut pdf_document,
     doc: Document,
+    pub font_info_cache: RefCell<HashMap<i32, FontInfo>>,
 }
 
 impl Default for PdfDocument {
     fn default() -> Self {
         let inner = unsafe { pdf_create_document(context()) };
         let doc = unsafe { Document::from_raw(&mut (*inner).super_) };
-        Self { inner, doc }
+        Self {
+            inner,
+            doc,
+            font_info_cache: RefCell::new(HashMap::new()),
+        }
     }
 }
 
 impl PdfDocument {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_document) -> Self {
         let doc = Document::from_raw(&mut (*ptr).super_);
-        Self { inner: ptr, doc }
+        Self {
+            inner: ptr,
+            doc,
+            font_info_cache: RefCell::new(HashMap::new()),
+        }
     }
 
     pub(crate) fn as_raw(&self) -> *mut pdf_document {
@@ -751,7 +762,11 @@ impl TryFrom<Document> for PdfDocument {
         if inner.is_null() {
             return Err(Error::InvalidPdfDocument);
         }
-        Ok(Self { inner, doc })
+        Ok(Self {
+            inner,
+            doc,
+            font_info_cache: RefCell::new(HashMap::new()),
+        })
     }
 }
 

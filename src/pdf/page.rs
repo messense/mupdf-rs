@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::marker::PhantomData;
+use std::str;
 use std::{
     ffi::CStr,
     mem::ManuallyDrop,
@@ -17,7 +18,65 @@ use crate::pdf::{
     DocOperation, LinkAction, PdfAction, PdfAnnotation, PdfAnnotationType, PdfDestination,
     PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot, PdfObject,
 };
-use crate::{context, unsafe_impl_ffi_wrapper, Buffer, Error, FFIWrapper, Matrix, Page, Rect};
+use crate::{
+    context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Matrix,
+    Page, Rect, SimpleFontEncoding, WriteMode,
+};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FontInfo {
+    pub ascender: f32,
+    pub descender: f32,
+    pub glyphs: Option<HashMap<u32, i32>>,
+    pub simple: bool,
+    pub ordering: Option<CjkFontOrdering>,
+    pub name: String,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct InsertFontOptions<'a> {
+    pub name: &'a str,
+    pub fontfile: Option<&'a [u8]>,
+    pub simple: bool,
+    pub encoding: SimpleFontEncoding,
+    pub ordering: Option<CjkFontOrdering>,
+    pub wmode: WriteMode,
+    pub serif: bool,
+}
+
+impl<'a> InsertFontOptions<'a> {
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            fontfile: None,
+            simple: true,
+            encoding: SimpleFontEncoding::Latin,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
+        }
+    }
+}
+
+fn canonical_base14_name(name: &str) -> Option<&'static str> {
+    match name {
+        "helv" | "Helvetica" => Some("Helvetica"),
+        "heit" | "Helvetica-Oblique" => Some("Helvetica-Oblique"),
+        "hebo" | "Helvetica-Bold" => Some("Helvetica-Bold"),
+        "heboit" | "Helvetica-BoldOblique" => Some("Helvetica-BoldOblique"),
+        "cour" | "Courier" => Some("Courier"),
+        "coit" | "Courier-Oblique" => Some("Courier-Oblique"),
+        "cobo" | "Courier-Bold" => Some("Courier-Bold"),
+        "coboit" | "Courier-BoldOblique" => Some("Courier-BoldOblique"),
+        "tiro" | "Times-Roman" => Some("Times-Roman"),
+        "tibo" | "Times-Bold" => Some("Times-Bold"),
+        "tiit" | "Times-Italic" => Some("Times-Italic"),
+        "tibi" | "Times-BoldItalic" => Some("Times-BoldItalic"),
+        "symb" | "Symbol" => Some("Symbol"),
+        "zadb" | "ZapfDingbats" => Some("ZapfDingbats"),
+        _ => None,
+    }
+}
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -213,6 +272,176 @@ impl PdfPage {
         self.insert_contents(doc, b"q\n", false)?;
         self.insert_contents(doc, b"Q\n", true)?;
         Ok(())
+    }
+
+    fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
+        let opts_simple = opts.simple && opts.ordering.is_none();
+        info.name == name && info.simple == opts_simple && info.ordering == opts.ordering
+    }
+
+    fn find_registered_page_font(
+        doc: &PdfDocument,
+        font_dict: &PdfObject,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<Option<(String, i32, FontInfo)>, Error> {
+        for idx in 0..font_dict.dict_len()? {
+            let Some(key) = font_dict.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = font_dict.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            let Ok(xref) = value.as_indirect() else {
+                continue;
+            };
+            if xref <= 0 {
+                continue;
+            }
+
+            if let Some(info) = doc.font_info_cache.borrow().get(&xref) {
+                if Self::cached_font_matches(info, canonical_name, opts) {
+                    return Ok(Some((format!("/{key_name}"), xref, info.clone())));
+                }
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn find_cached_document_font(
+        doc: &PdfDocument,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Option<(i32, FontInfo)> {
+        doc.font_info_cache
+            .borrow()
+            .iter()
+            .find_map(|(xref, info)| {
+                Self::cached_font_matches(info, canonical_name, opts).then(|| (*xref, info.clone()))
+            })
+    }
+
+    fn next_font_resource_slot(font_dict: Option<&PdfObject>) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(font_dict) = font_dict {
+            for idx in 0..font_dict.dict_len()? {
+                let Some(key) = font_dict.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('F')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("F{index}"))
+    }
+
+    fn build_font_object(
+        doc: &mut PdfDocument,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<(PdfObject, FontInfo), Error> {
+        let font = if let Some(font_data) = opts.fontfile {
+            Font::from_bytes(canonical_name, font_data)?
+        } else {
+            Font::new(canonical_name)?
+        };
+
+        let font_obj = if let Some(ordering) = opts.ordering {
+            doc.add_cjk_font(&font, ordering, opts.wmode, opts.serif)?
+        } else if opts.simple {
+            doc.add_simple_font(&font, opts.encoding)?
+        } else {
+            doc.add_font(&font)?
+        };
+
+        let info = FontInfo {
+            ascender: font.ascender(),
+            descender: font.descender(),
+            glyphs: None,
+            simple: opts.simple && opts.ordering.is_none(),
+            ordering: opts.ordering,
+            name: canonical_name.to_owned(),
+        };
+
+        Ok((font_obj, info))
+    }
+
+    pub fn insert_font(
+        &mut self,
+        doc: &mut PdfDocument,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<(String, i32, FontInfo), Error> {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+
+        let canonical_name = match opts.fontfile {
+            Some(_) => opts.name.to_owned(),
+            None => canonical_base14_name(opts.name)
+                .ok_or_else(|| Error::InvalidArgument(format!("unsupported font: {}", opts.name)))?
+                .to_owned(),
+        };
+
+        let mut resources = self.resources()?;
+        let existing_font_dict = match resources.get_dict("Font")? {
+            Some(font_dict) if font_dict.is_dict()? => Some(font_dict),
+            _ => None,
+        };
+
+        if let Some(font_dict) = existing_font_dict.as_ref() {
+            if let Some(existing) =
+                Self::find_registered_page_font(doc, font_dict, &canonical_name, opts)?
+            {
+                return Ok(existing);
+            }
+        }
+
+        let (font_obj, info) = if let Some((xref, info)) =
+            Self::find_cached_document_font(doc, &canonical_name, opts)
+        {
+            (doc.new_indirect(xref, 0)?, info)
+        } else {
+            Self::build_font_object(doc, &canonical_name, opts)?
+        };
+        let xref = font_obj.as_indirect()?;
+
+        let slot_name = Self::next_font_resource_slot(existing_font_dict.as_ref())?;
+        let mut font_dict = if let Some(font_dict) = existing_font_dict {
+            font_dict
+        } else {
+            let font_dict = doc.new_dict()?;
+            resources.dict_put_ref("Font", &font_dict)?;
+            font_dict
+        };
+
+        font_dict.dict_put_ref(slot_name.as_str(), &font_obj)?;
+        doc.font_info_cache
+            .borrow_mut()
+            .entry(xref)
+            .or_insert_with(|| info.clone());
+
+        Ok((format!("/{slot_name}"), xref, info))
     }
 
     pub fn rotation(&self) -> Result<i32, Error> {
@@ -666,7 +895,9 @@ impl TryFrom<Page> for PdfPage {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
-    use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage};
+    use crate::pdf::{
+        InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
+    };
     use crate::{Buffer, Matrix, Rect, Size};
 
     fn contents_xrefs(page: &PdfPage) -> Vec<i32> {
@@ -692,6 +923,23 @@ mod test {
 
     fn add_stream(doc: &mut PdfDocument, bytes: &[u8]) -> PdfObject {
         doc.add_stream(&Buffer::from_bytes(bytes).unwrap(), None, false)
+            .unwrap()
+    }
+
+    fn default_font_options(name: &str) -> InsertFontOptions<'_> {
+        InsertFontOptions::new(name)
+    }
+
+    fn page_font_dict(page: &PdfPage) -> PdfObject {
+        page.resources().unwrap().get_dict("Font").unwrap().unwrap()
+    }
+
+    fn page_font_xref(page: &PdfPage, slot: &str) -> i32 {
+        page_font_dict(page)
+            .get_dict(slot)
+            .unwrap()
+            .unwrap()
+            .as_indirect()
             .unwrap()
     }
 
@@ -1001,5 +1249,181 @@ mod test {
         assert_eq!(stream_bytes[2], original_bytes);
         assert_eq!(stream_bytes[3], b"Q\n");
         assert_eq!(stream_bytes[4], b"Q\n");
+    }
+
+    #[test]
+    fn test_page_insert_font_helv_registers_f0_resource() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+        assert_eq!(page_font_xref(&page, "F0"), xref);
+        assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
+    }
+
+    #[test]
+    fn test_page_insert_font_is_idempotent_for_same_name() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let first = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_allocates_next_slot_for_new_font() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (helv_slot, helv_xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let (cour_slot, cour_xref, _) = page
+            .insert_font(&mut doc, &default_font_options("cour"))
+            .unwrap();
+
+        assert_eq!(helv_slot, "/F0");
+        assert_eq!(cour_slot, "/F1");
+        assert_ne!(helv_xref, cour_xref);
+        assert_eq!(page_font_xref(&page, "F0"), helv_xref);
+        assert_eq!(page_font_xref(&page, "F1"), cour_xref);
+    }
+
+    #[test]
+    fn test_page_insert_font_base14_alias_table() {
+        let cases = [
+            ("helv", "Helvetica"),
+            ("heit", "Helvetica-Oblique"),
+            ("hebo", "Helvetica-Bold"),
+            ("heboit", "Helvetica-BoldOblique"),
+            ("cour", "Courier"),
+            ("coit", "Courier-Oblique"),
+            ("cobo", "Courier-Bold"),
+            ("coboit", "Courier-BoldOblique"),
+            ("tiro", "Times-Roman"),
+            ("tibo", "Times-Bold"),
+            ("tiit", "Times-Italic"),
+            ("tibi", "Times-BoldItalic"),
+            ("symb", "Symbol"),
+            ("zadb", "ZapfDingbats"),
+        ];
+
+        let mut doc = PdfDocument::new();
+        for (alias, canonical) in cases {
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let (_, _, info) = page
+                .insert_font(&mut doc, &default_font_options(alias))
+                .unwrap();
+            assert_eq!(info.name, canonical, "alias {alias}");
+            assert!(info.simple, "alias {alias}");
+        }
+    }
+
+    #[test]
+    fn test_page_insert_font_accepts_canonical_base14_name() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("Helvetica"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+    }
+
+    #[test]
+    fn test_page_insert_font_skips_preexisting_f_slots() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut resources = page.resources().unwrap();
+        let mut font_dict = doc.new_dict().unwrap();
+        font_dict.dict_put("F0", doc.new_dict().unwrap()).unwrap();
+        resources.dict_put("Font", font_dict).unwrap();
+
+        let (slot, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F1");
+        assert_eq!(page_font_xref(&page, "F1"), xref);
+        assert!(page_font_dict(&page).get_dict("F0").unwrap().is_some());
+    }
+
+    #[test]
+    fn test_page_insert_font_shares_xref_across_pages() {
+        let mut doc = PdfDocument::new();
+        let mut first_page = doc.new_page(Size::A4).unwrap();
+        let mut second_page = doc.new_page(Size::A4).unwrap();
+
+        let first = first_page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = second_page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first.1, second.1);
+        assert_eq!(page_font_xref(&first_page, "F0"), first.1);
+        assert_eq!(page_font_xref(&second_page, "F0"), first.1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_cache_is_not_duplicated() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (_, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        assert!(doc.font_info_cache.borrow().contains_key(&xref));
+        let cache_len = doc.font_info_cache.borrow().len();
+
+        page.insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+    }
+
+    #[test]
+    fn test_page_insert_font_unknown_name_errors_without_mutation() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        assert!(page
+            .resources()
+            .unwrap()
+            .get_dict("Font")
+            .unwrap()
+            .is_none());
+        let cache_len = doc.font_info_cache.borrow().len();
+
+        let result = page.insert_font(&mut doc, &default_font_options("not-a-font"));
+
+        assert!(result.is_err());
+        assert!(page
+            .resources()
+            .unwrap()
+            .get_dict("Font")
+            .unwrap()
+            .is_none());
+        assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
     }
 }
