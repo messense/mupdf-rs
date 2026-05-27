@@ -77,6 +77,10 @@ pub struct FinishOptions {
     pub close_path: bool,
     /// Optional fixed-point morph transform applied to this finished drawing block.
     pub morph: Option<(Point, Matrix)>,
+    /// Optional stroke alpha for PDF `/ExtGState` `/CA`.
+    pub stroke_opacity: Option<f32>,
+    /// Optional fill alpha for PDF `/ExtGState` `/ca`.
+    pub fill_opacity: Option<f32>,
 }
 
 impl Default for FinishOptions {
@@ -92,6 +96,8 @@ impl Default for FinishOptions {
             even_odd: false,
             close_path: false,
             morph: None,
+            stroke_opacity: None,
+            fill_opacity: None,
         }
     }
 }
@@ -121,6 +127,10 @@ pub struct TextOptions {
     pub simple: bool,
     /// Encoding used when registering a simple font.
     pub encoding: SimpleFontEncoding,
+    /// Optional stroke alpha for PDF `/ExtGState` `/CA`.
+    pub stroke_opacity: Option<f32>,
+    /// Optional fill alpha for PDF `/ExtGState` `/ca`.
+    pub fill_opacity: Option<f32>,
 }
 
 impl Default for TextOptions {
@@ -137,6 +147,8 @@ impl Default for TextOptions {
             rotate: 0,
             simple: true,
             encoding: SimpleFontEncoding::Latin,
+            stroke_opacity: None,
+            fill_opacity: None,
         }
     }
 }

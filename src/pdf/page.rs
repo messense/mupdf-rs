@@ -282,6 +282,166 @@ impl PdfPage {
         Ok(())
     }
 
+    fn validate_opacity_value(value: f32, role: &str) -> Result<(), Error> {
+        if value.is_finite() && (0.0..=1.0).contains(&value) {
+            return Ok(());
+        }
+
+        Err(Error::InvalidArgument(format!(
+            "{role} opacity must be in the range [0.0, 1.0]"
+        )))
+    }
+
+    pub(crate) fn validate_opacity_pair(
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<(), Error> {
+        if let Some(stroke_opacity) = stroke_opacity {
+            Self::validate_opacity_value(stroke_opacity, "stroke")?;
+        }
+        if let Some(fill_opacity) = fill_opacity {
+            Self::validate_opacity_value(fill_opacity, "fill")?;
+        }
+        Ok(())
+    }
+
+    fn ext_gstate_alpha_matches(
+        ext_gstate: &PdfObject,
+        key: &str,
+        expected: Option<f32>,
+    ) -> Result<bool, Error> {
+        let Some(actual) = ext_gstate.get_dict(key)? else {
+            return Ok(expected.is_none());
+        };
+
+        let Some(expected) = expected else {
+            return Ok(false);
+        };
+
+        Ok(actual.is_number()? && (actual.as_float()? - expected).abs() <= 1e-6)
+    }
+
+    fn ext_gstate_matches(
+        ext_gstate: &PdfObject,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<bool, Error> {
+        Ok(
+            Self::ext_gstate_alpha_matches(ext_gstate, "CA", stroke_opacity)?
+                && Self::ext_gstate_alpha_matches(ext_gstate, "ca", fill_opacity)?,
+        )
+    }
+
+    fn find_ext_gstate_resource(
+        ext_gstates: &PdfObject,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<Option<String>, Error> {
+        for idx in 0..ext_gstates.dict_len()? {
+            let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = ext_gstates.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if value.is_dict()? && Self::ext_gstate_matches(&value, stroke_opacity, fill_opacity)? {
+                return Ok(Some(format!("/{key_name}")));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_ext_gstate_resource_slot(ext_gstates: Option<&PdfObject>) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(ext_gstates) = ext_gstates {
+            for idx in 0..ext_gstates.dict_len()? {
+                let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('A')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("A{index}"))
+    }
+
+    /// Registers or reuses a page `/ExtGState` entry for stroke and fill opacity.
+    ///
+    /// Returns a PDF resource name (including the leading slash) when either opacity is set.
+    /// Identical `(stroke_opacity, fill_opacity)` pairs reuse the same `/ExtGState` dictionary,
+    /// while combined stroke and fill opacity values are stored in one dictionary.
+    pub fn register_ext_gstate(
+        &mut self,
+        doc: &mut PdfDocument,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<Option<String>, Error> {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+
+        Self::validate_opacity_pair(stroke_opacity, fill_opacity)?;
+        if stroke_opacity.is_none() && fill_opacity.is_none() {
+            return Ok(None);
+        }
+
+        let mut resources = self.resources()?;
+        let existing_ext_gstates = match resources.get_dict("ExtGState")? {
+            Some(ext_gstates) if ext_gstates.is_dict()? => Some(ext_gstates),
+            _ => None,
+        };
+
+        if let Some(ext_gstates) = existing_ext_gstates.as_ref() {
+            if let Some(name) =
+                Self::find_ext_gstate_resource(ext_gstates, stroke_opacity, fill_opacity)?
+            {
+                return Ok(Some(name));
+            }
+        }
+
+        let slot_name = Self::next_ext_gstate_resource_slot(existing_ext_gstates.as_ref())?;
+        let mut ext_gstates = if let Some(ext_gstates) = existing_ext_gstates {
+            ext_gstates
+        } else {
+            let ext_gstates = doc.new_dict()?;
+            resources.dict_put_ref("ExtGState", &ext_gstates)?;
+            ext_gstates
+        };
+
+        let mut ext_gstate = doc.new_dict_with_capacity(3)?;
+        ext_gstate.dict_put("Type", PdfObject::new_name("ExtGState")?)?;
+        if let Some(stroke_opacity) = stroke_opacity {
+            ext_gstate.dict_put("CA", PdfObject::new_real(stroke_opacity)?)?;
+        }
+        if let Some(fill_opacity) = fill_opacity {
+            ext_gstate.dict_put("ca", PdfObject::new_real(fill_opacity)?)?;
+        }
+        ext_gstates.dict_put(slot_name.as_str(), ext_gstate)?;
+
+        Ok(Some(format!("/{slot_name}")))
+    }
+
     fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
         let opts_simple = opts.simple && opts.ordering.is_none();
         if info.name != name

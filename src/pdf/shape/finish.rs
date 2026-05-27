@@ -12,6 +12,12 @@ impl Shape<'_> {
             return Ok(self);
         }
 
+        let opacity_name = {
+            let mut doc = self.page.document_handle()?;
+            self.page
+                .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?
+        };
+
         let mut block = String::new();
         block.push_str("q\n");
         if let Some((fixpoint, matrix)) = &opts.morph {
@@ -23,6 +29,9 @@ impl Shape<'_> {
                     &self.ipctm,
                 )));
             }
+        }
+        if let Some(opacity_name) = &opacity_name {
+            block.push_str(&format!("{opacity_name} gs\n"));
         }
         block.push_str(&self.draw_cont);
         block.push_str(&format!("{} w\n", format_g(opts.width)));
@@ -129,10 +138,11 @@ fn paint_operator(opts: &FinishOptions) -> &'static str {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{FinishOptions, PdfColor, Shape};
-    use crate::pdf::{PdfDocument, PdfPage};
+    use super::super::{FinishOptions, PdfColor, Shape, TextOptions};
+    use crate::pdf::{PdfDocument, PdfObject, PdfPage};
     use crate::{Colorspace, Image, ImageFormat, Matrix, Point, Quad, Rect, Size};
     use std::path::Path;
+    use std::str;
 
     fn finished_line(opts: &FinishOptions) -> String {
         let mut doc = PdfDocument::new();
@@ -209,6 +219,25 @@ mod tests {
         );
         let expected = Image::from_file(snapshot).unwrap().to_pixmap().unwrap();
         assert_pixmaps_equal(rendered, &expected);
+    }
+
+    fn page_ext_gstates(page: &PdfPage) -> Option<PdfObject> {
+        page.object()
+            .get_dict("Resources")
+            .unwrap()
+            .and_then(|resources| resources.get_dict("ExtGState").unwrap())
+    }
+
+    fn ext_gstate_entries(page: &PdfPage) -> Vec<(String, PdfObject)> {
+        let ext_gstates = page_ext_gstates(page).expect("ExtGState resource dict");
+        (0..ext_gstates.dict_len().unwrap())
+            .map(|index| {
+                let key = ext_gstates.get_dict_key(index as i32).unwrap().unwrap();
+                let key = str::from_utf8(key.as_name().unwrap()).unwrap().to_owned();
+                let value = ext_gstates.get_dict_val(index as i32).unwrap().unwrap();
+                (key, value)
+            })
+            .collect()
     }
 
     fn fixpoint_matrix(fixpoint: Point, matrix: Matrix) -> Matrix {
@@ -598,6 +627,254 @@ mod tests {
                 "q\n50 60 m\n70 80 l\n1 w\n0 0 0 RG\nS\nQ\n"
             )
         );
+    }
+
+    mod m5 {
+        pub mod opacity {
+            use super::super::*;
+
+            #[test]
+            fn stroke_opacity_registers_extgstate() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap()
+                    .finish(&FinishOptions {
+                        stroke_opacity: Some(0.5),
+                        ..Default::default()
+                    })
+                    .unwrap();
+
+                let entries = ext_gstate_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert!(entries[0].0.starts_with('A'));
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("CA")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.5
+                );
+                assert!(entries[0].1.get_dict("ca").unwrap().is_none());
+                assert!(shape
+                    .total_cont()
+                    .contains(&format!("/{} gs\n", entries[0].0)));
+            }
+
+            #[test]
+            fn fill_opacity_registers_extgstate() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+
+                shape
+                    .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
+                    .unwrap()
+                    .finish(&FinishOptions {
+                        color: None,
+                        fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+                        fill_opacity: Some(0.25),
+                        ..Default::default()
+                    })
+                    .unwrap();
+
+                let entries = ext_gstate_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert!(entries[0].1.get_dict("CA").unwrap().is_none());
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("ca")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.25
+                );
+                assert!(shape
+                    .total_cont()
+                    .contains(&format!("/{} gs\n", entries[0].0)));
+            }
+
+            #[test]
+            fn combined_opacity_single_extgstate() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+
+                shape
+                    .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
+                    .unwrap()
+                    .finish(&FinishOptions {
+                        fill: Some(PdfColor::rgb(0.0, 1.0, 0.0)),
+                        stroke_opacity: Some(0.5),
+                        fill_opacity: Some(0.5),
+                        ..Default::default()
+                    })
+                    .unwrap();
+
+                let entries = ext_gstate_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("CA")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.5
+                );
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("ca")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.5
+                );
+                assert_eq!(shape.total_cont().matches(" gs\n").count(), 1);
+            }
+
+            #[test]
+            fn idempotent_extgstate_registration() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+                let opts = FinishOptions {
+                    stroke_opacity: Some(0.5),
+                    fill_opacity: Some(0.25),
+                    ..Default::default()
+                };
+
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap()
+                    .finish(&opts)
+                    .unwrap()
+                    .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
+                    .unwrap()
+                    .finish(&opts)
+                    .unwrap();
+
+                let entries = ext_gstate_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(
+                    shape
+                        .total_cont()
+                        .matches(&format!("/{} gs\n", entries[0].0))
+                        .count(),
+                    2
+                );
+            }
+
+            #[test]
+            fn opacity_out_of_range_errors() {
+                for opts in [
+                    FinishOptions {
+                        stroke_opacity: Some(1.5),
+                        ..Default::default()
+                    },
+                    FinishOptions {
+                        fill_opacity: Some(-0.1),
+                        ..Default::default()
+                    },
+                    FinishOptions {
+                        stroke_opacity: Some(f32::NAN),
+                        ..Default::default()
+                    },
+                ] {
+                    let mut doc = PdfDocument::new();
+                    let mut page = doc.new_page(Size::A4).unwrap();
+                    let mut shape = Shape::new(&mut page).unwrap();
+                    shape.ipctm = Matrix::IDENTITY;
+                    shape
+                        .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                        .unwrap();
+                    let draw_before = shape.draw_cont().to_owned();
+
+                    let result = shape.finish(&opts);
+
+                    assert!(result.is_err());
+                    assert_eq!(shape.draw_cont(), draw_before);
+                    assert!(shape.total_cont().is_empty());
+                    assert!(page_ext_gstates(shape.page()).is_none());
+                }
+            }
+
+            #[test]
+            fn text_opacity_registers_extgstate() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap()
+                    .finish(&FinishOptions {
+                        fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+                        fill_opacity: Some(0.5),
+                        stroke_opacity: Some(0.5),
+                        ..Default::default()
+                    })
+                    .unwrap();
+
+                shape
+                    .insert_text(
+                        Point::new(50.0, 100.0),
+                        "Hi",
+                        &TextOptions {
+                            fill_opacity: Some(0.5),
+                            stroke_opacity: Some(0.5),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                let entries = ext_gstate_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("CA")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.5
+                );
+                assert_eq!(
+                    entries[0]
+                        .1
+                        .get_dict("ca")
+                        .unwrap()
+                        .unwrap()
+                        .as_float()
+                        .unwrap(),
+                    0.5
+                );
+                let gs = format!("/{} gs\n", entries[0].0);
+                let text_cont = shape.text_cont();
+                let gs_index = text_cont.find(&gs).expect("gs operator");
+                let bt_index = text_cont.find("BT\n").expect("BT operator");
+                let tf_index = text_cont.find(" Tf\n").expect("Tf operator");
+                assert!(bt_index < gs_index);
+                assert!(gs_index < tf_index);
+            }
+        }
     }
 
     #[test]

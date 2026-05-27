@@ -1,6 +1,6 @@
 use super::operators::{color_code, format_g, tj_str, ColorRole};
 use super::{Shape, TextAlign, TextOptions, TextboxOptions};
-use crate::pdf::InsertFontOptions;
+use crate::pdf::{InsertFontOptions, PdfPage};
 use crate::{Error, Font, Point, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -42,6 +42,8 @@ impl Shape<'_> {
             return Ok(self);
         }
 
+        PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
+
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
             let font_opts = InsertFontOptions {
@@ -54,11 +56,19 @@ impl Shape<'_> {
             let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
             (font_name, font_info)
         };
+        let opacity_name = {
+            let mut doc = self.page.document_handle()?;
+            self.page
+                .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?
+        };
 
         let origin = point.mul_matrix(&self.ipctm);
         let line_advance = opts.fontsize * opts.lineheight;
         let mut block = String::new();
         block.push_str("q\nBT\n");
+        if let Some(opacity_name) = &opacity_name {
+            block.push_str(&format!("{opacity_name} gs\n"));
+        }
 
         if opts.render_mode != 0 {
             block.push_str(&format!("{} Tr\n", opts.render_mode));

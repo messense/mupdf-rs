@@ -15,3 +15,6 @@ mod m4_insert_text;
 
 #[path = "shape/m5_justify_alignment.rs"]
 mod m5_justify_alignment;
+
+#[path = "shape/m5_opacity_extgstate.rs"]
+mod m5_opacity_extgstate;
