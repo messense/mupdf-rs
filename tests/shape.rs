@@ -3,3 +3,6 @@ mod m1_red_rect;
 
 #[path = "shape/m2_basic_drawing.rs"]
 mod m2_basic_drawing;
+
+#[path = "shape/m2_shape_commit.rs"]
+mod m2_shape_commit;

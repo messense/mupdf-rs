@@ -1,6 +1,7 @@
 use super::operators::{color_code, format_g, ColorRole};
 use super::{FinishOptions, Shape};
-use crate::Error;
+use crate::pdf::PdfDocument;
+use crate::{Buffer, Error};
 
 impl Shape<'_> {
     /// Finishes the currently accumulated drawing path and appends it to the total buffer.
@@ -49,6 +50,41 @@ impl Shape<'_> {
         self.clear_path_state();
         Ok(self)
     }
+
+    /// Commits accumulated shape content to the bound page as a new `/Contents` stream.
+    ///
+    /// Equivalent of PyMuPDF `Shape.commit`. When `overlay` is true, existing page contents are
+    /// wrapped in a balanced `q` / `Q` graphics-state pair before the shape stream is appended.
+    /// When `overlay` is false, the shape stream is inserted before existing page contents.
+    pub fn commit(&mut self, doc: &mut PdfDocument, overlay: bool) -> Result<(), Error> {
+        if !self.text_cont.is_empty() {
+            self.total_cont.push_str(&self.text_cont);
+        }
+
+        if self.total_cont.is_empty() {
+            self.draw_cont.clear();
+            self.text_cont.clear();
+            self.clear_path_state();
+            return Ok(());
+        }
+
+        let bytes = self.total_cont.as_bytes().to_vec();
+        if overlay {
+            self.page.wrap_contents(doc)?;
+        }
+
+        let xref = self.page.insert_contents(doc, &bytes, overlay)?;
+        let mut stream = doc.new_indirect(xref, 0)?;
+        let buffer = Buffer::from_bytes(&bytes)?;
+        stream.write_stream_buffer(&buffer)?;
+
+        self.draw_cont.clear();
+        self.text_cont.clear();
+        self.total_cont.clear();
+        self.clear_path_state();
+
+        Ok(())
+    }
 }
 
 fn paint_operator(opts: &FinishOptions) -> &'static str {
@@ -65,7 +101,7 @@ fn paint_operator(opts: &FinishOptions) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::super::{FinishOptions, PdfColor, Shape};
-    use crate::pdf::PdfDocument;
+    use crate::pdf::{PdfDocument, PdfPage};
     use crate::{Matrix, Point, Rect, Size};
 
     fn finished_line(opts: &FinishOptions) -> String {
@@ -96,6 +132,21 @@ mod tests {
             .unwrap();
 
         shape.total_cont().to_owned()
+    }
+
+    fn contents_stream_bytes(page: &PdfPage) -> Vec<Vec<u8>> {
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        (0..contents.len().unwrap())
+            .map(|index| {
+                contents
+                    .get_array(index as i32)
+                    .unwrap()
+                    .unwrap()
+                    .read_stream()
+                    .unwrap()
+            })
+            .collect()
     }
 
     #[test]
@@ -306,5 +357,161 @@ mod tests {
                 "q\n50 60 m\n70 80 l\n1 w\n0 0 0 RG\nS\nQ\n"
             )
         );
+    }
+
+    #[test]
+    fn commit_overlay_appends_stream() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+        let expected = shape.total_cont().as_bytes().to_vec();
+
+        shape.commit(&mut doc, true).unwrap();
+
+        let stream_bytes = contents_stream_bytes(shape.page());
+        assert_eq!(stream_bytes.last().unwrap(), &expected);
+        assert!(shape.draw_cont().is_empty());
+        assert!(shape.text_cont().is_empty());
+        assert!(shape.total_cont().is_empty());
+        assert_eq!(shape.last_point(), None);
+        assert_eq!(shape.rect(), None);
+    }
+
+    #[test]
+    fn commit_underlay_prepends_stream() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        page.insert_contents(&mut doc, b"original\n", true).unwrap();
+
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+        let expected = shape.total_cont().as_bytes().to_vec();
+
+        shape.commit(&mut doc, false).unwrap();
+
+        let stream_bytes = contents_stream_bytes(shape.page());
+        assert_eq!(stream_bytes, vec![expected, b"original\n".to_vec()]);
+    }
+
+    #[test]
+    fn commit_overlay_wraps_existing() {
+        let mut doc =
+            PdfDocument::from_bytes(include_bytes!("../../../tests/files/dummy.pdf")).unwrap();
+        let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+        let original = page.contents().unwrap().unwrap();
+        let original_bytes = original.read_stream().unwrap();
+
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+        let expected_shape = shape.total_cont().as_bytes().to_vec();
+
+        shape.commit(&mut doc, true).unwrap();
+
+        let stream_bytes = contents_stream_bytes(shape.page());
+        assert_eq!(stream_bytes.len(), 4);
+        assert_eq!(stream_bytes[0], b"q\n");
+        assert_eq!(stream_bytes[1], original_bytes);
+        assert_eq!(stream_bytes[2], b"Q\n");
+        assert_eq!(stream_bytes[3], expected_shape);
+    }
+
+    #[test]
+    fn commit_empty_is_noop() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.draw_cont.push_str("10 20 m\n30 40 l\n");
+        shape.set_last_point(Point::new(30.0, 40.0));
+
+        shape.commit(&mut doc, true).unwrap();
+
+        assert!(shape.page().contents().unwrap().is_none());
+        assert!(shape.draw_cont().is_empty());
+        assert!(shape.text_cont().is_empty());
+        assert!(shape.total_cont().is_empty());
+    }
+
+    #[test]
+    fn commit_appends_text_content_before_writing() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.total_cont.push_str("draw\n");
+        shape.text_cont.push_str("text\n");
+
+        shape.commit(&mut doc, false).unwrap();
+
+        let stream_bytes = contents_stream_bytes(shape.page());
+        assert_eq!(stream_bytes, vec![b"draw\ntext\n".to_vec()]);
+        assert!(shape.draw_cont().is_empty());
+        assert!(shape.text_cont().is_empty());
+        assert!(shape.total_cont().is_empty());
+    }
+
+    #[test]
+    fn commit_repeated_appends_each_time() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+        let first = shape.total_cont().as_bytes().to_vec();
+        shape.commit(&mut doc, true).unwrap();
+        assert!(shape.total_cont().is_empty());
+
+        shape
+            .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+        let second = shape.total_cont().as_bytes().to_vec();
+        shape.commit(&mut doc, true).unwrap();
+
+        let stream_bytes = contents_stream_bytes(shape.page());
+        let first_index = stream_bytes
+            .iter()
+            .position(|bytes| bytes == &first)
+            .unwrap();
+        let second_index = stream_bytes
+            .iter()
+            .position(|bytes| bytes == &second)
+            .unwrap();
+        assert!(first_index < second_index);
+        assert_eq!(
+            stream_bytes.iter().filter(|bytes| *bytes == &first).count(),
+            1
+        );
+        assert_eq!(
+            stream_bytes
+                .iter()
+                .filter(|bytes| *bytes == &second)
+                .count(),
+            1
+        );
+        assert!(shape.draw_cont().is_empty());
+        assert!(shape.text_cont().is_empty());
+        assert!(shape.total_cont().is_empty());
     }
 }
