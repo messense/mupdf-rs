@@ -17,7 +17,7 @@ use crate::pdf::{
     DocOperation, LinkAction, PdfAction, PdfAnnotation, PdfAnnotationType, PdfDestination,
     PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot, PdfObject,
 };
-use crate::{context, unsafe_impl_ffi_wrapper, Error, FFIWrapper, Matrix, Page, Rect};
+use crate::{context, unsafe_impl_ffi_wrapper, Buffer, Error, FFIWrapper, Matrix, Page, Rect};
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -129,6 +129,79 @@ impl PdfPage {
         page_obj.dict_put("Resources", resources.clone())?;
 
         Ok(resources)
+    }
+
+    fn push_contents_into_array(
+        contents_array: &mut PdfObject,
+        contents: &PdfObject,
+    ) -> Result<(), Error> {
+        if contents.is_null()? {
+            return Ok(());
+        }
+
+        if contents.is_array()? {
+            for index in 0..contents.len()? {
+                if let Some(item) = contents.get_array(index as i32)? {
+                    contents_array.array_push(item)?;
+                }
+            }
+        } else {
+            contents_array.array_push(contents.clone())?;
+        }
+
+        Ok(())
+    }
+
+    /// Inserts a new content stream into this page's `/Contents` array.
+    ///
+    /// Creates a new PDF stream containing `bytes`, promotes a missing, null, or single-stream
+    /// `/Contents` entry to an array, then appends it when `overlay` is true or prepends it when
+    /// `overlay` is false. Returns the xref number of the newly created stream.
+    ///
+    /// This ports PyMuPDF's `JM_insert_contents` helper used by `Shape.commit`.
+    pub fn insert_contents(
+        &mut self,
+        doc: &mut PdfDocument,
+        bytes: &[u8],
+        overlay: bool,
+    ) -> Result<i32, Error> {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+
+        let operation = DocOperation::begin(doc, "Insert contents")?;
+        let mut page_obj = self.object();
+        let old_contents = page_obj.get_dict("Contents")?;
+
+        let stream_buf = Buffer::from_bytes(bytes)?;
+        let new_stream = operation.doc.add_stream(&stream_buf, None, false)?;
+        let new_xref = new_stream.as_indirect()?;
+
+        let old_len = match old_contents.as_ref() {
+            Some(contents) if contents.is_array()? => contents.len()? as i32,
+            Some(contents) if !contents.is_null()? => 1,
+            _ => 0,
+        };
+        let mut contents_array = operation.doc.new_array_with_capacity(old_len + 1)?;
+
+        if overlay {
+            if let Some(contents) = &old_contents {
+                Self::push_contents_into_array(&mut contents_array, contents)?;
+            }
+            contents_array.array_push(new_stream)?;
+        } else {
+            contents_array.array_push(new_stream)?;
+            if let Some(contents) = &old_contents {
+                Self::push_contents_into_array(&mut contents_array, contents)?;
+            }
+        }
+
+        page_obj.dict_put("Contents", contents_array)?;
+        operation.commit()?;
+
+        Ok(new_xref)
     }
 
     pub fn rotation(&self) -> Result<i32, Error> {
@@ -582,8 +655,52 @@ impl TryFrom<Page> for PdfPage {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
-    use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfPage};
+    use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage};
     use crate::{Buffer, Matrix, Rect, Size};
+
+    fn contents_xrefs(page: &PdfPage) -> Vec<i32> {
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        (0..contents.len().unwrap())
+            .map(|index| {
+                contents
+                    .get_array(index as i32)
+                    .unwrap()
+                    .unwrap()
+                    .as_indirect()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    fn load_dummy_page() -> (PdfDocument, PdfPage) {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+        (doc, page)
+    }
+
+    fn add_stream(doc: &mut PdfDocument, bytes: &[u8]) -> PdfObject {
+        doc.add_stream(&Buffer::from_bytes(bytes).unwrap(), None, false)
+            .unwrap()
+    }
+
+    fn new_page_with_contents_array(
+        doc: &mut PdfDocument,
+        payloads: &[&[u8]],
+    ) -> (PdfPage, Vec<i32>) {
+        let page = doc.new_page(Size::A4).unwrap();
+        let mut xrefs = Vec::with_capacity(payloads.len());
+        let mut contents_array = doc.new_array_with_capacity(payloads.len() as i32).unwrap();
+
+        for payload in payloads {
+            let stream = add_stream(doc, payload);
+            xrefs.push(stream.as_indirect().unwrap());
+            contents_array.array_push(stream).unwrap();
+        }
+
+        page.object().dict_put("Contents", contents_array).unwrap();
+        (page, xrefs)
+    }
 
     #[test]
     fn test_page_properties() {
@@ -719,5 +836,106 @@ mod test {
 
         assert_eq!(first.as_indirect().unwrap(), second.as_indirect().unwrap());
         assert_eq!(doc.count_objects().unwrap(), object_count_after_first);
+    }
+
+    #[test]
+    fn test_page_insert_contents_empty_page_creates_array() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let xref = page.insert_contents(&mut doc, b"q Q\n", true).unwrap();
+
+        assert!(xref > 0);
+        assert_eq!(contents_xrefs(&page), vec![xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_promotes_single_stream_overlay() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+
+        let new_xref = page
+            .insert_contents(&mut doc, b"q 1 0 0 rg 10 10 20 20 re f Q\n", true)
+            .unwrap();
+
+        assert_eq!(contents_xrefs(&page), vec![original_xref, new_xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_overlay_and_underlay_ordering() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+        let overlay_xref = page.insert_contents(&mut doc, b"overlay\n", true).unwrap();
+        assert_eq!(contents_xrefs(&page), vec![original_xref, overlay_xref]);
+
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+        let underlay_xref = page
+            .insert_contents(&mut doc, b"underlay\n", false)
+            .unwrap();
+        assert_eq!(contents_xrefs(&page), vec![underlay_xref, original_xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_preserves_prior_array_contents() {
+        let mut doc = PdfDocument::new();
+        let (mut page, original_xrefs) = new_page_with_contents_array(&mut doc, &[b"a\n", b"b\n"]);
+
+        let c = page.insert_contents(&mut doc, b"c\n", true).unwrap();
+        let d = page.insert_contents(&mut doc, b"d\n", true).unwrap();
+
+        assert_eq!(
+            contents_xrefs(&page),
+            vec![original_xrefs[0], original_xrefs[1], c, d]
+        );
+
+        let mut doc = PdfDocument::new();
+        let (mut page, original_xrefs) = new_page_with_contents_array(&mut doc, &[b"a\n", b"b\n"]);
+
+        let c = page.insert_contents(&mut doc, b"c\n", false).unwrap();
+        let d = page.insert_contents(&mut doc, b"d\n", true).unwrap();
+
+        assert_eq!(
+            contents_xrefs(&page),
+            vec![c, original_xrefs[0], original_xrefs[1], d]
+        );
+    }
+
+    #[test]
+    fn test_page_insert_contents_returned_xref_bytes_round_trip() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let payload = b"q 1 0 0 rg 100 100 50 50 re f Q\n";
+
+        let xref = page.insert_contents(&mut doc, payload, true).unwrap();
+        let mut stream = doc.new_indirect(xref, 0).unwrap();
+
+        assert_eq!(stream.as_indirect().unwrap(), xref);
+        assert_eq!(stream.read_stream().unwrap(), payload);
+
+        let rewritten = Buffer::from_bytes(b"rewritten\n").unwrap();
+        stream.write_stream_buffer(&rewritten).unwrap();
+        assert_eq!(stream.read_stream().unwrap(), b"rewritten\n");
+    }
+
+    #[test]
+    fn test_page_insert_contents_distinct_streams_with_same_bytes() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let payload = b"q 0 1 0 rg 20 20 10 10 re f Q\n";
+
+        let first = page.insert_contents(&mut doc, payload, true).unwrap();
+        let second = page.insert_contents(&mut doc, payload, true).unwrap();
+
+        assert_ne!(first, second);
+        assert_eq!(contents_xrefs(&page), vec![first, second]);
+        assert_eq!(
+            doc.new_indirect(first, 0).unwrap().read_stream().unwrap(),
+            payload
+        );
+        assert_eq!(
+            doc.new_indirect(second, 0).unwrap().read_stream().unwrap(),
+            payload
+        );
     }
 }
