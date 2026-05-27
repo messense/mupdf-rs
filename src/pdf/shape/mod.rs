@@ -2,8 +2,12 @@ use crate::pdf::PdfPage;
 use crate::{Error, Matrix, Point, Rect};
 
 mod drawing;
+mod finish;
 #[allow(dead_code)]
 mod operators;
+mod options;
+
+pub use options::{FinishOptions, PdfColor};
 
 /// Builder for accumulating drawing and text operations on a PDF page.
 ///

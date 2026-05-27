@@ -21,7 +21,7 @@ pub use links::{
 };
 pub use object::PdfObject;
 pub use page::PdfPage;
-pub use shape::Shape;
+pub use shape::{FinishOptions, PdfColor, Shape};
 
 #[must_use]
 pub struct DocOperation<'a> {
