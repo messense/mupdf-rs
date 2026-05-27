@@ -176,6 +176,7 @@ pub(super) fn util_hor_matrix(c: Point, p: Point) -> Matrix {
 mod tests {
     use super::*;
     use crate::pdf::FontInfo;
+    use crate::{SimpleFontEncoding, WriteMode};
     use std::collections::HashMap;
 
     fn font_info(simple: bool, glyphs: Option<HashMap<u32, i32>>) -> FontInfo {
@@ -184,7 +185,11 @@ mod tests {
             descender: -0.2,
             glyphs,
             simple,
+            encoding: SimpleFontEncoding::Latin,
             ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
+            fontfile_hash: None,
             name: "Helvetica".to_owned(),
         }
     }

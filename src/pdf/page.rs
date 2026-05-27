@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::str;
 use std::{
@@ -31,6 +32,10 @@ pub struct FontInfo {
     pub simple: bool,
     pub ordering: Option<CjkFontOrdering>,
     pub name: String,
+    pub encoding: SimpleFontEncoding,
+    pub wmode: WriteMode,
+    pub serif: bool,
+    pub fontfile_hash: Option<u64>,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -279,7 +284,164 @@ impl PdfPage {
 
     fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
         let opts_simple = opts.simple && opts.ordering.is_none();
-        info.name == name && info.simple == opts_simple && info.ordering == opts.ordering
+        if info.name != name
+            || info.simple != opts_simple
+            || info.ordering != opts.ordering
+            || info.fontfile_hash != Self::fontfile_hash(opts.fontfile)
+        {
+            return false;
+        }
+
+        if info.simple && info.encoding != opts.encoding {
+            return false;
+        }
+
+        if info.ordering.is_some() && (info.wmode != opts.wmode || info.serif != opts.serif) {
+            return false;
+        }
+
+        true
+    }
+
+    fn fontfile_hash(fontfile: Option<&[u8]>) -> Option<u64> {
+        fontfile.map(|bytes| {
+            let mut hasher = DefaultHasher::new();
+            bytes.hash(&mut hasher);
+            hasher.finish()
+        })
+    }
+
+    fn normalized_base_font_name(name: &str) -> &str {
+        match name.split_once('+') {
+            Some((prefix, suffix))
+                if prefix.len() == 6 && prefix.bytes().all(|byte| byte.is_ascii_uppercase()) =>
+            {
+                suffix
+            }
+            _ => name,
+        }
+    }
+
+    fn resource_font_base_name(font_obj: &PdfObject) -> Result<Option<String>, Error> {
+        if let Some(base_font) = font_obj.get_dict("BaseFont")? {
+            let base_font = str::from_utf8(base_font.as_name()?)
+                .map(Self::normalized_base_font_name)
+                .map(str::to_owned)
+                .ok();
+            if base_font.is_some() {
+                return Ok(base_font);
+            }
+        }
+
+        let Some(descendant_fonts) = font_obj.get_dict("DescendantFonts")? else {
+            return Ok(None);
+        };
+        let Some(descendant_font) = descendant_fonts.get_array(0)? else {
+            return Ok(None);
+        };
+        let Some(base_font) = descendant_font.get_dict("BaseFont")? else {
+            return Ok(None);
+        };
+
+        Ok(str::from_utf8(base_font.as_name()?)
+            .map(Self::normalized_base_font_name)
+            .map(str::to_owned)
+            .ok())
+    }
+
+    fn resource_simple_font_encoding(
+        font_obj: &PdfObject,
+    ) -> Result<Option<SimpleFontEncoding>, Error> {
+        let Some(encoding) = font_obj.get_dict("Encoding")? else {
+            return Ok(Some(SimpleFontEncoding::Latin));
+        };
+
+        if !encoding.is_dict()? {
+            let Ok(encoding_name) = encoding.as_name() else {
+                return Ok(None);
+            };
+            let Ok(encoding_name) = str::from_utf8(encoding_name) else {
+                return Ok(None);
+            };
+            return match encoding_name {
+                "WinAnsiEncoding" => Ok(Some(SimpleFontEncoding::Latin)),
+                _ => Ok(None),
+            };
+        }
+
+        let Some(differences) = encoding.get_dict("Differences")? else {
+            return Ok(None);
+        };
+
+        for index in 0..differences.len()? {
+            let Some(item) = differences.get_array(index as i32)? else {
+                continue;
+            };
+            let Ok(name) = item.as_name() else {
+                continue;
+            };
+            let Ok(name) = str::from_utf8(name) else {
+                continue;
+            };
+            if name.contains("cyrillic") || name.starts_with("afii10") {
+                return Ok(Some(SimpleFontEncoding::Cyrillic));
+            }
+            if matches!(
+                name,
+                "Alpha"
+                    | "Beta"
+                    | "Gamma"
+                    | "Deltagreek"
+                    | "Omegagreek"
+                    | "alpha"
+                    | "beta"
+                    | "gamma"
+                    | "delta"
+                    | "mugreek"
+                    | "omega"
+                    | "tonos"
+            ) {
+                return Ok(Some(SimpleFontEncoding::Greek));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn font_info_from_resource_font(
+        font_obj: &PdfObject,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<Option<FontInfo>, Error> {
+        if opts.fontfile.is_some() || opts.ordering.is_some() || !opts.simple {
+            return Ok(None);
+        }
+
+        let Some(base_name) = Self::resource_font_base_name(font_obj)? else {
+            return Ok(None);
+        };
+        if base_name != canonical_name {
+            return Ok(None);
+        }
+
+        let Some(encoding) = Self::resource_simple_font_encoding(font_obj)? else {
+            return Ok(None);
+        };
+        let font = Font::new(canonical_name)?;
+        let info = FontInfo {
+            ascender: font.ascender(),
+            descender: font.descender(),
+            glyphs: None,
+            simple: true,
+            encoding,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
+            fontfile_hash: None,
+            name: canonical_name.to_owned(),
+        };
+
+        Ok(Self::cached_font_matches(&info, canonical_name, opts).then_some(info))
     }
 
     fn find_registered_page_font(
@@ -309,6 +471,12 @@ impl PdfPage {
                 if Self::cached_font_matches(info, canonical_name, opts) {
                     return Ok(Some((format!("/{key_name}"), xref, info.clone())));
                 }
+                continue;
+            }
+
+            if let Some(info) = Self::font_info_from_resource_font(&value, canonical_name, opts)? {
+                doc.font_info_cache.borrow_mut().insert(xref, info.clone());
+                return Ok(Some((format!("/{key_name}"), xref, info)));
             }
         }
 
@@ -381,7 +549,11 @@ impl PdfPage {
             descender: font.descender(),
             glyphs: None,
             simple: opts.simple && opts.ordering.is_none(),
+            encoding: opts.encoding,
             ordering: opts.ordering,
+            wmode: opts.wmode,
+            serif: opts.serif,
+            fontfile_hash: Self::fontfile_hash(opts.fontfile),
             name: canonical_name.to_owned(),
         };
 
@@ -901,7 +1073,7 @@ mod test {
     use crate::pdf::{
         InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
     };
-    use crate::{Buffer, Matrix, Rect, Size};
+    use crate::{Buffer, Matrix, Rect, SimpleFontEncoding, Size};
 
     fn contents_xrefs(page: &PdfPage) -> Vec<i32> {
         let contents = page.contents().unwrap().unwrap();
@@ -1286,6 +1458,93 @@ mod test {
         assert_eq!(first, second);
         assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
         assert_eq!(doc.font_info_cache.borrow().len(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_reuses_preexisting_font_after_reopen() {
+        let mut source_doc = PdfDocument::new();
+        let mut source_page = source_doc.new_page(Size::A4).unwrap();
+        let inserted = source_page
+            .insert_font(&mut source_doc, &default_font_options("helv"))
+            .unwrap();
+        assert_eq!(inserted.0, "/F0");
+        assert_eq!(page_font_dict(&source_page).dict_len().unwrap(), 1);
+
+        let mut bytes = Vec::new();
+        source_doc.write_to(&mut bytes).unwrap();
+        drop(source_page);
+        drop(source_doc);
+
+        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        assert!(doc.font_info_cache.borrow().is_empty());
+        let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.0, "/F0");
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
+        assert_eq!(page_font_xref(&page, "F0"), first.1);
+        assert_eq!(doc.font_info_cache.borrow().get(&first.1), Some(&first.2));
+    }
+
+    #[test]
+    fn test_page_insert_font_distinguishes_simple_encoding() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let latin = InsertFontOptions {
+            encoding: SimpleFontEncoding::Latin,
+            ..default_font_options("helv")
+        };
+        let greek = InsertFontOptions {
+            encoding: SimpleFontEncoding::Greek,
+            ..default_font_options("helv")
+        };
+
+        let first = page.insert_font(&mut doc, &latin).unwrap();
+        let second = page.insert_font(&mut doc, &greek).unwrap();
+
+        assert_ne!(first.0, second.0);
+        assert_ne!(first.1, second.1);
+        assert_eq!(first.2.encoding, SimpleFontEncoding::Latin);
+        assert_eq!(second.2.encoding, SimpleFontEncoding::Greek);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 2);
+        assert_eq!(page_font_xref(&page, "F0"), first.1);
+        assert_eq!(page_font_xref(&page, "F1"), second.1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 2);
+    }
+
+    #[test]
+    fn test_page_insert_font_reuses_preexisting_greek_font_after_reopen() {
+        let greek = InsertFontOptions {
+            encoding: SimpleFontEncoding::Greek,
+            ..default_font_options("helv")
+        };
+        let mut source_doc = PdfDocument::new();
+        let mut source_page = source_doc.new_page(Size::A4).unwrap();
+        source_page.insert_font(&mut source_doc, &greek).unwrap();
+
+        let mut bytes = Vec::new();
+        source_doc.write_to(&mut bytes).unwrap();
+        drop(source_page);
+        drop(source_doc);
+
+        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        assert!(doc.font_info_cache.borrow().is_empty());
+        let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page.insert_font(&mut doc, &greek).unwrap();
+        let second = page.insert_font(&mut doc, &greek).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.0, "/F0");
+        assert_eq!(first.2.encoding, SimpleFontEncoding::Greek);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
     }
 
     #[test]
