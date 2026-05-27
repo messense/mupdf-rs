@@ -6,3 +6,6 @@ mod m2_basic_drawing;
 
 #[path = "shape/m2_shape_commit.rs"]
 mod m2_shape_commit;
+
+#[path = "shape/m3_arc_curve_primitives.rs"]
+mod m3_arc_curve_primitives;
