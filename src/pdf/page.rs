@@ -204,6 +204,17 @@ impl PdfPage {
         Ok(new_xref)
     }
 
+    /// Wraps this page's existing content streams in a balanced PDF graphics state.
+    ///
+    /// Inserts a `q\n` content stream as an underlay and a `Q\n` content stream as an
+    /// overlay. This intentionally is not idempotent: repeated calls add another balanced
+    /// pair around the existing contents.
+    pub fn wrap_contents(&mut self, doc: &mut PdfDocument) -> Result<(), Error> {
+        self.insert_contents(doc, b"q\n", false)?;
+        self.insert_contents(doc, b"Q\n", true)?;
+        Ok(())
+    }
+
     pub fn rotation(&self) -> Result<i32, Error> {
         if let Some(rotate) = self
             .object()
@@ -937,5 +948,58 @@ mod test {
             doc.new_indirect(second, 0).unwrap().read_stream().unwrap(),
             payload
         );
+    }
+
+    fn contents_stream_bytes(page: &PdfPage) -> Vec<Vec<u8>> {
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        (0..contents.len().unwrap())
+            .map(|index| {
+                contents
+                    .get_array(index as i32)
+                    .unwrap()
+                    .unwrap()
+                    .read_stream()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_page_wrap_contents_brackets_existing_stream() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+
+        page.wrap_contents(&mut doc).unwrap();
+
+        let xrefs = contents_xrefs(&page);
+        assert_eq!(xrefs.len(), 3);
+        assert_eq!(xrefs[1], original_xref);
+
+        let stream_bytes = contents_stream_bytes(&page);
+        assert_eq!(stream_bytes[0], b"q\n");
+        assert_eq!(stream_bytes[2], b"Q\n");
+    }
+
+    #[test]
+    fn test_page_wrap_contents_nests_when_called_twice() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original = page.contents().unwrap().unwrap();
+        let original_xref = original.as_indirect().unwrap();
+        let original_bytes = original.read_stream().unwrap();
+
+        page.wrap_contents(&mut doc).unwrap();
+        page.wrap_contents(&mut doc).unwrap();
+
+        let xrefs = contents_xrefs(&page);
+        assert_eq!(xrefs.len(), 5);
+        assert_eq!(xrefs[2], original_xref);
+
+        let stream_bytes = contents_stream_bytes(&page);
+        assert_eq!(stream_bytes[0], b"q\n");
+        assert_eq!(stream_bytes[1], b"q\n");
+        assert_eq!(stream_bytes[2], original_bytes);
+        assert_eq!(stream_bytes[3], b"Q\n");
+        assert_eq!(stream_bytes[4], b"Q\n");
     }
 }
