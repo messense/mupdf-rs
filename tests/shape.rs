@@ -9,3 +9,6 @@ mod m2_shape_commit;
 
 #[path = "shape/m3_arc_curve_primitives.rs"]
 mod m3_arc_curve_primitives;
+
+#[path = "shape/m4_insert_text.rs"]
+mod m4_insert_text;

@@ -158,6 +158,12 @@ impl PdfPage {
         unsafe { PdfObject::from_raw_keep_ref(self.as_ref().obj) }
     }
 
+    pub(crate) fn document_handle(&self) -> Result<PdfDocument, Error> {
+        let doc_ptr =
+            NonNull::new(unsafe { (*self.inner.as_ptr()).doc }).ok_or(Error::UnexpectedNullPtr)?;
+        Ok(unsafe { PdfDocument::from_raw(pdf_keep_document(context(), doc_ptr.as_ptr())) })
+    }
+
     /// Returns this page's `/Contents` object.
     ///
     /// The returned object is the page dictionary value as-is: a single stream, an array of
@@ -179,10 +185,7 @@ impl PdfPage {
             }
         }
 
-        let doc_ptr =
-            NonNull::new(unsafe { (*self.inner.as_ptr()).doc }).ok_or(Error::UnexpectedNullPtr)?;
-        let mut doc =
-            unsafe { PdfDocument::from_raw(pdf_keep_document(context(), doc_ptr.as_ptr())) };
+        let mut doc = self.document_handle()?;
         let resources = doc.new_dict()?;
         let resources = doc.add_object(&resources)?;
         page_obj.dict_put("Resources", resources.clone())?;

@@ -1,4 +1,4 @@
-use crate::{Matrix, Point};
+use crate::{Matrix, Point, SimpleFontEncoding};
 
 /// Color components for Shape drawing operators.
 #[derive(Clone, Debug, PartialEq)]
@@ -92,6 +92,51 @@ impl Default for FinishOptions {
             even_odd: false,
             close_path: false,
             morph: None,
+        }
+    }
+}
+
+/// Options controlling text inserted by [`Shape::insert_text`](super::Shape::insert_text).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextOptions {
+    /// Font size in PDF user-space units.
+    pub fontsize: f32,
+    /// Line height multiplier. Consecutive baselines are spaced by `fontsize * lineheight`.
+    pub lineheight: f32,
+    /// Base-14 font alias or canonical font name. Defaults to PyMuPDF's `helv`.
+    pub fontname: String,
+    /// Stroke color used by text rendering modes that stroke glyph outlines.
+    pub color: Option<PdfColor>,
+    /// Fill color used by text rendering modes that fill glyph outlines.
+    pub fill: Option<PdfColor>,
+    /// PDF text rendering mode for the `Tr` operator.
+    pub render_mode: i32,
+    /// Border width multiplier. Emitted line width is `border_width * fontsize`.
+    pub border_width: f32,
+    /// Optional miter limit for stroked glyph outlines.
+    pub miter_limit: Option<f32>,
+    /// Clockwise text rotation in degrees. Only 0, 90, 180, and 270 are supported.
+    pub rotate: i32,
+    /// Whether the font should be registered as a simple font.
+    pub simple: bool,
+    /// Encoding used when registering a simple font.
+    pub encoding: SimpleFontEncoding,
+}
+
+impl Default for TextOptions {
+    fn default() -> Self {
+        Self {
+            fontsize: 11.0,
+            lineheight: 1.2,
+            fontname: "helv".to_owned(),
+            color: None,
+            fill: None,
+            render_mode: 0,
+            border_width: 0.05,
+            miter_limit: Some(1.0),
+            rotate: 0,
+            simple: true,
+            encoding: SimpleFontEncoding::Latin,
         }
     }
 }

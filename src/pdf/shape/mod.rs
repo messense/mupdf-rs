@@ -6,9 +6,10 @@ mod finish;
 #[allow(dead_code)]
 mod operators;
 mod options;
+mod text;
 
 pub use drawing::RectRadius;
-pub use options::{FinishOptions, PdfColor};
+pub use options::{FinishOptions, PdfColor, TextOptions};
 
 /// Builder for accumulating drawing and text operations on a PDF page.
 ///

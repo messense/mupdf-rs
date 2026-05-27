@@ -102,7 +102,9 @@ pub use matrix::Matrix;
 pub use outline::Outline;
 pub use page::Page;
 pub use path::{Path, PathWalker};
-pub use pdf::{FinishOptions, FontInfo, InsertFontOptions, PdfColor, RectRadius, Shape};
+pub use pdf::{
+    FinishOptions, FontInfo, InsertFontOptions, PdfColor, RectRadius, Shape, TextOptions,
+};
 pub use pixmap::{ImageFormat, Pixmap};
 pub use point::Point;
 pub use quad::Quad;
