@@ -1,6 +1,9 @@
 use std::f32::consts::PI;
+use std::ops::Mul;
 
 use mupdf_sys::*;
+
+use crate::Point;
 
 /// A row-major 3x3 matrix used for representing transformations of coordinates
 #[derive(Debug, Clone, PartialEq)]
@@ -200,6 +203,56 @@ impl Default for Matrix {
     }
 }
 
+impl Mul<Matrix> for Matrix {
+    type Output = Self;
+
+    fn mul(mut self, rhs: Matrix) -> Self::Output {
+        self.concat(rhs);
+        self
+    }
+}
+
+impl Mul<&Matrix> for Matrix {
+    type Output = Self;
+
+    fn mul(mut self, rhs: &Matrix) -> Self::Output {
+        self.concat(rhs.clone());
+        self
+    }
+}
+
+impl Mul<Matrix> for &Matrix {
+    type Output = Matrix;
+
+    fn mul(self, rhs: Matrix) -> Self::Output {
+        self.clone() * rhs
+    }
+}
+
+impl Mul<&Matrix> for &Matrix {
+    type Output = Matrix;
+
+    fn mul(self, rhs: &Matrix) -> Self::Output {
+        self.clone() * rhs.clone()
+    }
+}
+
+impl Mul<Point> for Matrix {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Self::Output {
+        rhs.transform(&self)
+    }
+}
+
+impl Mul<Point> for &Matrix {
+    type Output = Point;
+
+    fn mul(self, rhs: Point) -> Self::Output {
+        rhs.transform(self)
+    }
+}
+
 impl From<fz_matrix> for Matrix {
     fn from(m: fz_matrix) -> Self {
         let fz_matrix { a, b, c, d, e, f } = m;
@@ -218,5 +271,49 @@ impl From<Matrix> for fz_matrix {
     fn from(val: Matrix) -> Self {
         let Matrix { a, b, c, d, e, f } = val;
         fz_matrix { a, b, c, d, e, f }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Point;
+
+    fn assert_matrix_near(actual: &Matrix, expected: &Matrix, epsilon: f32) {
+        assert!((actual.a - expected.a).abs() <= epsilon);
+        assert!((actual.b - expected.b).abs() <= epsilon);
+        assert!((actual.c - expected.c).abs() <= epsilon);
+        assert!((actual.d - expected.d).abs() <= epsilon);
+        assert!((actual.e - expected.e).abs() <= epsilon);
+        assert!((actual.f - expected.f).abs() <= epsilon);
+    }
+
+    fn assert_point_near(actual: Point, expected: Point, epsilon: f32) {
+        assert!((actual.x - expected.x).abs() <= epsilon);
+        assert!((actual.y - expected.y).abs() <= epsilon);
+    }
+
+    #[test]
+    fn matrix_multiplication_matches_concat() {
+        let scale = Matrix::new_scale(2.0, 3.0);
+        let translate = Matrix::new_translate(4.0, 5.0);
+
+        let mut expected = scale.clone();
+        expected.concat(translate.clone());
+        assert_matrix_near(&(scale.clone() * translate.clone()), &expected, 1e-6);
+        assert_matrix_near(&(&scale * &translate), &expected, 1e-6);
+
+        let mut expected_reverse = translate.clone();
+        expected_reverse.concat(scale.clone());
+        assert_matrix_near(&(translate * scale), &expected_reverse, 1e-6);
+    }
+
+    #[test]
+    fn matrix_point_multiplication_matches_transform() {
+        let matrix = Matrix::new(1.5, 0.0, 0.0, 2.0, 10.0, 20.0);
+        let point = Point::new(3.0, 4.0);
+
+        assert_point_near(&matrix * point, point.transform(&matrix), 1e-6);
+        assert_point_near(Matrix::IDENTITY * point, point, 1e-6);
     }
 }
