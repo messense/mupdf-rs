@@ -151,7 +151,7 @@ pub enum TextAlign {
     Center,
     /// Align each line to the trailing edge of the textbox.
     Right,
-    /// Fully justify text. Reserved for the M5 implementation.
+    /// Fully justify non-last paragraph lines by distributing extra width across word gaps.
     Justify,
 }
 

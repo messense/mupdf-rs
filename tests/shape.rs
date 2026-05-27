@@ -12,3 +12,6 @@ mod m3_arc_curve_primitives;
 
 #[path = "shape/m4_insert_text.rs"]
 mod m4_insert_text;
+
+#[path = "shape/m5_justify_alignment.rs"]
+mod m5_justify_alignment;
