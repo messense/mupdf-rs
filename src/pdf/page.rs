@@ -99,6 +99,38 @@ impl PdfPage {
         unsafe { PdfObject::from_raw_keep_ref(self.as_ref().obj) }
     }
 
+    /// Returns this page's `/Contents` object.
+    ///
+    /// The returned object is the page dictionary value as-is: a single stream, an array of
+    /// streams, or `None` when the page has no `/Contents` entry.
+    pub fn contents(&self) -> Result<Option<PdfObject>, Error> {
+        self.object().get_dict("Contents")
+    }
+
+    /// Returns this page's `/Resources` dictionary, creating and attaching one when missing.
+    ///
+    /// Missing or non-dictionary `/Resources` entries are replaced by a new empty indirect
+    /// dictionary. Repeated calls return the same dictionary object without allocating again.
+    pub fn resources(&self) -> Result<PdfObject, Error> {
+        let mut page_obj = self.object();
+
+        if let Some(resources) = page_obj.get_dict("Resources")? {
+            if resources.is_dict()? {
+                return Ok(resources);
+            }
+        }
+
+        let doc_ptr =
+            NonNull::new(unsafe { (*self.inner.as_ptr()).doc }).ok_or(Error::UnexpectedNullPtr)?;
+        let mut doc =
+            unsafe { PdfDocument::from_raw(pdf_keep_document(context(), doc_ptr.as_ptr())) };
+        let resources = doc.new_dict()?;
+        let resources = doc.add_object(&resources)?;
+        page_obj.dict_put("Resources", resources.clone())?;
+
+        Ok(resources)
+    }
+
     pub fn rotation(&self) -> Result<i32, Error> {
         if let Some(rotate) = self
             .object()
@@ -551,7 +583,7 @@ impl TryFrom<Page> for PdfPage {
 mod test {
     use crate::document::test_document;
     use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfPage};
-    use crate::{Matrix, Rect, Size};
+    use crate::{Buffer, Matrix, Rect, Size};
 
     #[test]
     fn test_page_properties() {
@@ -606,5 +638,86 @@ mod test {
         assert_eq!(annots.len(), 1);
         assert_eq!(annots[0].r#type().unwrap(), PdfAnnotationType::Text);
         assert_eq!(annots[0].rect().unwrap(), expected);
+    }
+
+    #[test]
+    fn test_page_contents_none_for_blank_page() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+
+        assert!(page.contents().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_page_contents_single_stream_fixture() {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+        let contents = page.contents().unwrap().unwrap();
+
+        assert!(contents.is_stream().unwrap());
+        assert!(contents.as_indirect().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_page_contents_multistream_array() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        let first = doc
+            .add_stream(&Buffer::from_bytes(b"q\n").unwrap(), None, false)
+            .unwrap();
+        let second = doc
+            .add_stream(&Buffer::from_bytes(b"Q\n").unwrap(), None, false)
+            .unwrap();
+        let mut contents_array = doc.new_array_with_capacity(2).unwrap();
+        contents_array.array_push(first).unwrap();
+        contents_array.array_push(second).unwrap();
+        page.object().dict_put("Contents", contents_array).unwrap();
+
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        assert_eq!(contents.len().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_page_resources_existing_dict_stable() {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page.resources().unwrap();
+        let second = page.resources().unwrap();
+
+        assert!(first.is_dict().unwrap());
+        assert_eq!(first.as_indirect().unwrap(), second.as_indirect().unwrap());
+    }
+
+    #[test]
+    fn test_page_resources_auto_creates_missing_dict() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        page.object().dict_delete("Resources").unwrap();
+        assert!(page.object().get_dict("Resources").unwrap().is_none());
+
+        let object_count_before = doc.count_objects().unwrap();
+        let resources = page.resources().unwrap();
+
+        assert!(resources.is_dict().unwrap());
+        assert!(resources.as_indirect().unwrap() > 0);
+        assert_eq!(resources.dict_len().unwrap(), 0);
+        assert!(page.object().get_dict("Resources").unwrap().is_some());
+        assert_eq!(doc.count_objects().unwrap(), object_count_before + 1);
+    }
+
+    #[test]
+    fn test_page_resources_idempotent_after_auto_create() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        page.object().dict_delete("Resources").unwrap();
+
+        let first = page.resources().unwrap();
+        let object_count_after_first = doc.count_objects().unwrap();
+        let second = page.resources().unwrap();
+
+        assert_eq!(first.as_indirect().unwrap(), second.as_indirect().unwrap());
+        assert_eq!(doc.count_objects().unwrap(), object_count_after_first);
     }
 }
