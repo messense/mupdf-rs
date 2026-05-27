@@ -1,6 +1,7 @@
 use crate::pdf::PdfPage;
 use crate::{Error, Matrix, Point, Rect};
 
+mod drawing;
 #[allow(dead_code)]
 mod operators;
 
@@ -318,5 +319,201 @@ mod tests {
 
         assert_eq!(shape.rect(), Some(Rect::new(10.0, 10.0, 50.0, 80.0)));
         assert_eq!(shape.last_point(), Some(Point::new(50.0, 80.0)));
+    }
+
+    #[test]
+    fn draw_line_basic_operators() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 20 m\n30 40 l\n");
+        assert_eq!(shape.last_point(), Some(Point::new(30.0, 40.0)));
+        assert_eq!(shape.rect(), Some(Rect::new(10.0, 20.0, 30.0, 40.0)));
+    }
+
+    #[test]
+    fn draw_line_chain_reuses_last_point() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .draw_line(Point::new(30.0, 40.0), Point::new(50.0, 60.0))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 20 m\n30 40 l\n50 60 l\n");
+        assert_eq!(shape.last_point(), Some(Point::new(50.0, 60.0)));
+    }
+
+    #[test]
+    fn draw_line_first_call_emits_m() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap();
+
+        assert!(shape.draw_cont().starts_with("10 20 m\n"));
+    }
+
+    #[test]
+    fn draw_polyline_two_points() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_polyline(&[Point::new(10.0, 10.0), Point::new(20.0, 20.0)])
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 10 m\n20 20 l\n");
+        assert_eq!(shape.last_point(), Some(Point::new(20.0, 20.0)));
+    }
+
+    #[test]
+    fn draw_polyline_many_points() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_polyline(&[
+                Point::new(0.0, 0.0),
+                Point::new(10.0, 0.0),
+                Point::new(10.0, 10.0),
+                Point::new(0.0, 10.0),
+                Point::new(0.0, 0.0),
+            ])
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "0 0 m\n10 0 l\n10 10 l\n0 10 l\n0 0 l\n");
+        assert_eq!(shape.rect(), Some(Rect::new(0.0, 0.0, 10.0, 10.0)));
+    }
+
+    #[test]
+    fn draw_polyline_underflow_handled() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+
+        shape.draw_polyline(&[]).unwrap();
+        shape.draw_polyline(&[Point::new(1.0, 1.0)]).unwrap();
+
+        assert!(shape.draw_cont().is_empty());
+        assert_eq!(shape.last_point(), None);
+        assert_eq!(shape.rect(), None);
+    }
+
+    #[test]
+    fn draw_rect_basic_operators() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape.draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0)).unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 20 30 40 re\n");
+        assert_eq!(shape.last_point(), Some(Point::new(10.0, 20.0)));
+        assert_eq!(shape.rect(), Some(Rect::new(10.0, 20.0, 40.0, 60.0)));
+    }
+
+    #[test]
+    fn draw_bezier_basic_operators() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_bezier(
+                Point::new(0.0, 0.0),
+                Point::new(0.0, 10.0),
+                Point::new(10.0, 10.0),
+                Point::new(10.0, 0.0),
+            )
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "0 0 m\n0 10 10 10 10 0 c\n");
+        assert_eq!(shape.last_point(), Some(Point::new(10.0, 0.0)));
+        assert_eq!(shape.rect(), Some(Rect::new(0.0, 0.0, 10.0, 10.0)));
+    }
+
+    #[test]
+    fn draw_curve_uses_kappa() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_curve(
+                Point::new(0.0, 0.0),
+                Point::new(0.0, 10.0),
+                Point::new(10.0, 10.0),
+            )
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "0 0 m\n0 5.52285 4.47715 10 10 10 c\n");
+    }
+
+    #[test]
+    fn draw_line_format_g_integration() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(1.234567, 0.0), Point::new(10.0, 0.5))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "1.23457 0 m\n10 0.5 l\n");
+    }
+
+    #[test]
+    fn draw_applies_ipctm() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::new(2.0, 0.0, 0.0, 3.0, 5.0, 7.0);
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "25 67 m\n65 127 l\n");
+        assert_eq!(shape.last_point(), Some(Point::new(30.0, 40.0)));
+    }
+
+    #[test]
+    fn drawing_builder_chain_compiles() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .draw_rect(&Rect::new(40.0, 50.0, 70.0, 90.0))
+            .unwrap();
+
+        assert_eq!(shape.draw_cont(), "10 20 m\n30 40 l\n40 50 30 40 re\n");
+        assert_eq!(shape.last_point(), Some(Point::new(40.0, 50.0)));
     }
 }
