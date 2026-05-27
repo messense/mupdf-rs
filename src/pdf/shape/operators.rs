@@ -1,4 +1,5 @@
-use crate::{Matrix, Point};
+use crate::pdf::FontInfo;
+use crate::{Font, Matrix, Point};
 
 #[derive(Clone, Copy)]
 pub(super) enum ColorRole {
@@ -98,6 +99,67 @@ pub(super) fn color_code(components: &[f32], role: ColorRole) -> String {
     format!("{components} {operator}\n")
 }
 
+pub(super) fn tj_str(text: &str, font_info: &FontInfo) -> String {
+    if text.starts_with("[<") && text.ends_with(">]") {
+        return text.to_owned();
+    }
+    if text.is_empty() {
+        return "[<>]".to_owned();
+    }
+
+    let mut hex = String::new();
+
+    if font_info.simple {
+        for ch in text.chars() {
+            let code = ch as u32;
+            let byte = if code < 256 {
+                font_info
+                    .glyphs
+                    .as_ref()
+                    .and_then(|glyphs| glyphs.get(&code))
+                    .and_then(|glyph| u8::try_from(*glyph).ok())
+                    .unwrap_or(code as u8)
+            } else {
+                0xb7
+            };
+            hex.push_str(&format!("{byte:02x}"));
+        }
+        return format!("[<{hex}>]");
+    }
+
+    let runtime_font = if font_info.ordering.is_none() {
+        Font::new(&font_info.name).ok()
+    } else {
+        None
+    };
+
+    for ch in text.chars() {
+        let code = ch as u32;
+        let glyph = if font_info.ordering.is_some() {
+            Some(code)
+        } else {
+            font_info
+                .glyphs
+                .as_ref()
+                .and_then(|glyphs| glyphs.get(&code))
+                .and_then(|glyph| u32::try_from(*glyph).ok())
+                .or_else(|| {
+                    runtime_font
+                        .as_ref()
+                        .and_then(|font| font.encode_character(code as i32).ok())
+                        .and_then(|glyph| u32::try_from(glyph).ok())
+                })
+                .or(Some(code))
+        };
+
+        if let Some(glyph) = glyph {
+            hex.push_str(&format!("{glyph:04x}"));
+        }
+    }
+
+    format!("[<{hex}>]")
+}
+
 pub(super) fn util_hor_matrix(c: Point, p: Point) -> Matrix {
     let s = (p - c).unit();
     Matrix::new(
@@ -113,6 +175,19 @@ pub(super) fn util_hor_matrix(c: Point, p: Point) -> Matrix {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pdf::FontInfo;
+    use std::collections::HashMap;
+
+    fn font_info(simple: bool, glyphs: Option<HashMap<u32, i32>>) -> FontInfo {
+        FontInfo {
+            ascender: 1.0,
+            descender: -0.2,
+            glyphs,
+            simple,
+            ordering: None,
+            name: "Helvetica".to_owned(),
+        }
+    }
 
     fn assert_point_near(actual: Point, expected: Point, epsilon: f32) {
         assert!(
@@ -249,5 +324,35 @@ mod tests {
         assert!((transformed.x - 50.0).abs() <= 1e-5);
         assert!(transformed.x > 0.0);
         assert!(transformed.y.abs() <= 1e-5);
+    }
+
+    #[test]
+    fn tj_str_simple_ascii_returns_single_byte_hex() {
+        assert_eq!(tj_str("AB", &font_info(true, None)), "[<4142>]");
+    }
+
+    #[test]
+    fn tj_str_empty_preserves_empty_hex_group() {
+        assert_eq!(tj_str("", &font_info(true, None)), "[<>]");
+    }
+
+    #[test]
+    fn tj_str_simple_latin1_returns_single_byte_lowercase_hex() {
+        assert_eq!(tj_str("é", &font_info(true, None)), "[<e9>]");
+    }
+
+    #[test]
+    fn tj_str_non_simple_uses_four_digit_glyph_ids() {
+        let glyphs = HashMap::from([('A' as u32, 0x41), ('B' as u32, 0x42)]);
+
+        assert_eq!(
+            tj_str("AB", &font_info(false, Some(glyphs))),
+            "[<00410042>]"
+        );
+    }
+
+    #[test]
+    fn tj_str_non_simple_falls_back_to_runtime_font_lookup() {
+        assert_eq!(tj_str("a", &font_info(false, None)), "[<0042>]");
     }
 }
