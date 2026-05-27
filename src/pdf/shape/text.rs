@@ -43,6 +43,10 @@ impl Shape<'_> {
         }
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
+        if let Some(oc_xref) = opts.oc {
+            let doc = self.page.document_handle()?;
+            PdfPage::validate_optional_content_xref(&doc, oc_xref)?;
+        }
 
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
@@ -56,16 +60,26 @@ impl Shape<'_> {
             let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
             (font_name, font_info)
         };
-        let opacity_name = {
+        let (oc_name, opacity_name) = {
             let mut doc = self.page.document_handle()?;
-            self.page
-                .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?
+            let oc_name = opts
+                .oc
+                .map(|oc_xref| self.page.register_optional_content(&mut doc, oc_xref))
+                .transpose()?;
+            let opacity_name =
+                self.page
+                    .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?;
+            (oc_name, opacity_name)
         };
 
         let origin = point.mul_matrix(&self.ipctm);
         let line_advance = opts.fontsize * opts.lineheight;
         let mut block = String::new();
-        block.push_str("q\nBT\n");
+        block.push_str("q\n");
+        if let Some(oc_name) = &oc_name {
+            block.push_str(&format!("/OC {oc_name} BDC\n"));
+        }
+        block.push_str("BT\n");
         if let Some(opacity_name) = &opacity_name {
             block.push_str(&format!("{opacity_name} gs\n"));
         }
@@ -105,7 +119,11 @@ impl Shape<'_> {
             block.push_str(" TJ\n");
         }
 
-        block.push_str("ET\nQ\n");
+        block.push_str("ET\n");
+        if oc_name.is_some() {
+            block.push_str("EMC\n");
+        }
+        block.push_str("Q\n");
         self.text_cont.push_str(&block);
         Ok(self)
     }

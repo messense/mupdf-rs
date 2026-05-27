@@ -1,6 +1,6 @@
 use super::operators::{color_code, format_g, ColorRole};
 use super::{FinishOptions, Shape};
-use crate::pdf::PdfDocument;
+use crate::pdf::{PdfDocument, PdfPage};
 use crate::{Buffer, Error, Matrix, Point};
 
 impl Shape<'_> {
@@ -12,10 +12,22 @@ impl Shape<'_> {
             return Ok(self);
         }
 
-        let opacity_name = {
+        PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
+        if let Some(oc_xref) = opts.oc {
+            let doc = self.page.document_handle()?;
+            PdfPage::validate_optional_content_xref(&doc, oc_xref)?;
+        }
+
+        let (oc_name, opacity_name) = {
             let mut doc = self.page.document_handle()?;
-            self.page
-                .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?
+            let oc_name = opts
+                .oc
+                .map(|oc_xref| self.page.register_optional_content(&mut doc, oc_xref))
+                .transpose()?;
+            let opacity_name =
+                self.page
+                    .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?;
+            (oc_name, opacity_name)
         };
 
         let mut block = String::new();
@@ -29,6 +41,9 @@ impl Shape<'_> {
                     &self.ipctm,
                 )));
             }
+        }
+        if let Some(oc_name) = &oc_name {
+            block.push_str(&format!("/OC {oc_name} BDC\n"));
         }
         if let Some(opacity_name) = &opacity_name {
             block.push_str(&format!("{opacity_name} gs\n"));
@@ -62,7 +77,11 @@ impl Shape<'_> {
             block.push_str("h\n");
         }
         block.push_str(paint_operator(opts));
-        block.push_str("\nQ\n");
+        block.push('\n');
+        if oc_name.is_some() {
+            block.push_str("EMC\n");
+        }
+        block.push_str("Q\n");
 
         self.total_cont.push_str(&block);
         self.draw_cont.clear();
@@ -228,6 +247,25 @@ mod tests {
             .and_then(|resources| resources.get_dict("ExtGState").unwrap())
     }
 
+    fn page_properties(page: &PdfPage) -> Option<PdfObject> {
+        page.object()
+            .get_dict("Resources")
+            .unwrap()
+            .and_then(|resources| resources.get_dict("Properties").unwrap())
+    }
+
+    fn properties_entries(page: &PdfPage) -> Vec<(String, PdfObject)> {
+        let properties = page_properties(page).expect("Properties resource dict");
+        (0..properties.dict_len().unwrap())
+            .map(|index| {
+                let key = properties.get_dict_key(index as i32).unwrap().unwrap();
+                let key = str::from_utf8(key.as_name().unwrap()).unwrap().to_owned();
+                let value = properties.get_dict_val(index as i32).unwrap().unwrap();
+                (key, value)
+            })
+            .collect()
+    }
+
     fn ext_gstate_entries(page: &PdfPage) -> Vec<(String, PdfObject)> {
         let ext_gstates = page_ext_gstates(page).expect("ExtGState resource dict");
         (0..ext_gstates.dict_len().unwrap())
@@ -244,6 +282,20 @@ mod tests {
         Matrix::new_translate(-fixpoint.x, -fixpoint.y)
             * matrix
             * Matrix::new_translate(fixpoint.x, fixpoint.y)
+    }
+
+    fn add_ocg(doc: &mut PdfDocument, name: &str) -> i32 {
+        let mut ocg = doc.new_dict_with_capacity(2).unwrap();
+        ocg.dict_put("Type", PdfObject::new_name("OCG").unwrap())
+            .unwrap();
+        ocg.dict_put("Name", PdfObject::new_string(name).unwrap())
+            .unwrap();
+        doc.add_object(&ocg).unwrap().as_indirect().unwrap()
+    }
+
+    fn add_indirect_string(doc: &mut PdfDocument, value: &str) -> i32 {
+        let string = PdfObject::new_string(value).unwrap();
+        doc.add_object(&string).unwrap().as_indirect().unwrap()
     }
 
     #[test]
@@ -630,6 +682,144 @@ mod tests {
     }
 
     mod m5 {
+        pub mod oc {
+            use super::super::*;
+
+            #[test]
+            fn finish_wraps_bdc_emc() {
+                let mut doc = PdfDocument::new();
+                let oc_xref = add_ocg(&mut doc, "Layer 1");
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap()
+                    .finish(&FinishOptions {
+                        oc: Some(oc_xref),
+                        ..Default::default()
+                    })
+                    .unwrap();
+
+                let entries = properties_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+                assert_eq!(
+                    shape.total_cont(),
+                    format!(
+                        "q\n/OC /{} BDC\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nEMC\nQ\n",
+                        entries[0].0
+                    )
+                );
+            }
+
+            #[test]
+            fn text_wraps_bdc_emc() {
+                let mut doc = PdfDocument::new();
+                let oc_xref = add_ocg(&mut doc, "Text Layer");
+                let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+
+                shape
+                    .insert_text(
+                        Point::new(50.0, 100.0),
+                        "Hi",
+                        &TextOptions {
+                            oc: Some(oc_xref),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                let entries = properties_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+                assert_eq!(
+                    shape.text_cont(),
+                    format!(
+                        "q\n/OC /{} BDC\nBT\n1 0 0 1 50 700 Tm\n/F0 11 Tf\n[<4869>] TJ\nET\nEMC\nQ\n",
+                        entries[0].0
+                    )
+                );
+            }
+
+            #[test]
+            fn idempotent_properties_slot() {
+                let mut doc = PdfDocument::new();
+                let oc_xref = add_ocg(&mut doc, "Shared Layer");
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+                let opts = FinishOptions {
+                    oc: Some(oc_xref),
+                    ..Default::default()
+                };
+
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap()
+                    .finish(&opts)
+                    .unwrap()
+                    .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
+                    .unwrap()
+                    .finish(&opts)
+                    .unwrap();
+
+                let entries = properties_entries(shape.page());
+                assert_eq!(entries.len(), 1);
+                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+                assert_eq!(
+                    shape
+                        .total_cont()
+                        .matches(&format!("/OC /{} BDC\n", entries[0].0))
+                        .count(),
+                    2
+                );
+            }
+
+            #[test]
+            fn invalid_oc_xref_errors() {
+                let mut doc = PdfDocument::new();
+                let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape.ipctm = Matrix::IDENTITY;
+                shape
+                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                    .unwrap();
+                let draw_before = shape.draw_cont().to_owned();
+
+                let result = shape.finish(&FinishOptions {
+                    oc: Some(invalid_xref),
+                    ..Default::default()
+                });
+
+                assert!(result.is_err());
+                assert_eq!(shape.draw_cont(), draw_before);
+                assert!(shape.total_cont().is_empty());
+                assert!(page_properties(shape.page()).is_none());
+
+                let mut doc = PdfDocument::new();
+                let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
+                let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+
+                let result = shape.insert_text(
+                    Point::new(50.0, 100.0),
+                    "Hi",
+                    &TextOptions {
+                        oc: Some(invalid_xref),
+                        ..Default::default()
+                    },
+                );
+
+                assert!(result.is_err());
+                assert!(shape.text_cont().is_empty());
+                assert!(page_properties(shape.page()).is_none());
+            }
+        }
+
         pub mod opacity {
             use super::super::*;
 

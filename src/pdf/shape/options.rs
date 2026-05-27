@@ -81,6 +81,8 @@ pub struct FinishOptions {
     pub stroke_opacity: Option<f32>,
     /// Optional fill alpha for PDF `/ExtGState` `/ca`.
     pub fill_opacity: Option<f32>,
+    /// Optional-content group or membership dictionary xref for PDF marked content.
+    pub oc: Option<i32>,
 }
 
 impl Default for FinishOptions {
@@ -98,6 +100,7 @@ impl Default for FinishOptions {
             morph: None,
             stroke_opacity: None,
             fill_opacity: None,
+            oc: None,
         }
     }
 }
@@ -131,6 +134,8 @@ pub struct TextOptions {
     pub stroke_opacity: Option<f32>,
     /// Optional fill alpha for PDF `/ExtGState` `/ca`.
     pub fill_opacity: Option<f32>,
+    /// Optional-content group or membership dictionary xref for PDF marked content.
+    pub oc: Option<i32>,
 }
 
 impl Default for TextOptions {
@@ -149,6 +154,7 @@ impl Default for TextOptions {
             encoding: SimpleFontEncoding::Latin,
             stroke_opacity: None,
             fill_opacity: None,
+            oc: None,
         }
     }
 }

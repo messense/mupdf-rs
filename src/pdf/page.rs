@@ -384,6 +384,94 @@ impl PdfPage {
         Ok(format!("A{index}"))
     }
 
+    pub(crate) fn validate_optional_content_xref(
+        doc: &PdfDocument,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let oc_ref = doc.new_indirect(oc_xref, 0)?;
+        let Some(oc_obj) = oc_ref.resolve()? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} does not resolve to an object"
+            )));
+        };
+        if !oc_obj.is_dict()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} must point to an OCG or OCMD dictionary"
+            )));
+        }
+
+        let Some(type_obj) = oc_obj.get_dict("Type")? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} is missing /Type"
+            )));
+        };
+        if !type_obj.is_name()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} has non-name /Type"
+            )));
+        }
+
+        match type_obj.as_name()? {
+            b"OCG" | b"OCMD" => Ok(()),
+            _ => Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} must have /Type /OCG or /OCMD"
+            ))),
+        }
+    }
+
+    fn find_optional_content_resource(
+        properties: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<Option<String>, Error> {
+        for idx in 0..properties.dict_len()? {
+            let Some(key) = properties.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = properties.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if value.is_indirect()? && value.as_indirect()? == oc_xref {
+                return Ok(Some(format!("/{key_name}")));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_optional_content_resource_slot(
+        properties: Option<&PdfObject>,
+    ) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(properties) = properties {
+            for idx in 0..properties.dict_len()? {
+                let Some(key) = properties.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('P')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("P{index}"))
+    }
+
     /// Registers or reuses a page `/ExtGState` entry for stroke and fill opacity.
     ///
     /// Returns a PDF resource name (including the leading slash) when either opacity is set.
@@ -440,6 +528,51 @@ impl PdfPage {
         ext_gstates.dict_put(slot_name.as_str(), ext_gstate)?;
 
         Ok(Some(format!("/{slot_name}")))
+    }
+
+    /// Registers or reuses a page `/Properties` entry for optional content.
+    ///
+    /// Returns a PDF resource name (including the leading slash). The supplied xref must
+    /// resolve to an OCG or OCMD dictionary. Reusing the same xref on the same page returns
+    /// the existing `/Properties` slot without adding another resource entry.
+    pub fn register_optional_content(
+        &mut self,
+        doc: &mut PdfDocument,
+        oc_xref: i32,
+    ) -> Result<String, Error> {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+
+        Self::validate_optional_content_xref(doc, oc_xref)?;
+        let oc_ref = doc.new_indirect(oc_xref, 0)?;
+
+        let mut resources = self.resources()?;
+        let existing_properties = match resources.get_dict("Properties")? {
+            Some(properties) if properties.is_dict()? => Some(properties),
+            _ => None,
+        };
+
+        if let Some(properties) = existing_properties.as_ref() {
+            if let Some(name) = Self::find_optional_content_resource(properties, oc_xref)? {
+                return Ok(name);
+            }
+        }
+
+        let slot_name = Self::next_optional_content_resource_slot(existing_properties.as_ref())?;
+        let mut properties = if let Some(properties) = existing_properties {
+            properties
+        } else {
+            let properties = doc.new_dict()?;
+            resources.dict_put_ref("Properties", &properties)?;
+            properties
+        };
+
+        properties.dict_put_ref(slot_name.as_str(), &oc_ref)?;
+
+        Ok(format!("/{slot_name}"))
     }
 
     fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
