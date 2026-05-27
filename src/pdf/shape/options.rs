@@ -1,3 +1,5 @@
+use crate::{Matrix, Point};
+
 /// Color components for Shape drawing operators.
 #[derive(Clone, Debug, PartialEq)]
 pub enum PdfColor {
@@ -73,6 +75,8 @@ pub struct FinishOptions {
     pub even_odd: bool,
     /// Whether to close the current path before painting.
     pub close_path: bool,
+    /// Optional fixed-point morph transform applied to this finished drawing block.
+    pub morph: Option<(Point, Matrix)>,
 }
 
 impl Default for FinishOptions {
@@ -87,6 +91,7 @@ impl Default for FinishOptions {
             dashes: None,
             even_odd: false,
             close_path: false,
+            morph: None,
         }
     }
 }

@@ -1,7 +1,7 @@
 use super::operators::{color_code, format_g, ColorRole};
 use super::{FinishOptions, Shape};
 use crate::pdf::PdfDocument;
-use crate::{Buffer, Error};
+use crate::{Buffer, Error, Matrix, Point};
 
 impl Shape<'_> {
     /// Finishes the currently accumulated drawing path and appends it to the total buffer.
@@ -14,6 +14,16 @@ impl Shape<'_> {
 
         let mut block = String::new();
         block.push_str("q\n");
+        if let Some((fixpoint, matrix)) = &opts.morph {
+            if matrix != &Matrix::IDENTITY {
+                block.push_str(&cm_operator(&morph_matrix(
+                    *fixpoint,
+                    matrix,
+                    &self.pctm,
+                    &self.ipctm,
+                )));
+            }
+        }
         block.push_str(&self.draw_cont);
         block.push_str(&format!("{} w\n", format_g(opts.width)));
 
@@ -87,6 +97,25 @@ impl Shape<'_> {
     }
 }
 
+fn morph_matrix(fixpoint: Point, matrix: &Matrix, pctm: &Matrix, ipctm: &Matrix) -> Matrix {
+    let user_morph = Matrix::new_translate(-fixpoint.x, -fixpoint.y)
+        * matrix
+        * Matrix::new_translate(fixpoint.x, fixpoint.y);
+    pctm * user_morph * ipctm
+}
+
+fn cm_operator(matrix: &Matrix) -> String {
+    format!(
+        "{} {} {} {} {} {} cm\n",
+        format_g(matrix.a),
+        format_g(matrix.b),
+        format_g(matrix.c),
+        format_g(matrix.d),
+        format_g(matrix.e),
+        format_g(matrix.f)
+    )
+}
+
 fn paint_operator(opts: &FinishOptions) -> &'static str {
     match (opts.color.is_some(), opts.fill.is_some(), opts.even_odd) {
         (true, true, true) => "B*",
@@ -102,12 +131,14 @@ fn paint_operator(opts: &FinishOptions) -> &'static str {
 mod tests {
     use super::super::{FinishOptions, PdfColor, Shape};
     use crate::pdf::{PdfDocument, PdfPage};
-    use crate::{Matrix, Point, Rect, Size};
+    use crate::{Colorspace, Image, ImageFormat, Matrix, Point, Quad, Rect, Size};
+    use std::path::Path;
 
     fn finished_line(opts: &FinishOptions) -> String {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut shape = Shape::new(&mut page).unwrap();
+        shape.pctm = Matrix::IDENTITY;
         shape.ipctm = Matrix::IDENTITY;
 
         shape
@@ -123,6 +154,7 @@ mod tests {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut shape = Shape::new(&mut page).unwrap();
+        shape.pctm = Matrix::IDENTITY;
         shape.ipctm = Matrix::IDENTITY;
 
         shape
@@ -149,6 +181,42 @@ mod tests {
             .collect()
     }
 
+    fn render_page(page: &PdfPage) -> crate::Pixmap {
+        page.to_pixmap(
+            &Matrix::new_scale(1.0, 1.0),
+            &Colorspace::device_rgb(),
+            false,
+            true,
+        )
+        .unwrap()
+    }
+
+    fn assert_pixmaps_equal(actual: &crate::Pixmap, expected: &crate::Pixmap) {
+        assert_eq!(actual.width(), expected.width());
+        assert_eq!(actual.height(), expected.height());
+        assert_eq!(actual.n(), expected.n());
+        assert_eq!(actual.samples(), expected.samples());
+    }
+
+    fn assert_snapshot(snapshot: &str, rendered: &crate::Pixmap) {
+        if std::env::var_os("UPDATE_SHAPE_SNAPSHOTS").is_some() {
+            rendered.save_as(snapshot, ImageFormat::PNG).unwrap();
+        }
+
+        assert!(
+            Path::new(snapshot).exists(),
+            "missing snapshot {snapshot}; rerun with UPDATE_SHAPE_SNAPSHOTS=1"
+        );
+        let expected = Image::from_file(snapshot).unwrap().to_pixmap().unwrap();
+        assert_pixmaps_equal(rendered, &expected);
+    }
+
+    fn fixpoint_matrix(fixpoint: Point, matrix: Matrix) -> Matrix {
+        Matrix::new_translate(-fixpoint.x, -fixpoint.y)
+            * matrix
+            * Matrix::new_translate(fixpoint.x, fixpoint.y)
+    }
+
     #[test]
     fn finish_default_stroke_wrapping() {
         let mut doc = PdfDocument::new();
@@ -169,6 +237,179 @@ mod tests {
         assert!(shape.draw_cont().is_empty());
         assert_eq!(shape.last_point(), None);
         assert_eq!(shape.rect(), None);
+    }
+
+    #[test]
+    fn morph_identity_matrix_is_noop() {
+        let without_morph = finish_rect(&FinishOptions::default());
+        let with_identity_morph = finish_rect(&FinishOptions {
+            morph: Some((Point::new(50.0, 50.0), Matrix::IDENTITY)),
+            ..Default::default()
+        });
+
+        assert_eq!(with_identity_morph, without_morph);
+        assert!(!with_identity_morph.contains(" cm\n"));
+    }
+
+    #[test]
+    fn morph_non_identity_prepends_cm_operator() {
+        let total_cont = finish_rect(&FinishOptions {
+            morph: Some((Point::new(50.0, 50.0), Matrix::new_rotate(90.0))),
+            ..Default::default()
+        });
+
+        assert_eq!(
+            total_cont,
+            "q\n0 1 -1 0 100 0 cm\n10 20 30 40 re\n1 w\n0 0 0 RG\nS\nQ\n"
+        );
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn morph_rotation_renders_rotated_shape() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let rendered = {
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_rect(&Rect::new(80.0, 95.0, 120.0, 105.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+                    morph: Some((Point::new(100.0, 100.0), Matrix::new_rotate(90.0))),
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        assert_snapshot("tests/shape/snapshots/m3_morph_rotated_rect.png", &rendered);
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn morph_scale_about_fixpoint() {
+        let morphed = {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_circle(Point::new(100.0, 100.0), 20.0)
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(0.0, 0.0, 1.0)),
+                    morph: Some((Point::new(100.0, 100.0), Matrix::new_scale(2.0, 2.0))),
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        let manual = {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_circle(Point::new(100.0, 100.0), 40.0)
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(0.0, 0.0, 1.0)),
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        assert_pixmaps_equal(&morphed, &manual);
+    }
+
+    #[test]
+    fn morph_does_not_leak_into_subsequent_finish() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.ipctm = Matrix::IDENTITY;
+
+        shape
+            .draw_rect(&Rect::new(80.0, 95.0, 120.0, 105.0))
+            .unwrap()
+            .finish(&FinishOptions {
+                morph: Some((Point::new(100.0, 100.0), Matrix::new_rotate(90.0))),
+                ..Default::default()
+            })
+            .unwrap()
+            .draw_circle(Point::new(200.0, 200.0), 20.0)
+            .unwrap()
+            .finish(&FinishOptions::default())
+            .unwrap();
+
+        let total_cont = shape.total_cont();
+        assert_eq!(total_cont.matches(" cm\n").count(), 1);
+
+        let mut blocks = total_cont.split("Q\nq\n");
+        assert!(blocks.next().unwrap().contains(" cm\n"));
+        assert!(!blocks.next().unwrap().contains(" cm\n"));
+    }
+
+    #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn morph_forty_five_degree_rect_matches_manual_transform() {
+        let fixpoint = Point::new(100.0, 100.0);
+        let rotation = Matrix::new_rotate(45.0);
+        let morphed = {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_rect(&Rect::new(80.0, 80.0, 120.0, 120.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(0.0, 0.5, 0.0)),
+                    morph: Some((fixpoint, rotation.clone())),
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        let manual = {
+            let transform = fixpoint_matrix(fixpoint, rotation);
+            let rect = Rect::new(80.0, 80.0, 120.0, 120.0);
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .draw_quad(Quad::new(
+                    rect.tl().mul_matrix(&transform),
+                    rect.tr().mul_matrix(&transform),
+                    rect.bl().mul_matrix(&transform),
+                    rect.br().mul_matrix(&transform),
+                ))
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(0.0, 0.5, 0.0)),
+                    ..Default::default()
+                })
+                .unwrap()
+                .commit(&mut doc, true)
+                .unwrap();
+            render_page(shape.page())
+        };
+
+        assert_pixmaps_equal(&morphed, &manual);
     }
 
     #[test]
