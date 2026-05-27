@@ -576,7 +576,7 @@ impl PdfPage {
     }
 
     fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
-        let opts_simple = opts.simple && opts.ordering.is_none();
+        let opts_simple = opts.simple && opts.ordering.is_none() && opts.fontfile.is_none();
         if info.name != name
             || info.simple != opts_simple
             || info.ordering != opts.ordering
@@ -829,9 +829,16 @@ impl PdfPage {
             Font::new(canonical_name)?
         };
 
+        let simple = opts.simple && opts.ordering.is_none() && opts.fontfile.is_none();
+        let glyphs = if opts.fontfile.is_some() && opts.ordering.is_none() {
+            Some(Self::font_glyph_map(&font))
+        } else {
+            None
+        };
+
         let font_obj = if let Some(ordering) = opts.ordering {
             doc.add_cjk_font(&font, ordering, opts.wmode, opts.serif)?
-        } else if opts.simple {
+        } else if simple {
             doc.add_simple_font(&font, opts.encoding)?
         } else {
             doc.add_font(&font)?
@@ -840,8 +847,8 @@ impl PdfPage {
         let info = FontInfo {
             ascender: font.ascender(),
             descender: font.descender(),
-            glyphs: None,
-            simple: opts.simple && opts.ordering.is_none(),
+            glyphs,
+            simple,
             encoding: opts.encoding,
             ordering: opts.ordering,
             wmode: opts.wmode,
@@ -851,6 +858,16 @@ impl PdfPage {
         };
 
         Ok((font_obj, info))
+    }
+
+    fn font_glyph_map(font: &Font) -> HashMap<u32, i32> {
+        let mut glyphs = HashMap::new();
+        for code in 0..=255_u32 {
+            if let Ok(glyph) = font.encode_character(code as i32) {
+                glyphs.insert(code, glyph);
+            }
+        }
+        glyphs
     }
 
     pub fn insert_font(
@@ -871,8 +888,16 @@ impl PdfPage {
                 .to_owned(),
         };
 
-        let mut resources = self.resources()?;
-        let existing_font_dict = match resources.get_dict("Font")? {
+        let existing_resources = match self.object().get_dict("Resources")? {
+            Some(resources) if resources.is_dict()? => Some(resources),
+            _ => None,
+        };
+        let existing_font_dict = match existing_resources
+            .as_ref()
+            .map(|resources| resources.get_dict("Font"))
+            .transpose()?
+            .flatten()
+        {
             Some(font_dict) if font_dict.is_dict()? => Some(font_dict),
             _ => None,
         };
@@ -895,6 +920,10 @@ impl PdfPage {
         let xref = font_obj.as_indirect()?;
 
         let slot_name = Self::next_font_resource_slot(existing_font_dict.as_ref())?;
+        let mut resources = match existing_resources {
+            Some(resources) => resources,
+            None => self.resources()?,
+        };
         let mut font_dict = if let Some(font_dict) = existing_font_dict {
             font_dict
         } else {
@@ -1366,7 +1395,11 @@ mod test {
     use crate::pdf::{
         InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
     };
-    use crate::{Buffer, Matrix, Rect, SimpleFontEncoding, Size};
+    use crate::{
+        Buffer, CjkFontOrdering, Matrix, Point, Rect, Shape, SimpleFontEncoding, Size, TextOptions,
+    };
+
+    const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../../tests/files/custom.ttf");
 
     fn contents_xrefs(page: &PdfPage) -> Vec<i32> {
         let contents = page.contents().unwrap().unwrap();
@@ -1398,6 +1431,13 @@ mod test {
         InsertFontOptions::new(name)
     }
 
+    fn custom_font_options<'a>(name: &'a str, bytes: &'a [u8]) -> InsertFontOptions<'a> {
+        InsertFontOptions {
+            fontfile: Some(bytes),
+            ..InsertFontOptions::new(name)
+        }
+    }
+
     fn page_font_dict(page: &PdfPage) -> PdfObject {
         page.resources().unwrap().get_dict("Font").unwrap().unwrap()
     }
@@ -1409,6 +1449,12 @@ mod test {
             .unwrap()
             .as_indirect()
             .unwrap()
+    }
+
+    fn page_font_dict_len_without_creating_resources(page: &PdfPage) -> Option<usize> {
+        let resources = page.object().get_dict("Resources").unwrap()?;
+        let font_dict = resources.get_dict("Font").unwrap()?;
+        Some(font_dict.dict_len().unwrap() as usize)
     }
 
     fn new_page_with_contents_array(
@@ -1980,5 +2026,111 @@ mod test {
             .unwrap()
             .is_none());
         assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+    }
+
+    mod m5 {
+        pub mod fonts {
+            use super::super::*;
+
+            #[test]
+            fn custom_ttf_via_add_font() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let opts = custom_font_options("CustomPdfFont", CUSTOM_FONT_BYTES);
+
+                let (slot, xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+
+                assert_eq!(slot, "/F0");
+                assert!(xref > 0);
+                assert_eq!(page_font_xref(&page, "F0"), xref);
+                assert_eq!(info.name, "CustomPdfFont");
+                assert!(!info.simple);
+                assert_eq!(info.ordering, None);
+                assert!(info.fontfile_hash.is_some());
+                assert!(info
+                    .glyphs
+                    .as_ref()
+                    .is_some_and(|glyphs| glyphs.contains_key(&('A' as u32))));
+                assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
+
+                let font_obj = doc.new_indirect(xref, 0).unwrap();
+                let subtype = font_obj
+                    .get_dict("Subtype")
+                    .unwrap()
+                    .unwrap()
+                    .as_name()
+                    .unwrap()
+                    .to_vec();
+                assert_eq!(subtype, b"Type0");
+            }
+
+            #[test]
+            fn cjk_font_registers_with_ordering() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let opts = InsertFontOptions {
+                    fontfile: Some(CUSTOM_FONT_BYTES),
+                    ordering: Some(CjkFontOrdering::AdobeJapan),
+                    ..InsertFontOptions::new("CustomCjkFont")
+                };
+
+                let (_slot, _xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+
+                assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
+                assert!(!info.simple);
+
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                let mut shape = Shape::new(&mut page).unwrap();
+                shape
+                    .insert_text(
+                        Point::new(50.0, 100.0),
+                        "A",
+                        &TextOptions {
+                            fontname: "CustomCjkFont".to_owned(),
+                            fontfile: Some(CUSTOM_FONT_BYTES),
+                            ordering: Some(CjkFontOrdering::AdobeJapan),
+                            ..Default::default()
+                        },
+                    )
+                    .unwrap();
+
+                assert!(shape.text_cont().contains("[<0041>] TJ"));
+            }
+
+            #[test]
+            fn custom_font_shared_across_pages() {
+                let mut doc = PdfDocument::new();
+                let mut first_page = doc.new_page(Size::A4).unwrap();
+                let mut second_page = doc.new_page(Size::A4).unwrap();
+                let opts = custom_font_options("SharedCustomFont", CUSTOM_FONT_BYTES);
+
+                let first = first_page.insert_font(&mut doc, &opts).unwrap();
+                let second = second_page.insert_font(&mut doc, &opts).unwrap();
+
+                assert_eq!(first.1, second.1);
+                assert_eq!(page_font_xref(&first_page, "F0"), first.1);
+                assert_eq!(page_font_xref(&second_page, "F0"), first.1);
+                assert_eq!(doc.font_info_cache.borrow().len(), 1);
+            }
+
+            #[test]
+            fn malformed_bytes_errors() {
+                let mut doc = PdfDocument::new();
+                let mut page = doc.new_page(Size::A4).unwrap();
+                page.object().dict_delete("Resources").unwrap();
+                let cache_len = doc.font_info_cache.borrow().len();
+                let object_count = doc.count_objects().unwrap();
+                let opts = custom_font_options("BrokenFont", b"not a font");
+
+                let result = page.insert_font(&mut doc, &opts);
+
+                assert!(result.is_err());
+                assert!(page.object().get_dict("Resources").unwrap().is_none());
+                assert_eq!(page_font_dict_len_without_creating_resources(&page), None);
+                assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+                assert_eq!(doc.count_objects().unwrap(), object_count);
+            }
+        }
     }
 }

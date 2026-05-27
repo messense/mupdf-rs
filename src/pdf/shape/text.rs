@@ -50,12 +50,15 @@ impl Shape<'_> {
 
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
+            let fontname = opts.fontname.trim_start_matches('/');
             let font_opts = InsertFontOptions {
-                name: opts.fontname.trim_start_matches('/'),
-                fontfile: None,
+                name: fontname,
+                fontfile: opts.fontfile,
                 simple: opts.simple,
                 encoding: opts.encoding,
-                ..InsertFontOptions::new(opts.fontname.trim_start_matches('/'))
+                ordering: opts.ordering,
+                wmode: opts.wmode,
+                serif: opts.serif,
             };
             let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
             (font_name, font_info)
@@ -172,17 +175,20 @@ impl Shape<'_> {
 
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
+            let fontname = opts.fontname.trim_start_matches('/');
             let font_opts = InsertFontOptions {
-                name: opts.fontname.trim_start_matches('/'),
-                fontfile: None,
+                name: fontname,
+                fontfile: opts.fontfile,
                 simple: opts.simple,
                 encoding: opts.encoding,
-                ..InsertFontOptions::new(opts.fontname.trim_start_matches('/'))
+                ordering: opts.ordering,
+                wmode: opts.wmode,
+                serif: opts.serif,
             };
             let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
             (font_name, font_info)
         };
-        let font = Font::new(&font_info.name)?;
+        let font = font_for_text_metrics(&font_info.name, opts.fontfile)?;
 
         let max_width = textbox_line_width(rect, rotate);
         let max_height = textbox_line_capacity_height(rect, rotate);
@@ -466,6 +472,13 @@ fn text_width(
         width += font.advance_glyph(glyph)? * fontsize;
     }
     Ok(width)
+}
+
+fn font_for_text_metrics(name: &str, fontfile: Option<&[u8]>) -> Result<Font, Error> {
+    match fontfile {
+        Some(bytes) => Font::from_bytes(name, bytes),
+        None => Font::new(name),
+    }
 }
 
 #[cfg(test)]

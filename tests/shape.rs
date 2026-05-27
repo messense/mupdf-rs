@@ -18,3 +18,6 @@ mod m5_justify_alignment;
 
 #[path = "shape/m5_opacity_extgstate.rs"]
 mod m5_opacity_extgstate;
+
+#[path = "shape/m5_custom_fonts.rs"]
+mod m5_custom_fonts;

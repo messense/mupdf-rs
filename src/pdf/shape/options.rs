@@ -1,4 +1,4 @@
-use crate::{Matrix, Point, SimpleFontEncoding};
+use crate::{CjkFontOrdering, Matrix, Point, SimpleFontEncoding, WriteMode};
 
 /// Color components for Shape drawing operators.
 #[derive(Clone, Debug, PartialEq)]
@@ -107,13 +107,15 @@ impl Default for FinishOptions {
 
 /// Options controlling text inserted by [`Shape::insert_text`](super::Shape::insert_text).
 #[derive(Clone, Debug, PartialEq)]
-pub struct TextOptions {
+pub struct TextOptions<'a> {
     /// Font size in PDF user-space units.
     pub fontsize: f32,
     /// Line height multiplier. Consecutive baselines are spaced by `fontsize * lineheight`.
     pub lineheight: f32,
     /// Base-14 font alias or canonical font name. Defaults to PyMuPDF's `helv`.
     pub fontname: String,
+    /// Optional TrueType/OpenType font bytes to register for this text block.
+    pub fontfile: Option<&'a [u8]>,
     /// Stroke color used by text rendering modes that stroke glyph outlines.
     pub color: Option<PdfColor>,
     /// Fill color used by text rendering modes that fill glyph outlines.
@@ -130,6 +132,12 @@ pub struct TextOptions {
     pub simple: bool,
     /// Encoding used when registering a simple font.
     pub encoding: SimpleFontEncoding,
+    /// Optional CJK collection ordering for composite font registration.
+    pub ordering: Option<CjkFontOrdering>,
+    /// Writing mode used when registering a CJK font.
+    pub wmode: WriteMode,
+    /// Whether CJK fallback metrics should prefer serif glyphs.
+    pub serif: bool,
     /// Optional stroke alpha for PDF `/ExtGState` `/CA`.
     pub stroke_opacity: Option<f32>,
     /// Optional fill alpha for PDF `/ExtGState` `/ca`.
@@ -138,12 +146,13 @@ pub struct TextOptions {
     pub oc: Option<i32>,
 }
 
-impl Default for TextOptions {
+impl Default for TextOptions<'_> {
     fn default() -> Self {
         Self {
             fontsize: 11.0,
             lineheight: 1.2,
             fontname: "helv".to_owned(),
+            fontfile: None,
             color: None,
             fill: None,
             render_mode: 0,
@@ -152,6 +161,9 @@ impl Default for TextOptions {
             rotate: 0,
             simple: true,
             encoding: SimpleFontEncoding::Latin,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
             stroke_opacity: None,
             fill_opacity: None,
             oc: None,
@@ -175,13 +187,15 @@ pub enum TextAlign {
 
 /// Options controlling text inserted by [`Shape::insert_textbox`](super::Shape::insert_textbox).
 #[derive(Clone, Debug, PartialEq)]
-pub struct TextboxOptions {
+pub struct TextboxOptions<'a> {
     /// Font size in PDF user-space units.
     pub fontsize: f32,
     /// Line height multiplier. Consecutive baselines are spaced by `fontsize * lineheight`.
     pub lineheight: f32,
     /// Base-14 font alias or canonical font name. Defaults to PyMuPDF's `helv`.
     pub fontname: String,
+    /// Optional TrueType/OpenType font bytes to register for this text box.
+    pub fontfile: Option<&'a [u8]>,
     /// Stroke color used by text rendering modes that stroke glyph outlines.
     pub color: Option<PdfColor>,
     /// Fill color used by text rendering modes that fill glyph outlines.
@@ -198,16 +212,23 @@ pub struct TextboxOptions {
     pub simple: bool,
     /// Encoding used when registering a simple font.
     pub encoding: SimpleFontEncoding,
+    /// Optional CJK collection ordering for composite font registration.
+    pub ordering: Option<CjkFontOrdering>,
+    /// Writing mode used when registering a CJK font.
+    pub wmode: WriteMode,
+    /// Whether CJK fallback metrics should prefer serif glyphs.
+    pub serif: bool,
     /// Line alignment within the textbox.
     pub align: TextAlign,
 }
 
-impl Default for TextboxOptions {
+impl Default for TextboxOptions<'_> {
     fn default() -> Self {
         Self {
             fontsize: 11.0,
             lineheight: 1.2,
             fontname: "helv".to_owned(),
+            fontfile: None,
             color: None,
             fill: None,
             render_mode: 0,
@@ -216,17 +237,21 @@ impl Default for TextboxOptions {
             rotate: 0,
             simple: true,
             encoding: SimpleFontEncoding::Latin,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
             align: TextAlign::Left,
         }
     }
 }
 
-impl From<TextOptions> for TextboxOptions {
-    fn from(value: TextOptions) -> Self {
+impl<'a> From<TextOptions<'a>> for TextboxOptions<'a> {
+    fn from(value: TextOptions<'a>) -> Self {
         Self {
             fontsize: value.fontsize,
             lineheight: value.lineheight,
             fontname: value.fontname,
+            fontfile: value.fontfile,
             color: value.color,
             fill: value.fill,
             render_mode: value.render_mode,
@@ -235,6 +260,9 @@ impl From<TextOptions> for TextboxOptions {
             rotate: value.rotate,
             simple: value.simple,
             encoding: value.encoding,
+            ordering: value.ordering,
+            wmode: value.wmode,
+            serif: value.serif,
             align: TextAlign::Left,
         }
     }
