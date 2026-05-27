@@ -1,7 +1,7 @@
 use super::operators::{color_code, format_g, tj_str, ColorRole};
-use super::{Shape, TextOptions};
+use super::{Shape, TextAlign, TextOptions, TextboxOptions};
 use crate::pdf::InsertFontOptions;
-use crate::{Error, Point};
+use crate::{Error, Font, Point, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct TextMatrix {
@@ -93,6 +93,145 @@ impl Shape<'_> {
         self.text_cont.push_str(&block);
         Ok(self)
     }
+
+    /// Inserts word-wrapped text into `rect`.
+    ///
+    /// Equivalent of PyMuPDF `Shape.insert_textbox` for the M4 feature set. The text
+    /// is wrapped by word into the supplied rectangle and emitted as one PDF text
+    /// object. Left, center, and right alignment are supported; justified alignment is
+    /// reserved for M5 and returns [`Error::NotYetImplemented`]. The return value is
+    /// the unused height when all lines fit, or a negative deficit of
+    /// `missing_lines * fontsize * lineheight` when text overflows.
+    pub fn insert_textbox(
+        &mut self,
+        rect: Rect,
+        text: &str,
+        opts: &TextboxOptions,
+    ) -> Result<f32, Error> {
+        let rotate = normalize_rotate(opts.rotate)?;
+        if opts.align == TextAlign::Justify {
+            return Err(Error::NotYetImplemented(
+                "TextAlign::Justify for Shape::insert_textbox".to_owned(),
+            ));
+        }
+
+        let rect = normalize_textbox_rect(rect);
+        if ![rect.x0, rect.y0, rect.x1, rect.y1]
+            .into_iter()
+            .all(f32::is_finite)
+            || rect.width() <= 0.0
+            || rect.height() <= 0.0
+        {
+            return Err(Error::InvalidArgument(
+                "text box must be finite and not empty".to_owned(),
+            ));
+        }
+
+        if text.is_empty() {
+            return Ok(rect.height());
+        }
+        if !opts.fontsize.is_finite() || opts.fontsize <= 0.0 {
+            return Err(Error::InvalidArgument(
+                "fontsize must be a positive finite value".to_owned(),
+            ));
+        }
+        if !opts.lineheight.is_finite() || opts.lineheight <= 0.0 {
+            return Err(Error::InvalidArgument(
+                "lineheight must be a positive finite value".to_owned(),
+            ));
+        }
+
+        let (font_name, font_info) = {
+            let mut doc = self.page.document_handle()?;
+            let font_opts = InsertFontOptions {
+                name: opts.fontname.trim_start_matches('/'),
+                fontfile: None,
+                simple: opts.simple,
+                encoding: opts.encoding,
+                ..InsertFontOptions::new(opts.fontname.trim_start_matches('/'))
+            };
+            let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            (font_name, font_info)
+        };
+        let font = Font::new(&font_info.name)?;
+
+        let max_width = textbox_line_width(rect, rotate);
+        let max_height = textbox_line_capacity_height(rect, rotate);
+        let line_advance = opts.fontsize * opts.lineheight;
+        let lines = wrap_textbox_lines(text, max_width, opts.fontsize, &font, &font_info)?;
+        if lines.is_empty() {
+            return Ok(rect.height());
+        }
+
+        let fitting_lines = ((max_height + f32::EPSILON) / line_advance)
+            .floor()
+            .max(0.0) as usize;
+        let lines_to_emit = fitting_lines.min(lines.len());
+        let missing_lines = lines.len().saturating_sub(fitting_lines);
+        let deficit = if missing_lines > 0 {
+            -(missing_lines as f32 * line_advance)
+        } else {
+            max_height - lines.len() as f32 * line_advance
+        };
+
+        if lines_to_emit == 0 {
+            return Ok(deficit);
+        }
+
+        let mut block = String::new();
+        block.push_str("q\nBT\n");
+
+        if opts.render_mode != 0 {
+            block.push_str(&format!("{} Tr\n", opts.render_mode));
+            block.push_str(&format!(
+                "{} w\n",
+                format_g(opts.border_width * opts.fontsize)
+            ));
+            if let Some(miter_limit) = opts.miter_limit {
+                block.push_str(&format!("{} M\n", format_g(miter_limit)));
+            }
+        }
+
+        if let Some(color) = &opts.color {
+            block.push_str(&color_code(color.components(), ColorRole::Stroke));
+        }
+        let fill = opts.fill.as_ref().or(opts.color.as_ref());
+        if let Some(fill) = fill {
+            block.push_str(&color_code(fill.components(), ColorRole::Fill));
+        }
+
+        for (line_index, line) in lines.iter().take(lines_to_emit).enumerate() {
+            let line_width = text_width(line, opts.fontsize, &font, &font_info)?;
+            let align_offset = textbox_align_offset(max_width, line_width, opts.align);
+            let point = textbox_line_point(
+                rect,
+                rotate,
+                opts.fontsize * font_info.ascender,
+                line_advance,
+                line_index,
+                align_offset,
+            );
+            let origin = point.mul_matrix(&self.ipctm);
+            let matrix = text_matrix(rotate, origin, 0.0);
+            block.push_str(&format!(
+                "{} {} {} {} {} {} Tm\n",
+                format_g(matrix.a),
+                format_g(matrix.b),
+                format_g(matrix.c),
+                format_g(matrix.d),
+                format_g(matrix.e),
+                format_g(matrix.f)
+            ));
+            block.push_str(&format!("{font_name} {} Tf\n", format_g(opts.fontsize)));
+            block.push_str(&tj_str(line, &font_info));
+            block.push_str(" TJ\n");
+        }
+
+        block.push_str("ET\nQ\n");
+        self.text_cont.push_str(&block);
+        self.update_rect_with_rect(rect);
+        Ok(deficit)
+    }
 }
 
 fn normalize_rotate(rotate: i32) -> Result<i32, Error> {
@@ -124,11 +263,145 @@ fn text_matrix(rotate: i32, origin: Point, line_offset: f32) -> TextMatrix {
     }
 }
 
+fn normalize_textbox_rect(rect: Rect) -> Rect {
+    Rect::new(
+        rect.x0.min(rect.x1),
+        rect.y0.min(rect.y1),
+        rect.x0.max(rect.x1),
+        rect.y0.max(rect.y1),
+    )
+}
+
+fn textbox_line_width(rect: Rect, rotate: i32) -> f32 {
+    if matches!(rotate, 90 | 270) {
+        rect.height()
+    } else {
+        rect.width()
+    }
+}
+
+fn textbox_line_capacity_height(rect: Rect, rotate: i32) -> f32 {
+    if matches!(rotate, 90 | 270) {
+        rect.width()
+    } else {
+        rect.height()
+    }
+}
+
+fn textbox_align_offset(max_width: f32, line_width: f32, align: TextAlign) -> f32 {
+    let remaining = max_width - line_width;
+    match align {
+        TextAlign::Left | TextAlign::Justify => 0.0,
+        TextAlign::Center => remaining / 2.0,
+        TextAlign::Right => remaining,
+    }
+}
+
+fn textbox_line_point(
+    rect: Rect,
+    rotate: i32,
+    ascender_offset: f32,
+    line_advance: f32,
+    line_index: usize,
+    align_offset: f32,
+) -> Point {
+    let line_offset = line_advance * line_index as f32;
+    match rotate {
+        0 => Point::new(
+            rect.x0 + align_offset,
+            rect.y0 + ascender_offset + line_offset,
+        ),
+        90 => Point::new(
+            rect.x0 + ascender_offset + line_offset,
+            rect.y1 - align_offset,
+        ),
+        180 => Point::new(
+            rect.x1 - align_offset,
+            rect.y1 - ascender_offset - line_offset,
+        ),
+        270 => Point::new(
+            rect.x1 - ascender_offset - line_offset,
+            rect.y0 + align_offset,
+        ),
+        _ => unreachable!("rotate was normalized before building textbox point"),
+    }
+}
+
+fn wrap_textbox_lines(
+    text: &str,
+    max_width: f32,
+    fontsize: f32,
+    font: &Font,
+    font_info: &crate::pdf::FontInfo,
+) -> Result<Vec<String>, Error> {
+    let mut lines = Vec::new();
+
+    for paragraph in text.split('\n') {
+        let words = paragraph.split_whitespace().collect::<Vec<_>>();
+        if words.is_empty() {
+            lines.push(String::new());
+            continue;
+        }
+
+        let mut current = String::new();
+        for word in words {
+            if current.is_empty() {
+                current.push_str(word);
+                continue;
+            }
+
+            let candidate = format!("{current} {word}");
+            if text_width(&candidate, fontsize, font, font_info)? <= max_width {
+                current = candidate;
+            } else {
+                lines.push(current);
+                current = word.to_owned();
+            }
+        }
+
+        lines.push(current);
+    }
+
+    Ok(lines)
+}
+
+fn text_width(
+    text: &str,
+    fontsize: f32,
+    font: &Font,
+    font_info: &crate::pdf::FontInfo,
+) -> Result<f32, Error> {
+    if font_info.ordering.is_some() {
+        return Ok(text.chars().count() as f32 * fontsize);
+    }
+
+    let mut width = 0.0;
+    for ch in text.chars() {
+        let code = ch as u32;
+        let glyph = font_info
+            .glyphs
+            .as_ref()
+            .and_then(|glyphs| glyphs.get(&code))
+            .copied()
+            .or_else(|| {
+                let code = if font_info.simple && code > 255 {
+                    0xb7
+                } else {
+                    code
+                };
+                font.encode_character(code as i32).ok()
+            })
+            .unwrap_or(code as i32);
+        width += font.advance_glyph(glyph)? * fontsize;
+    }
+    Ok(width)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::pdf::PdfDocument;
-    use crate::{PdfColor, Size};
+    use crate::{PdfColor, Rect, Size};
 
     fn text_cont_for(text: &str, opts: &TextOptions) -> String {
         let mut doc = PdfDocument::new();
@@ -276,5 +549,91 @@ mod tests {
         );
 
         assert!(text_cont.contains("/F0 0.001 Tf\n"));
+    }
+
+    fn insert_textbox_on_test_page(
+        rect: Rect,
+        text: &str,
+        opts: &TextboxOptions,
+    ) -> (Result<f32, Error>, String) {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        let result = shape.insert_textbox(rect, text, opts);
+        (result, shape.text_cont().to_owned())
+    }
+
+    #[test]
+    fn insert_textbox_empty_input_returns_full_rect_height_and_noops() {
+        let rect = Rect::new(50.0, 100.0, 250.0, 160.0);
+        let (result, text_cont) = insert_textbox_on_test_page(rect, "", &TextboxOptions::default());
+
+        assert_eq!(result.unwrap(), rect.height());
+        assert!(text_cont.is_empty());
+    }
+
+    #[test]
+    fn insert_textbox_rejects_non_right_angle_rotation_without_appending_content() {
+        let (result, text_cont) = insert_textbox_on_test_page(
+            Rect::new(50.0, 100.0, 250.0, 160.0),
+            "bad",
+            &TextboxOptions {
+                rotate: 45,
+                ..Default::default()
+            },
+        );
+
+        assert!(result.is_err());
+        assert!(text_cont.is_empty());
+    }
+
+    #[test]
+    fn insert_textbox_justify_is_reserved_for_m5_without_appending_content() {
+        let (result, text_cont) = insert_textbox_on_test_page(
+            Rect::new(50.0, 100.0, 250.0, 160.0),
+            "not yet",
+            &TextboxOptions {
+                align: TextAlign::Justify,
+                ..Default::default()
+            },
+        );
+
+        assert!(matches!(result, Err(Error::NotYetImplemented(_))));
+        assert!(text_cont.is_empty());
+    }
+
+    #[test]
+    fn insert_textbox_overflow_returns_missing_line_deficit_and_emits_fit_lines() {
+        let (result, text_cont) = insert_textbox_on_test_page(
+            Rect::new(50.0, 100.0, 250.0, 125.0),
+            "line1\nline2\nline3",
+            &TextboxOptions {
+                fontsize: 10.0,
+                lineheight: 1.0,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(result.unwrap(), -10.0);
+        assert!(text_cont.contains("[<6c696e6531>] TJ"));
+        assert!(text_cont.contains("[<6c696e6532>] TJ"));
+        assert!(!text_cont.contains("[<6c696e6533>] TJ"));
+    }
+
+    #[test]
+    fn insert_textbox_oversized_single_word_gets_its_own_line() {
+        let (result, text_cont) = insert_textbox_on_test_page(
+            Rect::new(50.0, 100.0, 60.0, 130.0),
+            "supercalifragilistic",
+            &TextboxOptions {
+                fontsize: 10.0,
+                lineheight: 1.0,
+                ..Default::default()
+            },
+        );
+
+        assert!(result.unwrap() >= 0.0);
+        assert_eq!(text_cont.matches(" TJ\n").count(), 1);
+        assert!(text_cont.contains("[<737570657263616c6966726167696c6973746963>] TJ"));
     }
 }

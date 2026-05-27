@@ -9,7 +9,7 @@ mod options;
 mod text;
 
 pub use drawing::RectRadius;
-pub use options::{FinishOptions, PdfColor, TextOptions};
+pub use options::{FinishOptions, PdfColor, TextAlign, TextOptions, TextboxOptions};
 
 /// Builder for accumulating drawing and text operations on a PDF page.
 ///

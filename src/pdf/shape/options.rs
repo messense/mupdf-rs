@@ -140,3 +140,84 @@ impl Default for TextOptions {
         }
     }
 }
+
+/// Text alignment for [`Shape::insert_textbox`](super::Shape::insert_textbox).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TextAlign {
+    /// Align each line to the leading edge of the textbox.
+    #[default]
+    Left,
+    /// Center each line within the textbox.
+    Center,
+    /// Align each line to the trailing edge of the textbox.
+    Right,
+    /// Fully justify text. Reserved for the M5 implementation.
+    Justify,
+}
+
+/// Options controlling text inserted by [`Shape::insert_textbox`](super::Shape::insert_textbox).
+#[derive(Clone, Debug, PartialEq)]
+pub struct TextboxOptions {
+    /// Font size in PDF user-space units.
+    pub fontsize: f32,
+    /// Line height multiplier. Consecutive baselines are spaced by `fontsize * lineheight`.
+    pub lineheight: f32,
+    /// Base-14 font alias or canonical font name. Defaults to PyMuPDF's `helv`.
+    pub fontname: String,
+    /// Stroke color used by text rendering modes that stroke glyph outlines.
+    pub color: Option<PdfColor>,
+    /// Fill color used by text rendering modes that fill glyph outlines.
+    pub fill: Option<PdfColor>,
+    /// PDF text rendering mode for the `Tr` operator.
+    pub render_mode: i32,
+    /// Border width multiplier. Emitted line width is `border_width * fontsize`.
+    pub border_width: f32,
+    /// Optional miter limit for stroked glyph outlines.
+    pub miter_limit: Option<f32>,
+    /// Clockwise text rotation in degrees. Only 0, 90, 180, and 270 are supported.
+    pub rotate: i32,
+    /// Whether the font should be registered as a simple font.
+    pub simple: bool,
+    /// Encoding used when registering a simple font.
+    pub encoding: SimpleFontEncoding,
+    /// Line alignment within the textbox.
+    pub align: TextAlign,
+}
+
+impl Default for TextboxOptions {
+    fn default() -> Self {
+        Self {
+            fontsize: 11.0,
+            lineheight: 1.2,
+            fontname: "helv".to_owned(),
+            color: None,
+            fill: None,
+            render_mode: 0,
+            border_width: 0.05,
+            miter_limit: Some(1.0),
+            rotate: 0,
+            simple: true,
+            encoding: SimpleFontEncoding::Latin,
+            align: TextAlign::Left,
+        }
+    }
+}
+
+impl From<TextOptions> for TextboxOptions {
+    fn from(value: TextOptions) -> Self {
+        Self {
+            fontsize: value.fontsize,
+            lineheight: value.lineheight,
+            fontname: value.fontname,
+            color: value.color,
+            fill: value.fill,
+            render_mode: value.render_mode,
+            border_width: value.border_width,
+            miter_limit: value.miter_limit,
+            rotate: value.rotate,
+            simple: value.simple,
+            encoding: value.encoding,
+            align: TextAlign::Left,
+        }
+    }
+}
