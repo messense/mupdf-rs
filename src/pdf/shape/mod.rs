@@ -1,4 +1,6 @@
-use crate::pdf::PdfPage;
+use std::collections::HashMap;
+
+use crate::pdf::{FontInfo, PdfPage};
 use crate::{Error, Matrix, Point, Rect};
 
 mod drawing;
@@ -52,6 +54,7 @@ pub struct Shape<'a> {
     draw_cont: String,
     text_cont: String,
     total_cont: String,
+    font_info_cache: HashMap<i32, FontInfo>,
     last_point: Option<Point>,
     rect: Option<Rect>,
 }
@@ -89,6 +92,7 @@ impl<'a> Shape<'a> {
             draw_cont: String::new(),
             text_cont: String::new(),
             total_cont: String::new(),
+            font_info_cache: HashMap::new(),
             last_point: None,
             rect: None,
         })

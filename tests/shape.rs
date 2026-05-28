@@ -1,26 +1,26 @@
-#[path = "shape/m1_red_rect.rs"]
-mod m1_red_rect;
+#[path = "shape/red_rect.rs"]
+mod red_rect;
 
-#[path = "shape/m2_basic_drawing.rs"]
-mod m2_basic_drawing;
+#[path = "shape/basic_drawing.rs"]
+mod basic_drawing;
 
-#[path = "shape/m2_shape_commit.rs"]
-mod m2_shape_commit;
+#[path = "shape/shape_commit.rs"]
+mod shape_commit;
 
-#[path = "shape/m3_arc_curve_primitives.rs"]
-mod m3_arc_curve_primitives;
+#[path = "shape/arc_curve_primitives.rs"]
+mod arc_curve_primitives;
 
-#[path = "shape/m4_insert_text.rs"]
-mod m4_insert_text;
+#[path = "shape/insert_text.rs"]
+mod insert_text;
 
-#[path = "shape/m5_justify_alignment.rs"]
-mod m5_justify_alignment;
+#[path = "shape/justify_alignment.rs"]
+mod justify_alignment;
 
-#[path = "shape/m5_opacity_extgstate.rs"]
-mod m5_opacity_extgstate;
+#[path = "shape/opacity_extgstate.rs"]
+mod opacity_extgstate;
 
-#[path = "shape/m5_custom_fonts.rs"]
-mod m5_custom_fonts;
+#[path = "shape/custom_fonts.rs"]
+mod custom_fonts;
 
-#[path = "shape/test_kitchen_sink.rs"]
-mod test_kitchen_sink;
+#[path = "shape/kitchen_sink.rs"]
+mod kitchen_sink;

@@ -235,7 +235,7 @@ impl PdfWriteOptions {
 pub struct PdfDocument {
     inner: *mut pdf_document,
     doc: Document,
-    pub font_info_cache: RefCell<HashMap<i32, FontInfo>>,
+    pub(crate) font_info_cache: RefCell<HashMap<i32, FontInfo>>,
 }
 
 impl Default for PdfDocument {

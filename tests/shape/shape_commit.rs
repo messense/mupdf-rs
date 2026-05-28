@@ -50,7 +50,7 @@ pub mod draw {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m2_draw_line.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/draw_line.png", &rendered);
     }
 
     #[test]
@@ -75,7 +75,7 @@ pub mod draw {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m2_rect_fill_stroke.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/rect_fill_stroke.png", &rendered);
     }
 
     #[test]
@@ -103,7 +103,7 @@ pub mod draw {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m2_triangle_closed.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/triangle_closed.png", &rendered);
     }
 
     #[test]
@@ -128,7 +128,7 @@ pub mod draw {
         };
 
         assert_snapshot(
-            "tests/shape/snapshots/m2_overlay_preserves_existing.png",
+            "tests/shape/snapshots/overlay_preserves_existing.png",
             &rendered,
         );
     }
@@ -160,6 +160,6 @@ pub mod draw {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m2_bezier_rotated.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/bezier_rotated.png", &rendered);
     }
 }

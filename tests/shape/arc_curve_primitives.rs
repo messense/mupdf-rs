@@ -136,7 +136,7 @@ pub mod drawing {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m3_sector_circle_oval.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/sector_circle_oval.png", &rendered);
     }
 
     #[test]
@@ -165,7 +165,7 @@ pub mod drawing {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m3_quad.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/quad.png", &rendered);
     }
 
     #[test]
@@ -200,7 +200,7 @@ pub mod drawing {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m3_rect_quad.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/rect_quad.png", &rendered);
 
         let mut absolute_doc = PdfDocument::new();
         let mut absolute_page = absolute_doc.new_page(Size::A4).unwrap();
@@ -263,6 +263,6 @@ pub mod drawing {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m3_waves.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/waves.png", &rendered);
     }
 }

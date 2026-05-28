@@ -52,9 +52,13 @@ impl Shape<'_> {
 
         let rotate = normalize_rotate(opts.rotate)?;
         let lines = text.lines().collect::<Vec<_>>();
-        if lines.is_empty() {
-            return Ok(self);
-        }
+
+        validate_text_scalars(
+            opts.fontsize,
+            opts.lineheight,
+            opts.border_width,
+            opts.miter_limit,
+        )?;
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
@@ -64,6 +68,12 @@ impl Shape<'_> {
 
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
+            {
+                let mut cache = doc.font_info_cache.borrow_mut();
+                for (xref, info) in &self.font_info_cache {
+                    cache.insert(*xref, info.clone());
+                }
+            }
             let fontname = opts.fontname.trim_start_matches('/');
             let font_opts = InsertFontOptions {
                 name: fontname,
@@ -74,7 +84,10 @@ impl Shape<'_> {
                 wmode: opts.wmode,
                 serif: opts.serif,
             };
-            let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            let (font_name, xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            self.font_info_cache
+                .entry(xref)
+                .or_insert_with(|| font_info.clone());
             (font_name, font_info)
         };
         let (oc_name, opacity_name) = {
@@ -96,10 +109,10 @@ impl Shape<'_> {
         if let Some(oc_name) = &oc_name {
             block.push_str(&format!("/OC {oc_name} BDC\n"));
         }
-        block.push_str("BT\n");
         if let Some(opacity_name) = &opacity_name {
             block.push_str(&format!("{opacity_name} gs\n"));
         }
+        block.push_str("BT\n");
 
         if opts.render_mode != 0 {
             block.push_str(&format!("{} Tr\n", opts.render_mode));
@@ -207,9 +220,33 @@ impl Shape<'_> {
                 "lineheight must be a positive finite value".to_owned(),
             ));
         }
+        if !opts.border_width.is_finite() || opts.border_width < 0.0 {
+            return Err(Error::InvalidArgument(
+                "border_width must be a non-negative finite value".to_owned(),
+            ));
+        }
+        if let Some(miter_limit) = opts.miter_limit {
+            if !miter_limit.is_finite() || miter_limit < 0.0 {
+                return Err(Error::InvalidArgument(
+                    "miter_limit must be a non-negative finite value".to_owned(),
+                ));
+            }
+        }
+
+        PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
+        if let Some(oc_xref) = opts.oc {
+            let doc = self.page.document_handle()?;
+            PdfPage::validate_optional_content_xref(&doc, oc_xref)?;
+        }
 
         let (font_name, font_info) = {
             let mut doc = self.page.document_handle()?;
+            {
+                let mut cache = doc.font_info_cache.borrow_mut();
+                for (xref, info) in &self.font_info_cache {
+                    cache.insert(*xref, info.clone());
+                }
+            }
             let fontname = opts.fontname.trim_start_matches('/');
             let font_opts = InsertFontOptions {
                 name: fontname,
@@ -220,7 +257,10 @@ impl Shape<'_> {
                 wmode: opts.wmode,
                 serif: opts.serif,
             };
-            let (font_name, _xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            let (font_name, xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            self.font_info_cache
+                .entry(xref)
+                .or_insert_with(|| font_info.clone());
             (font_name, font_info)
         };
         let font = font_for_text_metrics(&font_info.name, opts.fontfile)?;
@@ -248,8 +288,27 @@ impl Shape<'_> {
             return Ok(deficit);
         }
 
+        let (oc_name, opacity_name) = {
+            let mut doc = self.page.document_handle()?;
+            let oc_name = opts
+                .oc
+                .map(|oc_xref| self.page.register_optional_content(&mut doc, oc_xref))
+                .transpose()?;
+            let opacity_name =
+                self.page
+                    .register_ext_gstate(&mut doc, opts.stroke_opacity, opts.fill_opacity)?;
+            (oc_name, opacity_name)
+        };
+
         let mut block = String::new();
-        block.push_str("q\nBT\n");
+        block.push_str("q\n");
+        if let Some(oc_name) = &oc_name {
+            block.push_str(&format!("/OC {oc_name} BDC\n"));
+        }
+        if let Some(opacity_name) = &opacity_name {
+            block.push_str(&format!("{opacity_name} gs\n"));
+        }
+        block.push_str("BT\n");
 
         if opts.render_mode != 0 {
             block.push_str(&format!("{} Tr\n", opts.render_mode));
@@ -308,11 +367,46 @@ impl Shape<'_> {
             }
         }
 
-        block.push_str("ET\nQ\n");
+        block.push_str("ET\n");
+        if oc_name.is_some() {
+            block.push_str("EMC\n");
+        }
+        block.push_str("Q\n");
         self.text_cont.push_str(&block);
         self.update_rect_with_rect(rect);
         Ok(deficit)
     }
+}
+
+fn validate_text_scalars(
+    fontsize: f32,
+    lineheight: f32,
+    border_width: f32,
+    miter_limit: Option<f32>,
+) -> Result<(), Error> {
+    if !fontsize.is_finite() || fontsize <= 0.0 {
+        return Err(Error::InvalidArgument(
+            "fontsize must be a positive finite value".to_owned(),
+        ));
+    }
+    if !lineheight.is_finite() || lineheight <= 0.0 {
+        return Err(Error::InvalidArgument(
+            "lineheight must be a positive finite value".to_owned(),
+        ));
+    }
+    if !border_width.is_finite() || border_width < 0.0 {
+        return Err(Error::InvalidArgument(
+            "border_width must be a non-negative finite value".to_owned(),
+        ));
+    }
+    if let Some(miter_limit) = miter_limit {
+        if !miter_limit.is_finite() || miter_limit < 0.0 {
+            return Err(Error::InvalidArgument(
+                "miter_limit must be a non-negative finite value".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 fn normalize_rotate(rotate: i32) -> Result<i32, Error> {
@@ -779,90 +873,6 @@ mod tests {
             textbox_text_entries(&text_cont),
             vec![("supercalifragilistic".to_owned(), None)]
         );
-    }
-
-    mod m5 {
-        pub mod justify {
-            use super::super::*;
-
-            #[test]
-            fn accepts_justify_align() {
-                let (result, text_cont) = insert_textbox_on_test_page(
-                    Rect::new(50.0, 100.0, 250.0, 160.0),
-                    "lorem ipsum dolor sit amet",
-                    &TextboxOptions {
-                        align: TextAlign::Justify,
-                        ..Default::default()
-                    },
-                );
-
-                assert!(result.unwrap() >= 0.0);
-                assert!(!text_cont.is_empty());
-                assert!(text_cont.contains(" TJ\n"));
-            }
-
-            #[test]
-            fn word_spacing_balances_lines() {
-                let rect = Rect::new(50.0, 100.0, 175.0, 180.0);
-                let opts = TextboxOptions {
-                    fontsize: 12.0,
-                    lineheight: 1.0,
-                    align: TextAlign::Justify,
-                    ..Default::default()
-                };
-                let (result, text_cont) = insert_textbox_on_test_page(
-                    rect,
-                    "lorem ipsum dolor sit amet consectetur",
-                    &opts,
-                );
-
-                assert!(result.unwrap() >= 0.0);
-                let entries = textbox_text_entries(&text_cont);
-                assert!(entries.len() >= 2, "expected wrapped lines:\n{text_cont}");
-
-                let (line, word_spacing) = entries
-                    .iter()
-                    .find(|(line, word_spacing)| line.contains(' ') && word_spacing.is_some())
-                    .expect("expected at least one justified multi-word line");
-                let word_spacing = word_spacing.unwrap();
-                let font_info = test_helvetica_font_info();
-                let font = Font::new("Helvetica").unwrap();
-                let line_width = text_width(line, opts.fontsize, &font, &font_info).unwrap();
-                let gaps = line.matches(' ').count();
-
-                assert!(gaps > 0);
-                assert!(
-                    (line_width + gaps as f32 * word_spacing - rect.width()).abs() <= 0.001,
-                    "line={line:?}, width={line_width}, word_spacing={word_spacing}, box={}",
-                    rect.width()
-                );
-
-                let last_line = entries.last().expect("at least one emitted line");
-                assert_eq!(last_line.1, None, "last line must not be justified");
-            }
-
-            #[test]
-            fn single_word_line_safe() {
-                let (result, text_cont) = insert_textbox_on_test_page(
-                    Rect::new(50.0, 100.0, 120.0, 180.0),
-                    "supercalifragilistic",
-                    &TextboxOptions {
-                        fontsize: 12.0,
-                        lineheight: 1.0,
-                        align: TextAlign::Justify,
-                        ..Default::default()
-                    },
-                );
-
-                assert!(result.unwrap() >= 0.0);
-                assert!(!text_cont.contains("nan"));
-                assert!(!text_cont.contains("inf"));
-                assert_eq!(
-                    textbox_text_entries(&text_cont),
-                    vec![("supercalifragilistic".to_owned(), None)]
-                );
-            }
-        }
     }
 
     #[test]

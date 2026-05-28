@@ -406,6 +406,11 @@ pdf_obj *mupdf_pdf_copy_array(fz_context *ctx, pdf_obj *obj, mupdf_error_t **err
     TRY_CATCH(pdf_obj*, NULL, pdf_copy_array(ctx, obj));
 }
 
+pdf_obj *mupdf_pdf_copy_dict(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_obj*, NULL, pdf_copy_dict(ctx, obj));
+}
+
 int mupdf_pdf_array_len(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     TRY_CATCH(int, 0, pdf_array_len(ctx, obj));

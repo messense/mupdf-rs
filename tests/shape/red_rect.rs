@@ -3,7 +3,7 @@ use std::path::Path;
 use mupdf::pdf::{PdfDocument, PdfPage};
 use mupdf::{Colorspace, Image, ImageFormat, Matrix};
 
-const SNAPSHOT: &str = "tests/shape/snapshots/m1_red_rect.png";
+const SNAPSHOT: &str = "tests/shape/snapshots/red_rect.png";
 const RED_RECT_STREAM: &[u8] = b"q 1 0 0 rg 250 350 100 100 re f Q\n";
 
 fn render_page(page: &PdfPage) -> mupdf::Pixmap {

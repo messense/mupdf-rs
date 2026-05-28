@@ -177,16 +177,30 @@ impl PdfPage {
         self.object().get_dict("Contents")
     }
 
-    /// Returns this page's `/Resources` dictionary, creating and attaching one when missing.
+    /// Returns this page's direct `/Resources` dictionary, creating and attaching one when missing.
     ///
-    /// Missing or non-dictionary `/Resources` entries are replaced by a new empty indirect
-    /// dictionary. Repeated calls return the same dictionary object without allocating again.
+    /// When the page has no direct resources but inherits a resource dictionary from its page
+    /// tree, the inherited dictionary is shallow-copied into a page-local indirect dictionary
+    /// before being attached. This avoids shadowing inherited resources with an empty dictionary
+    /// when new resources are added to the page. Non-dictionary direct `/Resources` entries are
+    /// replaced by a new empty indirect dictionary. Repeated calls return the same dictionary
+    /// object without allocating again.
     pub fn resources(&self) -> Result<PdfObject, Error> {
         let mut page_obj = self.object();
 
-        if let Some(resources) = page_obj.get_dict("Resources")? {
-            if resources.is_dict()? {
-                return Ok(resources);
+        match page_obj.get_dict("Resources")? {
+            Some(resources) if resources.is_dict()? => return Ok(resources),
+            Some(_) => {}
+            None => {
+                if let Some(resources) = page_obj.get_dict_inheritable("Resources")? {
+                    if resources.is_dict()? {
+                        let mut doc = self.document_handle()?;
+                        let resources = resources.copy_dict()?;
+                        let resources = doc.add_object(&resources)?;
+                        page_obj.dict_put("Resources", resources.clone())?;
+                        return Ok(resources);
+                    }
+                }
             }
         }
 
@@ -196,6 +210,31 @@ impl PdfPage {
         page_obj.dict_put("Resources", resources.clone())?;
 
         Ok(resources)
+    }
+
+    pub(crate) fn assert_document_owner(&self, doc: &PdfDocument) {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+    }
+
+    fn resource_subdict_for_write(
+        resources: &mut PdfObject,
+        doc: &PdfDocument,
+        key: &str,
+        existing: Option<PdfObject>,
+    ) -> Result<PdfObject, Error> {
+        if let Some(existing) = existing {
+            let copy = existing.copy_dict()?;
+            resources.dict_put_ref(key, &copy)?;
+            return Ok(copy);
+        }
+
+        let subdict = doc.new_dict()?;
+        resources.dict_put_ref(key, &subdict)?;
+        Ok(subdict)
     }
 
     fn push_contents_into_array(
@@ -232,18 +271,26 @@ impl PdfPage {
         bytes: &[u8],
         overlay: bool,
     ) -> Result<i32, Error> {
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         let operation = DocOperation::begin(doc, "Insert contents")?;
+        let new_xref = self.insert_contents_in_operation(operation.doc, bytes, overlay)?;
+        operation.commit()?;
+
+        Ok(new_xref)
+    }
+
+    pub(crate) fn insert_contents_in_operation(
+        &mut self,
+        doc: &mut PdfDocument,
+        bytes: &[u8],
+        overlay: bool,
+    ) -> Result<i32, Error> {
         let mut page_obj = self.object();
         let old_contents = page_obj.get_dict("Contents")?;
 
         let stream_buf = Buffer::from_bytes(bytes)?;
-        let new_stream = operation.doc.add_stream(&stream_buf, None, false)?;
+        let new_stream = doc.add_stream(&stream_buf, None, false)?;
         let new_xref = new_stream.as_indirect()?;
 
         let old_len = match old_contents.as_ref() {
@@ -251,7 +298,7 @@ impl PdfPage {
             Some(contents) if !contents.is_null()? => 1,
             _ => 0,
         };
-        let mut contents_array = operation.doc.new_array_with_capacity(old_len + 1)?;
+        let mut contents_array = doc.new_array_with_capacity(old_len + 1)?;
 
         if overlay {
             if let Some(contents) = &old_contents {
@@ -266,7 +313,6 @@ impl PdfPage {
         }
 
         page_obj.dict_put("Contents", contents_array)?;
-        operation.commit()?;
 
         Ok(new_xref)
     }
@@ -277,9 +323,12 @@ impl PdfPage {
     /// overlay. This intentionally is not idempotent: repeated calls add another balanced
     /// pair around the existing contents.
     pub fn wrap_contents(&mut self, doc: &mut PdfDocument) -> Result<(), Error> {
-        self.insert_contents(doc, b"q\n", false)?;
-        self.insert_contents(doc, b"Q\n", true)?;
-        Ok(())
+        self.assert_document_owner(doc);
+
+        let operation = DocOperation::begin(doc, "Wrap contents")?;
+        self.insert_contents_in_operation(operation.doc, b"q\n", false)?;
+        self.insert_contents_in_operation(operation.doc, b"Q\n", true)?;
+        operation.commit()
     }
 
     fn validate_opacity_value(value: f32, role: &str) -> Result<(), Error> {
@@ -419,6 +468,108 @@ impl PdfPage {
         }
     }
 
+    fn array_contains_indirect_xref(array: &PdfObject, xref: i32) -> Result<bool, Error> {
+        for index in 0..array.len()? {
+            let Some(item) = array.get_array(index as i32)? else {
+                continue;
+            };
+            if item.is_indirect()? && item.as_indirect()? == xref {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn ensure_array_contains_indirect_ref(
+        array: &mut PdfObject,
+        reference: &PdfObject,
+        xref: i32,
+    ) -> Result<(), Error> {
+        if !Self::array_contains_indirect_xref(array, xref)? {
+            array.array_push_ref(reference)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_optional_content_config_array(
+        doc: &PdfDocument,
+        default_config: &mut PdfObject,
+        key: &str,
+        oc_ref: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let mut array = match default_config.get_dict(key)? {
+            Some(array) if array.is_array()? => array,
+            _ => {
+                let array = doc.new_array()?;
+                default_config.dict_put_ref(key, &array)?;
+                array
+            }
+        };
+        Self::ensure_array_contains_indirect_ref(&mut array, oc_ref, oc_xref)
+    }
+
+    fn ensure_optional_content_catalog_registration(
+        doc: &PdfDocument,
+        oc_ref: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let Some(oc_obj) = oc_ref.resolve()? else {
+            return Ok(());
+        };
+        let Some(type_obj) = oc_obj.get_dict("Type")? else {
+            return Ok(());
+        };
+        if type_obj.as_name()? != b"OCG" {
+            return Ok(());
+        }
+
+        let mut catalog = doc.catalog()?;
+        let mut oc_properties = match catalog.get_dict("OCProperties")? {
+            Some(oc_properties) if oc_properties.is_dict()? => oc_properties,
+            _ => {
+                let oc_properties = doc.new_dict()?;
+                catalog.dict_put_ref("OCProperties", &oc_properties)?;
+                oc_properties
+            }
+        };
+
+        let mut ocgs = match oc_properties.get_dict("OCGs")? {
+            Some(ocgs) if ocgs.is_array()? => ocgs,
+            _ => {
+                let ocgs = doc.new_array()?;
+                oc_properties.dict_put_ref("OCGs", &ocgs)?;
+                ocgs
+            }
+        };
+        if !Self::array_contains_indirect_xref(&ocgs, oc_xref)? {
+            ocgs.array_push_ref(oc_ref)?;
+        }
+
+        let mut default_config = match oc_properties.get_dict("D")? {
+            Some(default_config) if default_config.is_dict()? => default_config,
+            _ => {
+                let default_config = doc.new_dict()?;
+                oc_properties.dict_put_ref("D", &default_config)?;
+                default_config
+            }
+        };
+        Self::ensure_optional_content_config_array(
+            doc,
+            &mut default_config,
+            "ON",
+            oc_ref,
+            oc_xref,
+        )?;
+        Self::ensure_optional_content_config_array(
+            doc,
+            &mut default_config,
+            "Order",
+            oc_ref,
+            oc_xref,
+        )
+    }
+
     fn find_optional_content_resource(
         properties: &PdfObject,
         oc_xref: i32,
@@ -483,11 +634,7 @@ impl PdfPage {
         stroke_opacity: Option<f32>,
         fill_opacity: Option<f32>,
     ) -> Result<Option<String>, Error> {
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         Self::validate_opacity_pair(stroke_opacity, fill_opacity)?;
         if stroke_opacity.is_none() && fill_opacity.is_none() {
@@ -509,13 +656,12 @@ impl PdfPage {
         }
 
         let slot_name = Self::next_ext_gstate_resource_slot(existing_ext_gstates.as_ref())?;
-        let mut ext_gstates = if let Some(ext_gstates) = existing_ext_gstates {
-            ext_gstates
-        } else {
-            let ext_gstates = doc.new_dict()?;
-            resources.dict_put_ref("ExtGState", &ext_gstates)?;
-            ext_gstates
-        };
+        let mut ext_gstates = Self::resource_subdict_for_write(
+            &mut resources,
+            doc,
+            "ExtGState",
+            existing_ext_gstates,
+        )?;
 
         let mut ext_gstate = doc.new_dict_with_capacity(3)?;
         ext_gstate.dict_put("Type", PdfObject::new_name("ExtGState")?)?;
@@ -540,14 +686,11 @@ impl PdfPage {
         doc: &mut PdfDocument,
         oc_xref: i32,
     ) -> Result<String, Error> {
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         Self::validate_optional_content_xref(doc, oc_xref)?;
         let oc_ref = doc.new_indirect(oc_xref, 0)?;
+        Self::ensure_optional_content_catalog_registration(doc, &oc_ref, oc_xref)?;
 
         let mut resources = self.resources()?;
         let existing_properties = match resources.get_dict("Properties")? {
@@ -562,13 +705,12 @@ impl PdfPage {
         }
 
         let slot_name = Self::next_optional_content_resource_slot(existing_properties.as_ref())?;
-        let mut properties = if let Some(properties) = existing_properties {
-            properties
-        } else {
-            let properties = doc.new_dict()?;
-            resources.dict_put_ref("Properties", &properties)?;
-            properties
-        };
+        let mut properties = Self::resource_subdict_for_write(
+            &mut resources,
+            doc,
+            "Properties",
+            existing_properties,
+        )?;
 
         properties.dict_put_ref(slot_name.as_str(), &oc_ref)?;
 
@@ -875,11 +1017,7 @@ impl PdfPage {
         doc: &mut PdfDocument,
         opts: &InsertFontOptions<'_>,
     ) -> Result<(String, i32, FontInfo), Error> {
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         let canonical_name = match opts.fontfile {
             Some(_) => opts.name.to_owned(),
@@ -888,9 +1026,15 @@ impl PdfPage {
                 .to_owned(),
         };
 
-        let existing_resources = match self.object().get_dict("Resources")? {
+        let page_obj = self.object();
+        let direct_resources = page_obj.get_dict("Resources")?;
+        let existing_resources = match direct_resources {
             Some(resources) if resources.is_dict()? => Some(resources),
-            _ => None,
+            Some(_) => None,
+            None => match page_obj.get_dict_inheritable("Resources")? {
+                Some(resources) if resources.is_dict()? => Some(resources),
+                _ => None,
+            },
         };
         let existing_font_dict = match existing_resources
             .as_ref()
@@ -920,17 +1064,9 @@ impl PdfPage {
         let xref = font_obj.as_indirect()?;
 
         let slot_name = Self::next_font_resource_slot(existing_font_dict.as_ref())?;
-        let mut resources = match existing_resources {
-            Some(resources) => resources,
-            None => self.resources()?,
-        };
-        let mut font_dict = if let Some(font_dict) = existing_font_dict {
-            font_dict
-        } else {
-            let font_dict = doc.new_dict()?;
-            resources.dict_put_ref("Font", &font_dict)?;
-            font_dict
-        };
+        let mut resources = self.resources()?;
+        let mut font_dict =
+            Self::resource_subdict_for_write(&mut resources, doc, "Font", existing_font_dict)?;
 
         font_dict.dict_put_ref(slot_name.as_str(), &font_obj)?;
         doc.font_info_cache
@@ -1185,11 +1321,7 @@ impl PdfPage {
             return Ok(());
         }
 
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         let operation = DocOperation::begin(doc, "Add links")?;
 
@@ -1598,6 +1730,47 @@ mod test {
     }
 
     #[test]
+    fn test_page_resources_copy_inherited_dict_when_missing() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        let mut page_obj = page.object();
+        let mut parent = page_obj.get_dict("Parent").unwrap().unwrap();
+        page_obj.dict_delete("Resources").unwrap();
+
+        let mut inherited_font = doc.new_dict().unwrap();
+        inherited_font
+            .dict_put("F9", doc.new_dict().unwrap())
+            .unwrap();
+        let mut inherited_resources = doc.new_dict().unwrap();
+        inherited_resources
+            .dict_put("Font", inherited_font.clone())
+            .unwrap();
+        parent
+            .dict_put("Resources", inherited_resources.clone())
+            .unwrap();
+
+        let mut resources = page.resources().unwrap();
+        resources
+            .dict_put("X-Test", PdfObject::new_int(1).unwrap())
+            .unwrap();
+
+        assert!(page_obj
+            .get_dict("Resources")
+            .unwrap()
+            .unwrap()
+            .is_indirect()
+            .unwrap());
+        assert!(resources
+            .get_dict("Font")
+            .unwrap()
+            .unwrap()
+            .get_dict("F9")
+            .unwrap()
+            .is_some());
+        assert!(inherited_resources.get_dict("X-Test").unwrap().is_none());
+    }
+
+    #[test]
     fn test_page_resources_idempotent_after_auto_create() {
         let mut doc = PdfDocument::new();
         let page = doc.new_page(Size::A4).unwrap();
@@ -1969,6 +2142,34 @@ mod test {
     }
 
     #[test]
+    fn test_page_insert_font_copies_inherited_font_dict_before_mutating() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut page_obj = page.object();
+        let mut parent = page_obj.get_dict("Parent").unwrap().unwrap();
+        page_obj.dict_delete("Resources").unwrap();
+
+        let mut inherited_font = doc.new_dict().unwrap();
+        inherited_font
+            .dict_put("F9", doc.new_dict().unwrap())
+            .unwrap();
+        let mut inherited_resources = doc.new_dict().unwrap();
+        inherited_resources
+            .dict_put("Font", inherited_font.clone())
+            .unwrap();
+        parent.dict_put("Resources", inherited_resources).unwrap();
+
+        let (slot, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert_eq!(page_font_xref(&page, "F0"), xref);
+        assert!(page_font_dict(&page).get_dict("F9").unwrap().is_some());
+        assert!(inherited_font.get_dict("F0").unwrap().is_none());
+    }
+
+    #[test]
     fn test_page_insert_font_shares_xref_across_pages() {
         let mut doc = PdfDocument::new();
         let mut first_page = doc.new_page(Size::A4).unwrap();
@@ -2028,109 +2229,107 @@ mod test {
         assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
     }
 
-    mod m5 {
-        pub mod fonts {
-            use super::super::*;
+    mod fonts {
+        use super::*;
 
-            #[test]
-            fn custom_ttf_via_add_font() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let opts = custom_font_options("CustomPdfFont", CUSTOM_FONT_BYTES);
+        #[test]
+        fn custom_ttf_via_add_font() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = custom_font_options("CustomPdfFont", CUSTOM_FONT_BYTES);
 
-                let (slot, xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+            let (slot, xref, info) = page.insert_font(&mut doc, &opts).unwrap();
 
-                assert_eq!(slot, "/F0");
-                assert!(xref > 0);
-                assert_eq!(page_font_xref(&page, "F0"), xref);
-                assert_eq!(info.name, "CustomPdfFont");
-                assert!(!info.simple);
-                assert_eq!(info.ordering, None);
-                assert!(info.fontfile_hash.is_some());
-                assert!(info
-                    .glyphs
-                    .as_ref()
-                    .is_some_and(|glyphs| glyphs.contains_key(&('A' as u32))));
-                assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
+            assert_eq!(slot, "/F0");
+            assert!(xref > 0);
+            assert_eq!(page_font_xref(&page, "F0"), xref);
+            assert_eq!(info.name, "CustomPdfFont");
+            assert!(!info.simple);
+            assert_eq!(info.ordering, None);
+            assert!(info.fontfile_hash.is_some());
+            assert!(info
+                .glyphs
+                .as_ref()
+                .is_some_and(|glyphs| glyphs.contains_key(&('A' as u32))));
+            assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
 
-                let font_obj = doc.new_indirect(xref, 0).unwrap();
-                let subtype = font_obj
-                    .get_dict("Subtype")
-                    .unwrap()
-                    .unwrap()
-                    .as_name()
-                    .unwrap()
-                    .to_vec();
-                assert_eq!(subtype, b"Type0");
-            }
+            let font_obj = doc.new_indirect(xref, 0).unwrap();
+            let subtype = font_obj
+                .get_dict("Subtype")
+                .unwrap()
+                .unwrap()
+                .as_name()
+                .unwrap()
+                .to_vec();
+            assert_eq!(subtype, b"Type0");
+        }
 
-            #[test]
-            fn cjk_font_registers_with_ordering() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let opts = InsertFontOptions {
-                    fontfile: Some(CUSTOM_FONT_BYTES),
-                    ordering: Some(CjkFontOrdering::AdobeJapan),
-                    ..InsertFontOptions::new("CustomCjkFont")
-                };
+        #[test]
+        fn cjk_font_registers_with_ordering() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = InsertFontOptions {
+                fontfile: Some(CUSTOM_FONT_BYTES),
+                ordering: Some(CjkFontOrdering::AdobeJapan),
+                ..InsertFontOptions::new("CustomCjkFont")
+            };
 
-                let (_slot, _xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+            let (_slot, _xref, info) = page.insert_font(&mut doc, &opts).unwrap();
 
-                assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
-                assert!(!info.simple);
+            assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
+            assert!(!info.simple);
 
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape
-                    .insert_text(
-                        Point::new(50.0, 100.0),
-                        "A",
-                        &TextOptions {
-                            fontname: "CustomCjkFont".to_owned(),
-                            fontfile: Some(CUSTOM_FONT_BYTES),
-                            ordering: Some(CjkFontOrdering::AdobeJapan),
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .insert_text(
+                    Point::new(50.0, 100.0),
+                    "A",
+                    &TextOptions {
+                        fontname: "CustomCjkFont".to_owned(),
+                        fontfile: Some(CUSTOM_FONT_BYTES),
+                        ordering: Some(CjkFontOrdering::AdobeJapan),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
 
-                assert!(shape.text_cont().contains("[<0041>] TJ"));
-            }
+            assert!(shape.text_cont().contains("[<0041>] TJ"));
+        }
 
-            #[test]
-            fn custom_font_shared_across_pages() {
-                let mut doc = PdfDocument::new();
-                let mut first_page = doc.new_page(Size::A4).unwrap();
-                let mut second_page = doc.new_page(Size::A4).unwrap();
-                let opts = custom_font_options("SharedCustomFont", CUSTOM_FONT_BYTES);
+        #[test]
+        fn custom_font_shared_across_pages() {
+            let mut doc = PdfDocument::new();
+            let mut first_page = doc.new_page(Size::A4).unwrap();
+            let mut second_page = doc.new_page(Size::A4).unwrap();
+            let opts = custom_font_options("SharedCustomFont", CUSTOM_FONT_BYTES);
 
-                let first = first_page.insert_font(&mut doc, &opts).unwrap();
-                let second = second_page.insert_font(&mut doc, &opts).unwrap();
+            let first = first_page.insert_font(&mut doc, &opts).unwrap();
+            let second = second_page.insert_font(&mut doc, &opts).unwrap();
 
-                assert_eq!(first.1, second.1);
-                assert_eq!(page_font_xref(&first_page, "F0"), first.1);
-                assert_eq!(page_font_xref(&second_page, "F0"), first.1);
-                assert_eq!(doc.font_info_cache.borrow().len(), 1);
-            }
+            assert_eq!(first.1, second.1);
+            assert_eq!(page_font_xref(&first_page, "F0"), first.1);
+            assert_eq!(page_font_xref(&second_page, "F0"), first.1);
+            assert_eq!(doc.font_info_cache.borrow().len(), 1);
+        }
 
-            #[test]
-            fn malformed_bytes_errors() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                page.object().dict_delete("Resources").unwrap();
-                let cache_len = doc.font_info_cache.borrow().len();
-                let object_count = doc.count_objects().unwrap();
-                let opts = custom_font_options("BrokenFont", b"not a font");
+        #[test]
+        fn malformed_bytes_errors() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            page.object().dict_delete("Resources").unwrap();
+            let cache_len = doc.font_info_cache.borrow().len();
+            let object_count = doc.count_objects().unwrap();
+            let opts = custom_font_options("BrokenFont", b"not a font");
 
-                let result = page.insert_font(&mut doc, &opts);
+            let result = page.insert_font(&mut doc, &opts);
 
-                assert!(result.is_err());
-                assert!(page.object().get_dict("Resources").unwrap().is_none());
-                assert_eq!(page_font_dict_len_without_creating_resources(&page), None);
-                assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
-                assert_eq!(doc.count_objects().unwrap(), object_count);
-            }
+            assert!(result.is_err());
+            assert!(page.object().get_dict("Resources").unwrap().is_none());
+            assert_eq!(page_font_dict_len_without_creating_resources(&page), None);
+            assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+            assert_eq!(doc.count_objects().unwrap(), object_count);
         }
     }
 }

@@ -297,6 +297,12 @@ pub struct TextboxOptions<'a> {
     pub wmode: WriteMode,
     /// Whether CJK fallback metrics should prefer serif glyphs.
     pub serif: bool,
+    /// Optional stroke alpha for PDF `/ExtGState` `/CA`.
+    pub stroke_opacity: Option<f32>,
+    /// Optional fill alpha for PDF `/ExtGState` `/ca`.
+    pub fill_opacity: Option<f32>,
+    /// Optional-content group or membership dictionary xref for PDF marked content.
+    pub oc: Option<i32>,
     /// Line alignment within the textbox.
     pub align: TextAlign,
 }
@@ -319,6 +325,9 @@ impl Default for TextboxOptions<'_> {
             ordering: None,
             wmode: WriteMode::Horizontal,
             serif: false,
+            stroke_opacity: None,
+            fill_opacity: None,
+            oc: None,
             align: TextAlign::Left,
         }
     }
@@ -342,6 +351,9 @@ impl<'a> From<TextOptions<'a>> for TextboxOptions<'a> {
             ordering: value.ordering,
             wmode: value.wmode,
             serif: value.serif,
+            stroke_opacity: value.stroke_opacity,
+            fill_opacity: value.fill_opacity,
+            oc: value.oc,
             align: TextAlign::Left,
         }
     }

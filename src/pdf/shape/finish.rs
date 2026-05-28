@@ -1,7 +1,7 @@
 use super::operators::{color_code, format_g, ColorRole};
 use super::{FinishOptions, Shape};
-use crate::pdf::{PdfDocument, PdfPage};
-use crate::{Buffer, Error, Matrix, Point};
+use crate::pdf::{DocOperation, PdfDocument, PdfPage};
+use crate::{Error, Matrix, Point};
 
 impl Shape<'_> {
     /// Finishes the currently accumulated drawing path and appends it to the total buffer.
@@ -31,6 +31,7 @@ impl Shape<'_> {
             return Ok(self);
         }
 
+        validate_finish_scalars(opts)?;
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
             let doc = self.page.document_handle()?;
@@ -129,26 +130,29 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn commit(&mut self, doc: &mut PdfDocument, overlay: bool) -> Result<(), Error> {
-        if !self.text_cont.is_empty() {
-            self.total_cont.push_str(&self.text_cont);
-        }
+        self.page.assert_document_owner(doc);
 
-        if self.total_cont.is_empty() {
+        if self.total_cont.is_empty() && self.text_cont.is_empty() {
             self.draw_cont.clear();
             self.text_cont.clear();
             self.clear_path_state();
             return Ok(());
         }
 
-        let bytes = self.total_cont.as_bytes().to_vec();
-        if overlay {
-            self.page.wrap_contents(doc)?;
-        }
+        let mut bytes = Vec::with_capacity(self.total_cont.len() + self.text_cont.len());
+        bytes.extend_from_slice(self.total_cont.as_bytes());
+        bytes.extend_from_slice(self.text_cont.as_bytes());
 
-        let xref = self.page.insert_contents(doc, &bytes, overlay)?;
-        let mut stream = doc.new_indirect(xref, 0)?;
-        let buffer = Buffer::from_bytes(&bytes)?;
-        stream.write_stream_buffer(&buffer)?;
+        let operation = DocOperation::begin(doc, "Shape commit")?;
+        if overlay {
+            self.page
+                .insert_contents_in_operation(operation.doc, b"q\n", false)?;
+            self.page
+                .insert_contents_in_operation(operation.doc, b"Q\n", true)?;
+        }
+        self.page
+            .insert_contents_in_operation(operation.doc, &bytes, overlay)?;
+        operation.commit()?;
 
         self.draw_cont.clear();
         self.text_cont.clear();
@@ -187,6 +191,32 @@ fn paint_operator(opts: &FinishOptions) -> &'static str {
         (false, true, false) => "f",
         (false, false, _) => "n",
     }
+}
+
+fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
+    if !opts.width.is_finite() || opts.width < 0.0 {
+        return Err(Error::InvalidArgument(
+            "width must be a non-negative finite value".to_owned(),
+        ));
+    }
+    if let Some(miter_limit) = opts.miter_limit {
+        if !miter_limit.is_finite() || miter_limit < 0.0 {
+            return Err(Error::InvalidArgument(
+                "miter_limit must be a non-negative finite value".to_owned(),
+            ));
+        }
+    }
+    if let Some((fixpoint, matrix)) = &opts.morph {
+        let values = [
+            fixpoint.x, fixpoint.y, matrix.a, matrix.b, matrix.c, matrix.d, matrix.e, matrix.f,
+        ];
+        if !values.into_iter().all(f32::is_finite) {
+            return Err(Error::InvalidArgument(
+                "morph fixpoint and matrix must contain finite values".to_owned(),
+            ));
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -401,7 +431,7 @@ mod tests {
             render_page(shape.page())
         };
 
-        assert_snapshot("tests/shape/snapshots/m3_morph_rotated_rect.png", &rendered);
+        assert_snapshot("tests/shape/snapshots/morph_rotated_rect.png", &rendered);
     }
 
     #[test]
@@ -715,107 +745,388 @@ mod tests {
         );
     }
 
-    mod m5 {
-        pub mod oc {
-            use super::super::*;
+    mod oc {
+        use super::*;
 
-            #[test]
-            fn finish_wraps_bdc_emc() {
-                let mut doc = PdfDocument::new();
-                let oc_xref = add_ocg(&mut doc, "Layer 1");
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-
-                shape
-                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+        fn array_contains_xref(array: &PdfObject, xref: i32) -> bool {
+            (0..array.len().unwrap()).any(|index| {
+                array
+                    .get_array(index as i32)
                     .unwrap()
-                    .finish(&FinishOptions {
-                        oc: Some(oc_xref),
-                        ..Default::default()
-                    })
-                    .unwrap();
+                    .is_some_and(|item| item.as_indirect().unwrap_or_default() == xref)
+            })
+        }
 
-                let entries = properties_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
-                assert_eq!(
-                    shape.total_cont(),
-                    format!(
-                        "q\n/OC /{} BDC\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nEMC\nQ\n",
-                        entries[0].0
-                    )
-                );
-            }
+        #[test]
+        fn finish_wraps_bdc_emc() {
+            let mut doc = PdfDocument::new();
+            let oc_xref = add_ocg(&mut doc, "Layer 1");
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
 
-            #[test]
-            fn text_wraps_bdc_emc() {
-                let mut doc = PdfDocument::new();
-                let oc_xref = add_ocg(&mut doc, "Text Layer");
-                let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-
-                shape
-                    .insert_text(
-                        Point::new(50.0, 100.0),
-                        "Hi",
-                        &TextOptions {
-                            oc: Some(oc_xref),
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
-
-                let entries = properties_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
-                assert_eq!(
-                    shape.text_cont(),
-                    format!(
-                        "q\n/OC /{} BDC\nBT\n1 0 0 1 50 700 Tm\n/F0 11 Tf\n[<4869>] TJ\nET\nEMC\nQ\n",
-                        entries[0].0
-                    )
-                );
-            }
-
-            #[test]
-            fn idempotent_properties_slot() {
-                let mut doc = PdfDocument::new();
-                let oc_xref = add_ocg(&mut doc, "Shared Layer");
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-                let opts = FinishOptions {
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&FinishOptions {
                     oc: Some(oc_xref),
                     ..Default::default()
-                };
+                })
+                .unwrap();
 
+            let entries = properties_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+            assert_eq!(
+                shape.total_cont(),
+                format!(
+                    "q\n/OC /{} BDC\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nEMC\nQ\n",
+                    entries[0].0
+                )
+            );
+        }
+
+        #[test]
+        fn finish_registers_ocg_in_catalog_ocproperties() {
+            let mut doc = PdfDocument::new();
+            let oc_xref = add_ocg(&mut doc, "Catalog Layer");
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    oc: Some(oc_xref),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let catalog = doc.catalog().unwrap();
+            let oc_properties = catalog.get_dict("OCProperties").unwrap().unwrap();
+            let ocgs = oc_properties.get_dict("OCGs").unwrap().unwrap();
+            let default_config = oc_properties.get_dict("D").unwrap().unwrap();
+            let on = default_config.get_dict("ON").unwrap().unwrap();
+            let order = default_config.get_dict("Order").unwrap().unwrap();
+
+            assert!(array_contains_xref(&ocgs, oc_xref));
+            assert!(array_contains_xref(&on, oc_xref));
+            assert!(array_contains_xref(&order, oc_xref));
+        }
+
+        #[test]
+        fn finish_completes_existing_catalog_ocproperties() {
+            let mut doc = PdfDocument::new();
+            let oc_xref = add_ocg(&mut doc, "Partial Catalog Layer");
+            let oc_ref = doc.new_indirect(oc_xref, 0).unwrap();
+            let mut ocgs = doc.new_array().unwrap();
+            ocgs.array_push_ref(&oc_ref).unwrap();
+            let mut oc_properties = doc.new_dict().unwrap();
+            oc_properties.dict_put_ref("OCGs", &ocgs).unwrap();
+            doc.catalog()
+                .unwrap()
+                .dict_put_ref("OCProperties", &oc_properties)
+                .unwrap();
+
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    oc: Some(oc_xref),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let catalog = doc.catalog().unwrap();
+            let oc_properties = catalog.get_dict("OCProperties").unwrap().unwrap();
+            let ocgs = oc_properties.get_dict("OCGs").unwrap().unwrap();
+            let default_config = oc_properties.get_dict("D").unwrap().unwrap();
+            let on = default_config.get_dict("ON").unwrap().unwrap();
+            let order = default_config.get_dict("Order").unwrap().unwrap();
+
+            assert!(array_contains_xref(&ocgs, oc_xref));
+            assert!(array_contains_xref(&on, oc_xref));
+            assert!(array_contains_xref(&order, oc_xref));
+        }
+
+        #[test]
+        fn text_wraps_bdc_emc() {
+            let mut doc = PdfDocument::new();
+            let oc_xref = add_ocg(&mut doc, "Text Layer");
+            let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+
+            shape
+                .insert_text(
+                    Point::new(50.0, 100.0),
+                    "Hi",
+                    &TextOptions {
+                        oc: Some(oc_xref),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+
+            let entries = properties_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+            assert_eq!(
+                shape.text_cont(),
+                format!(
+                    "q\n/OC /{} BDC\nBT\n1 0 0 1 50 700 Tm\n/F0 11 Tf\n[<4869>] TJ\nET\nEMC\nQ\n",
+                    entries[0].0
+                )
+            );
+        }
+
+        #[test]
+        fn idempotent_properties_slot() {
+            let mut doc = PdfDocument::new();
+            let oc_xref = add_ocg(&mut doc, "Shared Layer");
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+            let opts = FinishOptions {
+                oc: Some(oc_xref),
+                ..Default::default()
+            };
+
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&opts)
+                .unwrap()
+                .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
+                .unwrap()
+                .finish(&opts)
+                .unwrap();
+
+            let entries = properties_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
+            assert_eq!(
                 shape
-                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
-                    .unwrap()
-                    .finish(&opts)
-                    .unwrap()
-                    .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
-                    .unwrap()
-                    .finish(&opts)
-                    .unwrap();
+                    .total_cont()
+                    .matches(&format!("/OC /{} BDC\n", entries[0].0))
+                    .count(),
+                2
+            );
+        }
 
-                let entries = properties_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(entries[0].1.as_indirect().unwrap(), oc_xref);
-                assert_eq!(
-                    shape
-                        .total_cont()
-                        .matches(&format!("/OC /{} BDC\n", entries[0].0))
-                        .count(),
-                    2
-                );
-            }
+        #[test]
+        fn invalid_oc_xref_errors() {
+            let mut doc = PdfDocument::new();
+            let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap();
+            let draw_before = shape.draw_cont().to_owned();
 
-            #[test]
-            fn invalid_oc_xref_errors() {
+            let result = shape.finish(&FinishOptions {
+                oc: Some(invalid_xref),
+                ..Default::default()
+            });
+
+            assert!(result.is_err());
+            assert_eq!(shape.draw_cont(), draw_before);
+            assert!(shape.total_cont().is_empty());
+            assert!(page_properties(shape.page()).is_none());
+
+            let mut doc = PdfDocument::new();
+            let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
+            let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+
+            let result = shape.insert_text(
+                Point::new(50.0, 100.0),
+                "Hi",
+                &TextOptions {
+                    oc: Some(invalid_xref),
+                    ..Default::default()
+                },
+            );
+
+            assert!(result.is_err());
+            assert!(shape.text_cont().is_empty());
+            assert!(page_properties(shape.page()).is_none());
+        }
+    }
+
+    mod opacity {
+        use super::*;
+
+        #[test]
+        fn stroke_opacity_registers_extgstate() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    stroke_opacity: Some(0.5),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let entries = ext_gstate_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert!(entries[0].0.starts_with('A'));
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("CA")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.5
+            );
+            assert!(entries[0].1.get_dict("ca").unwrap().is_none());
+            assert!(shape
+                .total_cont()
+                .contains(&format!("/{} gs\n", entries[0].0)));
+        }
+
+        #[test]
+        fn fill_opacity_registers_extgstate() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+
+            shape
+                .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    color: None,
+                    fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+                    fill_opacity: Some(0.25),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let entries = ext_gstate_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert!(entries[0].1.get_dict("CA").unwrap().is_none());
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("ca")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.25
+            );
+            assert!(shape
+                .total_cont()
+                .contains(&format!("/{} gs\n", entries[0].0)));
+        }
+
+        #[test]
+        fn combined_opacity_single_extgstate() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+
+            shape
+                .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    fill: Some(PdfColor::rgb(0.0, 1.0, 0.0)),
+                    stroke_opacity: Some(0.5),
+                    fill_opacity: Some(0.5),
+                    ..Default::default()
+                })
+                .unwrap();
+
+            let entries = ext_gstate_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("CA")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.5
+            );
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("ca")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.5
+            );
+            assert_eq!(shape.total_cont().matches(" gs\n").count(), 1);
+        }
+
+        #[test]
+        fn idempotent_extgstate_registration() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
+            let opts = FinishOptions {
+                stroke_opacity: Some(0.5),
+                fill_opacity: Some(0.25),
+                ..Default::default()
+            };
+
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&opts)
+                .unwrap()
+                .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
+                .unwrap()
+                .finish(&opts)
+                .unwrap();
+
+            let entries = ext_gstate_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(
+                shape
+                    .total_cont()
+                    .matches(&format!("/{} gs\n", entries[0].0))
+                    .count(),
+                2
+            );
+        }
+
+        #[test]
+        fn opacity_out_of_range_errors() {
+            for opts in [
+                FinishOptions {
+                    stroke_opacity: Some(1.5),
+                    ..Default::default()
+                },
+                FinishOptions {
+                    fill_opacity: Some(-0.1),
+                    ..Default::default()
+                },
+                FinishOptions {
+                    stroke_opacity: Some(f32::NAN),
+                    ..Default::default()
+                },
+            ] {
                 let mut doc = PdfDocument::new();
-                let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
                 let mut page = doc.new_page(Size::A4).unwrap();
                 let mut shape = Shape::new(&mut page).unwrap();
                 shape.ipctm = Matrix::IDENTITY;
@@ -824,280 +1135,74 @@ mod tests {
                     .unwrap();
                 let draw_before = shape.draw_cont().to_owned();
 
-                let result = shape.finish(&FinishOptions {
-                    oc: Some(invalid_xref),
-                    ..Default::default()
-                });
+                let result = shape.finish(&opts);
 
                 assert!(result.is_err());
                 assert_eq!(shape.draw_cont(), draw_before);
                 assert!(shape.total_cont().is_empty());
-                assert!(page_properties(shape.page()).is_none());
-
-                let mut doc = PdfDocument::new();
-                let invalid_xref = add_indirect_string(&mut doc, "not an OCG dictionary");
-                let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-
-                let result = shape.insert_text(
-                    Point::new(50.0, 100.0),
-                    "Hi",
-                    &TextOptions {
-                        oc: Some(invalid_xref),
-                        ..Default::default()
-                    },
-                );
-
-                assert!(result.is_err());
-                assert!(shape.text_cont().is_empty());
-                assert!(page_properties(shape.page()).is_none());
+                assert!(page_ext_gstates(shape.page()).is_none());
             }
         }
 
-        pub mod opacity {
-            use super::super::*;
+        #[test]
+        fn text_opacity_registers_extgstate() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape.ipctm = Matrix::IDENTITY;
 
-            #[test]
-            fn stroke_opacity_registers_extgstate() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-
-                shape
-                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
-                    .unwrap()
-                    .finish(&FinishOptions {
-                        stroke_opacity: Some(0.5),
-                        ..Default::default()
-                    })
-                    .unwrap();
-
-                let entries = ext_gstate_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert!(entries[0].0.starts_with('A'));
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("CA")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.5
-                );
-                assert!(entries[0].1.get_dict("ca").unwrap().is_none());
-                assert!(shape
-                    .total_cont()
-                    .contains(&format!("/{} gs\n", entries[0].0)));
-            }
-
-            #[test]
-            fn fill_opacity_registers_extgstate() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-
-                shape
-                    .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
-                    .unwrap()
-                    .finish(&FinishOptions {
-                        color: None,
-                        fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
-                        fill_opacity: Some(0.25),
-                        ..Default::default()
-                    })
-                    .unwrap();
-
-                let entries = ext_gstate_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert!(entries[0].1.get_dict("CA").unwrap().is_none());
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("ca")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.25
-                );
-                assert!(shape
-                    .total_cont()
-                    .contains(&format!("/{} gs\n", entries[0].0)));
-            }
-
-            #[test]
-            fn combined_opacity_single_extgstate() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-
-                shape
-                    .draw_rect(&Rect::new(10.0, 20.0, 40.0, 60.0))
-                    .unwrap()
-                    .finish(&FinishOptions {
-                        fill: Some(PdfColor::rgb(0.0, 1.0, 0.0)),
-                        stroke_opacity: Some(0.5),
-                        fill_opacity: Some(0.5),
-                        ..Default::default()
-                    })
-                    .unwrap();
-
-                let entries = ext_gstate_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("CA")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.5
-                );
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("ca")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.5
-                );
-                assert_eq!(shape.total_cont().matches(" gs\n").count(), 1);
-            }
-
-            #[test]
-            fn idempotent_extgstate_registration() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-                let opts = FinishOptions {
+            shape
+                .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+                .unwrap()
+                .finish(&FinishOptions {
+                    fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+                    fill_opacity: Some(0.5),
                     stroke_opacity: Some(0.5),
-                    fill_opacity: Some(0.25),
                     ..Default::default()
-                };
+                })
+                .unwrap();
 
-                shape
-                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
-                    .unwrap()
-                    .finish(&opts)
-                    .unwrap()
-                    .draw_line(Point::new(50.0, 60.0), Point::new(70.0, 80.0))
-                    .unwrap()
-                    .finish(&opts)
-                    .unwrap();
-
-                let entries = ext_gstate_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(
-                    shape
-                        .total_cont()
-                        .matches(&format!("/{} gs\n", entries[0].0))
-                        .count(),
-                    2
-                );
-            }
-
-            #[test]
-            fn opacity_out_of_range_errors() {
-                for opts in [
-                    FinishOptions {
-                        stroke_opacity: Some(1.5),
-                        ..Default::default()
-                    },
-                    FinishOptions {
-                        fill_opacity: Some(-0.1),
-                        ..Default::default()
-                    },
-                    FinishOptions {
-                        stroke_opacity: Some(f32::NAN),
-                        ..Default::default()
-                    },
-                ] {
-                    let mut doc = PdfDocument::new();
-                    let mut page = doc.new_page(Size::A4).unwrap();
-                    let mut shape = Shape::new(&mut page).unwrap();
-                    shape.ipctm = Matrix::IDENTITY;
-                    shape
-                        .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
-                        .unwrap();
-                    let draw_before = shape.draw_cont().to_owned();
-
-                    let result = shape.finish(&opts);
-
-                    assert!(result.is_err());
-                    assert_eq!(shape.draw_cont(), draw_before);
-                    assert!(shape.total_cont().is_empty());
-                    assert!(page_ext_gstates(shape.page()).is_none());
-                }
-            }
-
-            #[test]
-            fn text_opacity_registers_extgstate() {
-                let mut doc = PdfDocument::new();
-                let mut page = doc.new_page(Size::A4).unwrap();
-                let mut shape = Shape::new(&mut page).unwrap();
-                shape.ipctm = Matrix::IDENTITY;
-
-                shape
-                    .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
-                    .unwrap()
-                    .finish(&FinishOptions {
-                        fill: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+            shape
+                .insert_text(
+                    Point::new(50.0, 100.0),
+                    "Hi",
+                    &TextOptions {
                         fill_opacity: Some(0.5),
                         stroke_opacity: Some(0.5),
                         ..Default::default()
-                    })
-                    .unwrap();
+                    },
+                )
+                .unwrap();
 
-                shape
-                    .insert_text(
-                        Point::new(50.0, 100.0),
-                        "Hi",
-                        &TextOptions {
-                            fill_opacity: Some(0.5),
-                            stroke_opacity: Some(0.5),
-                            ..Default::default()
-                        },
-                    )
-                    .unwrap();
-
-                let entries = ext_gstate_entries(shape.page());
-                assert_eq!(entries.len(), 1);
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("CA")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.5
-                );
-                assert_eq!(
-                    entries[0]
-                        .1
-                        .get_dict("ca")
-                        .unwrap()
-                        .unwrap()
-                        .as_float()
-                        .unwrap(),
-                    0.5
-                );
-                let gs = format!("/{} gs\n", entries[0].0);
-                let text_cont = shape.text_cont();
-                let gs_index = text_cont.find(&gs).expect("gs operator");
-                let bt_index = text_cont.find("BT\n").expect("BT operator");
-                let tf_index = text_cont.find(" Tf\n").expect("Tf operator");
-                assert!(bt_index < gs_index);
-                assert!(gs_index < tf_index);
-            }
+            let entries = ext_gstate_entries(shape.page());
+            assert_eq!(entries.len(), 1);
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("CA")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.5
+            );
+            assert_eq!(
+                entries[0]
+                    .1
+                    .get_dict("ca")
+                    .unwrap()
+                    .unwrap()
+                    .as_float()
+                    .unwrap(),
+                0.5
+            );
+            let gs = format!("/{} gs\n", entries[0].0);
+            let text_cont = shape.text_cont();
+            let gs_index = text_cont.find(&gs).expect("gs operator");
+            let bt_index = text_cont.find("BT\n").expect("BT operator");
+            let tf_index = text_cont.find(" Tf\n").expect("Tf operator");
+            assert!(gs_index < bt_index);
+            assert!(bt_index < tf_index);
         }
     }
 
@@ -1188,6 +1293,24 @@ mod tests {
         assert!(shape.draw_cont().is_empty());
         assert!(shape.text_cont().is_empty());
         assert!(shape.total_cont().is_empty());
+    }
+
+    #[test]
+    fn commit_wrong_document_panics_before_mutating_buffers() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        shape.total_cont.push_str("draw\n");
+        shape.text_cont.push_str("text\n");
+        let mut other_doc = PdfDocument::new();
+
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            shape.commit(&mut other_doc, true).unwrap();
+        }));
+
+        assert!(result.is_err());
+        assert_eq!(shape.total_cont(), "draw\n");
+        assert_eq!(shape.text_cont(), "text\n");
     }
 
     #[test]
