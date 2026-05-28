@@ -16,7 +16,7 @@ struct TextMatrix {
 #[derive(Clone, Debug, PartialEq, Eq)]
 struct TextboxLine {
     text: String,
-    is_paragraph_last: bool,
+    justify: bool,
 }
 
 impl Shape<'_> {
@@ -24,8 +24,8 @@ impl Shape<'_> {
     ///
     /// Equivalent of PyMuPDF `Shape.insert_text` for point text. Text is emitted as a
     /// single PDF text object using `Tm` and `TJ`; newline-separated input creates one
-    /// `TJ` operation per line. Only text rotations of 0, 90, 180, and 270 degrees are
-    /// supported.
+    /// `TJ` operation per emitted line. Rotation must be a multiple of 90 degrees and
+    /// is normalized to 0, 90, 180, or 270 degrees.
     ///
     /// ```
     /// use mupdf::{pdf::PdfDocument, Point, Shape, Size, TextOptions};
@@ -104,6 +104,16 @@ impl Shape<'_> {
 
         let origin = point.mul_matrix(&self.ipctm);
         let line_advance = opts.fontsize * opts.lineheight;
+        let lines_to_emit = point_text_line_count(
+            rotate,
+            point,
+            self.width,
+            self.height,
+            self.x,
+            self.y,
+            line_advance,
+            lines.len(),
+        );
         let mut block = String::new();
         block.push_str("q\n");
         if let Some(oc_name) = &oc_name {
@@ -128,12 +138,12 @@ impl Shape<'_> {
         if let Some(color) = &opts.color {
             block.push_str(&color_code(color.components(), ColorRole::Stroke));
         }
-        let fill = opts.fill.as_ref().or(opts.color.as_ref());
+        let fill = text_fill_color(opts.color.as_ref(), opts.fill.as_ref(), opts.render_mode);
         if let Some(fill) = fill {
             block.push_str(&color_code(fill.components(), ColorRole::Fill));
         }
 
-        for (line_index, line) in lines.iter().enumerate() {
+        for (line_index, line) in lines.iter().take(lines_to_emit).enumerate() {
             let matrix = text_matrix(rotate, origin, line_advance * line_index as f32);
             block.push_str(&format!(
                 "{} {} {} {} {} {} Tm\n",
@@ -162,11 +172,12 @@ impl Shape<'_> {
     ///
     /// Equivalent of PyMuPDF `Shape.insert_textbox` for the M4 feature set. The text
     /// is wrapped by word into the supplied rectangle and emitted as one PDF text
-    /// object. Left, center, right, and justified alignment are supported. Justified
-    /// lines distribute extra width across inter-word gaps with PDF word spacing; the
-    /// last line of each paragraph and single-word lines stay left-aligned. The return
-    /// value is the unused height when all lines fit, or a negative deficit of
-    /// `missing_lines * fontsize * lineheight` when text overflows.
+    /// object if the full text fits. Left, center, right, and justified alignment are
+    /// supported. Justified lines distribute extra width across inter-word gaps with
+    /// PDF word spacing; paragraph-final, single-word, and long-word split lines stay
+    /// left-aligned. The return value is the unused height when all lines fit, or the
+    /// negative height deficit when text overflows. Overflow is atomic: no partial text
+    /// is appended.
     ///
     /// ```
     /// use mupdf::{pdf::PdfDocument, Rect, Shape, Size, TextAlign, TextboxOptions};
@@ -208,7 +219,7 @@ impl Shape<'_> {
         }
 
         if text.is_empty() {
-            return Ok(rect.height());
+            return Ok(textbox_line_capacity_height(rect, rotate));
         }
         if !opts.fontsize.is_finite() || opts.fontsize <= 0.0 {
             return Err(Error::InvalidArgument(
@@ -270,23 +281,19 @@ impl Shape<'_> {
         let line_advance = opts.fontsize * opts.lineheight;
         let lines = wrap_textbox_lines(text, max_width, opts.fontsize, &font, &font_info)?;
         if lines.is_empty() {
-            return Ok(rect.height());
+            return Ok(max_height);
         }
 
-        let fitting_lines = ((max_height + f32::EPSILON) / line_advance)
-            .floor()
-            .max(0.0) as usize;
-        let lines_to_emit = fitting_lines.min(lines.len());
-        let missing_lines = lines.len().saturating_sub(fitting_lines);
-        let deficit = if missing_lines > 0 {
-            -(missing_lines as f32 * line_advance)
+        let text_height = line_advance * lines.len() as f32 - font_info.descender * opts.fontsize;
+        let overflow = text_height - max_height;
+        if overflow > f32::EPSILON {
+            return Ok(-overflow);
+        }
+        let unused_height = if overflow.abs() < f32::EPSILON {
+            0.0
         } else {
-            max_height - lines.len() as f32 * line_advance
+            -overflow
         };
-
-        if lines_to_emit == 0 {
-            return Ok(deficit);
-        }
 
         let (oc_name, opacity_name) = {
             let mut doc = self.page.document_handle()?;
@@ -324,12 +331,12 @@ impl Shape<'_> {
         if let Some(color) = &opts.color {
             block.push_str(&color_code(color.components(), ColorRole::Stroke));
         }
-        let fill = opts.fill.as_ref().or(opts.color.as_ref());
+        let fill = text_fill_color(opts.color.as_ref(), opts.fill.as_ref(), opts.render_mode);
         if let Some(fill) = fill {
             block.push_str(&color_code(fill.components(), ColorRole::Fill));
         }
 
-        for (line_index, line) in lines.iter().take(lines_to_emit).enumerate() {
+        for (line_index, line) in lines.iter().enumerate() {
             let line_width = text_width(&line.text, opts.fontsize, &font, &font_info)?;
             let align_offset = textbox_align_offset(max_width, line_width, opts.align);
             let point = textbox_line_point(
@@ -374,7 +381,7 @@ impl Shape<'_> {
         block.push_str("Q\n");
         self.text_cont.push_str(&block);
         self.update_rect_with_rect(rect);
-        Ok(deficit)
+        Ok(unused_height)
     }
 }
 
@@ -410,13 +417,53 @@ fn validate_text_scalars(
 }
 
 fn normalize_rotate(rotate: i32) -> Result<i32, Error> {
-    if matches!(rotate, 0 | 90 | 180 | 270) {
-        return Ok(rotate);
+    if rotate % 90 == 0 {
+        return Ok(rotate.rem_euclid(360));
     }
 
     Err(Error::InvalidArgument(format!(
-        "bad rotate value: {rotate}; expected one of 0, 90, 180, 270"
+        "bad rotate value: {rotate}; expected a multiple of 90"
     )))
+}
+
+fn point_text_line_count(
+    rotate: i32,
+    point: Point,
+    width: f32,
+    height: f32,
+    x_origin: f32,
+    y_origin: f32,
+    line_advance: f32,
+    line_count: usize,
+) -> usize {
+    if line_count <= 1 {
+        return line_count;
+    }
+
+    let mut space = match rotate {
+        0 => height - point.y - y_origin,
+        90 => width - (point.x + x_origin).abs(),
+        180 => (point.y + y_origin).abs(),
+        270 => (point.x + x_origin).abs(),
+        _ => unreachable!("rotate was normalized before point text clipping"),
+    };
+    let mut emitted = 1;
+    for _ in 1..line_count {
+        if space < line_advance {
+            break;
+        }
+        emitted += 1;
+        space -= line_advance;
+    }
+    emitted
+}
+
+fn text_fill_color<'a>(
+    color: Option<&'a super::PdfColor>,
+    fill: Option<&'a super::PdfColor>,
+    render_mode: i32,
+) -> Option<&'a super::PdfColor> {
+    fill.or_else(|| (render_mode == 0).then_some(color).flatten())
 }
 
 fn text_matrix(rotate: i32, origin: Point, line_offset: f32) -> TextMatrix {
@@ -477,7 +524,7 @@ fn textbox_justify_word_spacing(
     max_width: f32,
     line_width: f32,
 ) -> Option<f32> {
-    if line.is_paragraph_last {
+    if !line.justify {
         return None;
     }
 
@@ -532,43 +579,72 @@ fn wrap_textbox_lines(
     font_info: &crate::pdf::FontInfo,
 ) -> Result<Vec<TextboxLine>, Error> {
     let mut lines = Vec::new();
+    let space_width = text_width(" ", fontsize, font, font_info)?;
 
-    for paragraph in text.split('\n') {
-        let words = paragraph.split_whitespace().collect::<Vec<_>>();
-        if words.is_empty() {
-            lines.push(TextboxLine {
-                text: String::new(),
-                is_paragraph_last: true,
-            });
-            continue;
-        }
-
+    for paragraph in text.lines() {
         let mut current = String::new();
-        for word in words {
-            if current.is_empty() {
+        let mut rest = max_width;
+
+        for word in paragraph.split(' ') {
+            let word_width = text_width(word, fontsize, font, font_info)?;
+            if rest >= word_width {
                 current.push_str(word);
+                current.push(' ');
+                rest -= word_width + space_width;
                 continue;
             }
 
-            let candidate = format!("{current} {word}");
-            if text_width(&candidate, fontsize, font, font_info)? <= max_width {
-                current = candidate;
-            } else {
+            if !current.is_empty() {
                 lines.push(TextboxLine {
-                    text: current,
-                    is_paragraph_last: false,
+                    text: trim_trailing_spaces(&current).to_owned(),
+                    justify: true,
                 });
-                current = word.to_owned();
+                current.clear();
             }
+
+            if word_width <= max_width {
+                current.push_str(word);
+                current.push(' ');
+                rest = max_width - word_width - space_width;
+                continue;
+            }
+
+            if let Some(previous) = lines.last_mut() {
+                previous.justify = false;
+            }
+            for ch in word.chars() {
+                let mut ch_buf = [0; 4];
+                let ch_str = ch.encode_utf8(&mut ch_buf);
+                let ch_width = text_width(ch_str, fontsize, font, font_info)?;
+                let current_width = text_width(&current, fontsize, font, font_info)?;
+                if current.is_empty() || current_width <= max_width - ch_width {
+                    current.push(ch);
+                } else {
+                    lines.push(TextboxLine {
+                        text: current,
+                        justify: false,
+                    });
+                    current = ch.to_string();
+                }
+            }
+
+            current.push(' ');
+            rest = max_width - text_width(&current, fontsize, font, font_info)?;
         }
 
-        lines.push(TextboxLine {
-            text: current,
-            is_paragraph_last: true,
-        });
+        if !current.is_empty() {
+            lines.push(TextboxLine {
+                text: trim_trailing_spaces(&current).to_owned(),
+                justify: false,
+            });
+        }
     }
 
     Ok(lines)
+}
+
+fn trim_trailing_spaces(text: &str) -> &str {
+    text.trim_end_matches(' ')
 }
 
 fn text_width(
@@ -693,25 +769,22 @@ mod tests {
     }
 
     #[test]
-    fn insert_text_rejects_rotation_outside_supported_quadrants() {
-        for rotate in [-90, 360, 450] {
-            let mut doc = PdfDocument::new();
-            let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
-            let mut shape = Shape::new(&mut page).unwrap();
-
-            let result = shape.insert_text(
-                Point::new(50.0, 100.0),
-                "bad",
+    fn insert_text_normalizes_rotation_multiples_of_90() {
+        for (rotate, expected_tm) in [
+            (-90, "0 -1 1 0 50 700 Tm\n"),
+            (360, "1 0 0 1 50 700 Tm\n"),
+            (450, "0 1 -1 0 50 700 Tm\n"),
+        ] {
+            let text_cont = text_cont_for(
+                "R",
                 &TextOptions {
                     rotate,
                     ..Default::default()
                 },
             );
-
-            assert!(result.is_err(), "rotate {rotate} unexpectedly succeeded");
             assert!(
-                shape.text_cont().is_empty(),
-                "rotate {rotate} appended content"
+                text_cont.contains(expected_tm),
+                "rotate {rotate} text_cont:\n{text_cont}"
             );
         }
     }
@@ -734,7 +807,7 @@ mod tests {
         assert!(text_cont.contains("2 w\n"));
         assert!(text_cont.contains("2 M\n"));
         assert!(text_cont.contains("1 0 0 RG\n"));
-        assert!(text_cont.contains("1 0 0 rg\n"));
+        assert!(!text_cont.contains("1 0 0 rg\n"));
     }
 
     #[test]
@@ -782,6 +855,18 @@ mod tests {
         let (result, text_cont) = insert_textbox_on_test_page(rect, "", &TextboxOptions::default());
 
         assert_eq!(result.unwrap(), rect.height());
+        assert!(text_cont.is_empty());
+
+        let (result, text_cont) = insert_textbox_on_test_page(
+            rect,
+            "",
+            &TextboxOptions {
+                rotate: 90,
+                ..Default::default()
+            },
+        );
+
+        assert_eq!(result.unwrap(), rect.width());
         assert!(text_cont.is_empty());
     }
 
@@ -871,12 +956,15 @@ mod tests {
         assert!(!text_cont.contains("inf"));
         assert_eq!(
             textbox_text_entries(&text_cont),
-            vec![("supercalifragilistic".to_owned(), None)]
+            vec![
+                ("supercalifrag".to_owned(), None),
+                ("ilistic".to_owned(), None),
+            ]
         );
     }
 
     #[test]
-    fn insert_textbox_overflow_returns_missing_line_deficit_and_emits_fit_lines() {
+    fn insert_textbox_overflow_returns_deficit_without_emitting_text() {
         let (result, text_cont) = insert_textbox_on_test_page(
             Rect::new(50.0, 100.0, 250.0, 125.0),
             "line1\nline2\nline3",
@@ -887,14 +975,12 @@ mod tests {
             },
         );
 
-        assert_eq!(result.unwrap(), -10.0);
-        assert!(text_cont.contains("[<6c696e6531>] TJ"));
-        assert!(text_cont.contains("[<6c696e6532>] TJ"));
-        assert!(!text_cont.contains("[<6c696e6533>] TJ"));
+        assert!((result.unwrap() + 7.990_001_7).abs() <= 1e-5);
+        assert!(text_cont.is_empty());
     }
 
     #[test]
-    fn insert_textbox_oversized_single_word_gets_its_own_line() {
+    fn insert_textbox_oversized_single_word_splits_and_overflows_atomically() {
         let (result, text_cont) = insert_textbox_on_test_page(
             Rect::new(50.0, 100.0, 60.0, 130.0),
             "supercalifragilistic",
@@ -905,9 +991,8 @@ mod tests {
             },
         );
 
-        assert!(result.unwrap() >= 0.0);
-        assert_eq!(text_cont.matches(" TJ\n").count(), 1);
-        assert!(text_cont.contains("[<737570657263616c6966726167696c6973746963>] TJ"));
+        assert!(result.unwrap() < 0.0);
+        assert!(text_cont.is_empty());
     }
 
     fn textbox_text_entries(text_cont: &str) -> Vec<(String, Option<f32>)> {

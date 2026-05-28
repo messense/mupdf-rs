@@ -367,12 +367,19 @@ impl Shape<'_> {
         beta: f32,
         full_sector: bool,
     ) -> Result<&mut Self, Error> {
-        self.move_to_if_needed(point);
-
         let radius = (point - center).length();
-        if radius <= f32::EPSILON {
-            return Ok(self);
+        if !radius.is_finite() || radius <= f32::EPSILON {
+            return Err(Error::InvalidArgument(
+                "radius must be a positive finite value".to_owned(),
+            ));
         }
+        if !beta.is_finite() {
+            return Err(Error::InvalidArgument(
+                "beta must be a finite value".to_owned(),
+            ));
+        }
+
+        self.move_to_if_needed(point);
 
         let mut sweep = f64::from(-beta).to_radians();
         while sweep.abs() > std::f64::consts::TAU {
@@ -389,12 +396,13 @@ impl Shape<'_> {
             remaining -= delta;
         }
         if remaining.abs() > 1e-6 {
-            self.arc_segment(center, radius, current, start_angle, remaining);
+            current = self.arc_segment(center, radius, current, start_angle, remaining);
         }
 
         if full_sector {
+            self.move_to(point);
             self.line_to(center);
-            self.line_to(point);
+            self.line_to(current);
         }
 
         Ok(self)
@@ -419,8 +427,13 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn draw_circle(&mut self, center: Point, radius: f32) -> Result<&mut Self, Error> {
-        let radius = radius.abs();
-        let point = Point::new(center.x + radius, center.y);
+        if !radius.is_finite() || radius <= f32::EPSILON {
+            return Err(Error::InvalidArgument(
+                "radius must be a positive finite value".to_owned(),
+            ));
+        }
+
+        let point = Point::new(center.x - radius, center.y);
         self.draw_sector(center, point, 360.0, false)
     }
 
@@ -483,7 +496,7 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn draw_quad(&mut self, quad: Quad) -> Result<&mut Self, Error> {
-        self.draw_polyline(&[quad.ul, quad.ur, quad.lr, quad.ll, quad.ul])
+        self.draw_polyline(&[quad.ul, quad.ll, quad.lr, quad.ur, quad.ul])
     }
 
     /// Draws a zigzag line from `p1` to `p2`.
@@ -512,16 +525,21 @@ impl Shape<'_> {
 
         let breadth = checked_breadth(breadth)?;
         let distance = (p2 - p1).length();
-        let tooth_count = wave_tooth_count(distance, breadth)?;
+        let phase_count = wave_phase_count(distance, breadth)?;
+        let adjusted_breadth = distance / phase_count as f32;
         let inverse = util_hor_matrix(p1, p2)
             .invert()
             .ok_or(Error::NonInvertibleMatrix)?;
 
-        let mut points = Vec::with_capacity(tooth_count + 2);
+        let mut points = Vec::with_capacity(phase_count / 2 + 2);
         points.push(p1);
-        for tooth in 0..tooth_count {
-            let x = ((2 * tooth + 1) as f32) * breadth;
-            let y = if tooth % 2 == 0 { -breadth } else { breadth };
+        for phase in 1..phase_count {
+            let y = match phase % 4 {
+                1 => -adjusted_breadth,
+                3 => adjusted_breadth,
+                _ => continue,
+            };
+            let x = phase as f32 * adjusted_breadth;
             points.push(Point::new(x, y).mul_matrix(&inverse));
         }
         points.push(p2);
@@ -560,43 +578,48 @@ impl Shape<'_> {
 
         let breadth = checked_breadth(breadth)?;
         let distance = (p2 - p1).length();
-        let tooth_count = wave_tooth_count(distance, breadth)?;
+        let phase_count = wave_phase_count(distance, breadth)?;
+        let adjusted_breadth = distance / phase_count as f32;
         let inverse = util_hor_matrix(p1, p2)
             .invert()
             .ok_or(Error::NonInvertibleMatrix)?;
 
-        let mut start = p1;
-        for tooth in 0..tooth_count {
-            let control_x = ((2 * tooth + 1) as f32) * breadth;
-            let control_y = if tooth % 2 == 0 {
-                -SQUIGGLE_CONTROL_SCALE * breadth
-            } else {
-                SQUIGGLE_CONTROL_SCALE * breadth
+        let mut points = Vec::with_capacity(phase_count + 1);
+        points.push(p1);
+        for phase in 1..phase_count {
+            let y = match phase % 4 {
+                1 => -SQUIGGLE_CONTROL_SCALE * adjusted_breadth,
+                3 => SQUIGGLE_CONTROL_SCALE * adjusted_breadth,
+                _ => 0.0,
             };
-            let end_x = if tooth + 1 == tooth_count {
-                distance
-            } else {
-                ((2 * tooth + 2) as f32) * breadth
-            };
-            let control = Point::new(control_x, control_y).mul_matrix(&inverse);
-            let end = Point::new(end_x, 0.0).mul_matrix(&inverse);
-            self.draw_curve(start, control, end)?;
-            start = end;
+            let x = phase as f32 * adjusted_breadth;
+            points.push(Point::new(x, y).mul_matrix(&inverse));
+        }
+        points.push(p2);
+
+        let mut index = 0;
+        while index + 2 < points.len() {
+            self.draw_curve(points[index], points[index + 1], points[index + 2])?;
+            index += 2;
         }
 
         Ok(self)
     }
 
+    fn move_to(&mut self, point: Point) {
+        let transformed = self.transform_point(point);
+        self.draw_cont.push_str(&format!(
+            "{} {} m\n",
+            format_g(transformed.x),
+            format_g(transformed.y)
+        ));
+        self.update_rect(&point);
+        self.set_last_point(point);
+    }
+
     fn move_to_if_needed(&mut self, point: Point) {
         if self.needs_move_to(&point) {
-            let transformed = self.transform_point(point);
-            self.draw_cont.push_str(&format!(
-                "{} {} m\n",
-                format_g(transformed.x),
-                format_g(transformed.y)
-            ));
-            self.update_rect(&point);
-            self.set_last_point(point);
+            self.move_to(point);
         }
     }
 
@@ -684,14 +707,39 @@ fn checked_breadth(breadth: f32) -> Result<f32, Error> {
     }
 }
 
-fn wave_tooth_count(distance: f32, breadth: f32) -> Result<usize, Error> {
-    let count = (distance / (2.0 * breadth)).floor() as usize;
+fn wave_phase_count(distance: f32, breadth: f32) -> Result<usize, Error> {
+    if !distance.is_finite() || distance <= f32::EPSILON {
+        return Err(Error::InvalidArgument(
+            "wave endpoints are too close for the requested breadth".to_owned(),
+        ));
+    }
+
+    let count = 4 * round_half_even(f64::from(distance) / (4.0 * f64::from(breadth))) as usize;
     if count == 0 {
+        Err(Error::InvalidArgument(
+            "wave endpoints are too close for the requested breadth".to_owned(),
+        ))
+    } else if count < 4 {
         Err(Error::InvalidArgument(
             "wave endpoints are too close for the requested breadth".to_owned(),
         ))
     } else {
         Ok(count)
+    }
+}
+
+fn round_half_even(value: f64) -> u64 {
+    let floor = value.floor();
+    let fraction = value - floor;
+    if (fraction - 0.5).abs() <= 1e-12 {
+        let floor_int = floor as u64;
+        if floor_int % 2 == 0 {
+            floor_int
+        } else {
+            floor_int + 1
+        }
+    } else {
+        value.round() as u64
     }
 }
 
@@ -789,18 +837,20 @@ mod tests {
             concat!(
                 "150 100 m\n",
                 "150 72.3858 127.614 50 100 50 c\n",
+                "150 100 m\n",
                 "100 100 l\n",
-                "150 100 l\n",
+                "100 50 l\n",
             )
         );
         assert_eq!(shape.draw_cont().matches(" c\n").count(), 1);
+        assert_eq!(shape.draw_cont().matches(" m\n").count(), 2);
         assert_eq!(shape.draw_cont().matches(" l\n").count(), 2);
     }
 
     #[test]
     fn draw_sector_beta_360_equals_draw_circle() {
         let center = Point::new(100.0, 100.0);
-        let point = Point::new(150.0, 100.0);
+        let point = Point::new(50.0, 100.0);
 
         let mut doc = PdfDocument::new();
         let mut sector_page = doc.new_page(Size::A4).unwrap();
@@ -823,18 +873,17 @@ mod tests {
     }
 
     #[test]
-    fn draw_circle_radius_zero_is_degenerate_point() {
+    fn draw_circle_rejects_non_positive_radius_without_appending_content() {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut shape = shape_with_identity_ctm(&mut page);
 
-        shape.draw_circle(Point::new(100.0, 100.0), 0.0).unwrap();
+        let result = shape.draw_circle(Point::new(100.0, 100.0), 0.0);
 
-        assert_eq!(shape.draw_cont(), "100 100 m\n");
-        assert_eq!(shape.last_point(), Some(Point::new(100.0, 100.0)));
-        assert_eq!(shape.rect(), Some(Rect::new(100.0, 100.0, 100.0, 100.0)));
-        shape.finish(&Default::default()).unwrap();
-        assert!(!shape.total_cont().contains(" c\n"));
+        assert!(result.is_err());
+        assert!(shape.draw_cont().is_empty());
+        assert_eq!(shape.last_point(), None);
+        assert_eq!(shape.rect(), None);
     }
 
     #[test]
@@ -907,13 +956,13 @@ mod tests {
         let expected = {
             let mut shape = shape_with_identity_ctm(&mut polyline_page);
             shape
-                .draw_polyline(&[quad.ul, quad.ur, quad.lr, quad.ll, quad.ul])
+                .draw_polyline(&[quad.ul, quad.ll, quad.lr, quad.ur, quad.ul])
                 .unwrap();
             shape.draw_cont().to_owned()
         };
 
         assert_eq!(actual, expected);
-        assert_eq!(actual, "0 0 m\n100 0 l\n100 50 l\n0 50 l\n0 0 l\n");
+        assert_eq!(actual, "0 0 m\n0 50 l\n100 50 l\n100 0 l\n0 0 l\n");
     }
 
     #[test]
@@ -1128,14 +1177,17 @@ mod tests {
             .filter_map(parse_line_to_vertex)
             .collect::<Vec<_>>();
         let internal_vertices = &vertices[..vertices.len() - 1];
-        assert_eq!(
-            internal_vertices.len(),
-            ((p2 - p1).length() / (2.0 * breadth)).floor() as usize
-        );
+        let phase_count = wave_phase_count((p2 - p1).length(), breadth).unwrap();
+        let adjusted_breadth = (p2 - p1).length() / phase_count as f32;
+        assert_eq!(internal_vertices.len(), phase_count / 2);
 
         for (index, vertex) in internal_vertices.iter().copied().enumerate() {
             let transformed = vertex.mul_matrix(&matrix);
-            let expected = if index % 2 == 0 { -breadth } else { breadth };
+            let expected = if index % 2 == 0 {
+                -adjusted_breadth
+            } else {
+                adjusted_breadth
+            };
             assert!(
                 (transformed.y - expected).abs() <= 1e-4,
                 "vertex {index}={vertex:?} transformed to {transformed:?}, expected y={expected}"

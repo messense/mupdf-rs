@@ -173,7 +173,7 @@ pub struct TextOptions<'a> {
     pub border_width: f32,
     /// Optional miter limit for stroked glyph outlines.
     pub miter_limit: Option<f32>,
-    /// Clockwise text rotation in degrees. Only 0, 90, 180, and 270 are supported.
+    /// Clockwise text rotation in degrees. Any multiple of 90 is accepted and normalized.
     pub rotate: i32,
     /// Whether the font should be registered as a simple font.
     pub simple: bool,
@@ -285,7 +285,7 @@ pub struct TextboxOptions<'a> {
     pub border_width: f32,
     /// Optional miter limit for stroked glyph outlines.
     pub miter_limit: Option<f32>,
-    /// Clockwise text rotation in degrees. Only 0, 90, 180, and 270 are supported.
+    /// Clockwise text rotation in degrees. Any multiple of 90 is accepted and normalized.
     pub rotate: i32,
     /// Whether the font should be registered as a simple font.
     pub simple: bool,
