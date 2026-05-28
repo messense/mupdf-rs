@@ -1,16 +1,7 @@
-use mupdf::pdf::{PdfDocument, PdfPage};
+use crate::support::render_page;
+use mupdf::pdf::PdfDocument;
 use mupdf::shape::Shape;
-use mupdf::{Colorspace, Matrix, Point, Rect, Size};
-
-fn render_page(page: &PdfPage) -> mupdf::Pixmap {
-    page.to_pixmap(
-        &Matrix::new_scale(1.0, 1.0),
-        &Colorspace::device_rgb(),
-        false,
-        true,
-    )
-    .unwrap()
-}
+use mupdf::{Point, Rect, Size};
 
 fn pixel_rgb(pixmap: &mupdf::Pixmap, x: u32, y: u32) -> [u8; 3] {
     let n = pixmap.n() as usize;

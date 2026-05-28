@@ -1,3 +1,5 @@
+mod support;
+
 mod red_rect;
 
 mod basic_drawing;

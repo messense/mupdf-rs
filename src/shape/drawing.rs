@@ -715,11 +715,7 @@ fn wave_phase_count(distance: f32, breadth: f32) -> Result<usize, Error> {
     }
 
     let count = 4 * round_half_even(f64::from(distance) / (4.0 * f64::from(breadth))) as usize;
-    if count == 0 {
-        Err(Error::InvalidArgument(
-            "wave endpoints are too close for the requested breadth".to_owned(),
-        ))
-    } else if count < 4 {
+    if count < 4 {
         Err(Error::InvalidArgument(
             "wave endpoints are too close for the requested breadth".to_owned(),
         ))
@@ -733,7 +729,7 @@ fn round_half_even(value: f64) -> u64 {
     let fraction = value - floor;
     if (fraction - 0.5).abs() <= 1e-12 {
         let floor_int = floor as u64;
-        if floor_int % 2 == 0 {
+        if floor_int.is_multiple_of(2) {
             floor_int
         } else {
             floor_int + 1

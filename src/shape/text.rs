@@ -19,6 +19,14 @@ struct TextboxLine {
     justify: bool,
 }
 
+#[derive(Clone, Copy, Debug)]
+struct PointTextClip {
+    width: f32,
+    height: f32,
+    x_origin: f32,
+    y_origin: f32,
+}
+
 impl Shape<'_> {
     /// Inserts text at `point`.
     ///
@@ -107,10 +115,12 @@ impl Shape<'_> {
         let lines_to_emit = point_text_line_count(
             rotate,
             point,
-            self.width,
-            self.height,
-            self.x,
-            self.y,
+            PointTextClip {
+                width: self.width,
+                height: self.height,
+                x_origin: self.x,
+                y_origin: self.y,
+            },
             line_advance,
             lines.len(),
         );
@@ -429,10 +439,7 @@ fn normalize_rotate(rotate: i32) -> Result<i32, Error> {
 fn point_text_line_count(
     rotate: i32,
     point: Point,
-    width: f32,
-    height: f32,
-    x_origin: f32,
-    y_origin: f32,
+    clip: PointTextClip,
     line_advance: f32,
     line_count: usize,
 ) -> usize {
@@ -441,10 +448,10 @@ fn point_text_line_count(
     }
 
     let mut space = match rotate {
-        0 => height - point.y - y_origin,
-        90 => width - (point.x + x_origin).abs(),
-        180 => (point.y + y_origin).abs(),
-        270 => (point.x + x_origin).abs(),
+        0 => clip.height - point.y - clip.y_origin,
+        90 => clip.width - (point.x + clip.x_origin).abs(),
+        180 => (point.y + clip.y_origin).abs(),
+        270 => (point.x + clip.x_origin).abs(),
         _ => unreachable!("rotate was normalized before point text clipping"),
     };
     let mut emitted = 1;

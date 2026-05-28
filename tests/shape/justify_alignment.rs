@@ -1,41 +1,15 @@
 #![cfg(not(target_arch = "wasm32"))]
 
-use mupdf::pdf::{PdfDocument, PdfPage};
+use crate::support::{assert_snapshot, render_page};
+use mupdf::pdf::PdfDocument;
 use mupdf::shape::{PdfColor, Shape, TextAlign, TextboxOptions};
-use mupdf::{Colorspace, Image, ImageFormat, Matrix, Rect, Size};
-use std::path::Path;
+use mupdf::{Rect, Size};
 
 const JUSTIFY_TEXT: &str = concat!(
     "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ",
     "Donec varius ligula sit amet libero pulvinar, vel finibus arcu pretium.\n",
     "Integer posuere neque sed erat facilisis, vitae placerat massa posuere."
 );
-
-fn render_page(page: &PdfPage) -> mupdf::Pixmap {
-    page.to_pixmap(
-        &Matrix::new_scale(1.0, 1.0),
-        &Colorspace::device_rgb(),
-        false,
-        true,
-    )
-    .unwrap()
-}
-
-fn assert_snapshot(snapshot: &str, rendered: &mupdf::Pixmap) {
-    if std::env::var_os("UPDATE_SHAPE_SNAPSHOTS").is_some() {
-        rendered.save_as(snapshot, ImageFormat::PNG).unwrap();
-    }
-
-    assert!(
-        Path::new(snapshot).exists(),
-        "missing snapshot {snapshot}; rerun with UPDATE_SHAPE_SNAPSHOTS=1"
-    );
-    let expected = Image::from_file(snapshot).unwrap().to_pixmap().unwrap();
-    assert_eq!(rendered.width(), expected.width());
-    assert_eq!(rendered.height(), expected.height());
-    assert_eq!(rendered.n(), expected.n());
-    assert_eq!(rendered.samples(), expected.samples());
-}
 
 #[test]
 fn insert_textbox_justify_snapshot() {

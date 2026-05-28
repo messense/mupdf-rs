@@ -247,18 +247,21 @@ mod tests {
         assert_eq!(under_locale, before);
         assert!(under_locale.iter().all(|value| !value.contains(',')));
 
-        let handles = (0..2).map(|_| {
-            std::thread::spawn(|| {
-                (0..1000)
-                    .map(|_| INPUTS.into_iter().map(format_g).collect::<Vec<_>>())
-                    .collect::<Vec<_>>()
-            })
-        });
+        #[cfg(not(target_arch = "wasm32"))]
+        {
+            let handles = (0..2).map(|_| {
+                std::thread::spawn(|| {
+                    (0..1000)
+                        .map(|_| INPUTS.into_iter().map(format_g).collect::<Vec<_>>())
+                        .collect::<Vec<_>>()
+                })
+            });
 
-        for handle in handles {
-            for threaded in handle.join().unwrap() {
-                assert_eq!(threaded, before);
-                assert!(threaded.iter().all(|value| !value.contains(',')));
+            for handle in handles {
+                for threaded in handle.join().unwrap() {
+                    assert_eq!(threaded, before);
+                    assert!(threaded.iter().all(|value| !value.contains(',')));
+                }
             }
         }
     }

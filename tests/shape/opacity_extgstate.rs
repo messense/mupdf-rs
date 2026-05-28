@@ -1,22 +1,11 @@
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::path::Path;
-
-use mupdf::pdf::{PdfDocument, PdfPage};
+use crate::support::{assert_snapshot, render_page};
+use mupdf::pdf::PdfDocument;
 use mupdf::shape::{FinishOptions, PdfColor, Shape};
-use mupdf::{Colorspace, Image, ImageFormat, Matrix, Rect, Size};
+use mupdf::{Rect, Size};
 
 const OPACITY_OVERLAY_SNAPSHOT: &str = "tests/shape/snapshots/opacity_overlay.png";
-
-fn render_page(page: &PdfPage) -> mupdf::Pixmap {
-    page.to_pixmap(
-        &Matrix::new_scale(1.0, 1.0),
-        &Colorspace::device_rgb(),
-        false,
-        true,
-    )
-    .unwrap()
-}
 
 fn pixel_rgb(pixmap: &mupdf::Pixmap, x: u32, y: u32) -> [u8; 3] {
     let n = pixmap.n() as usize;
@@ -24,22 +13,6 @@ fn pixel_rgb(pixmap: &mupdf::Pixmap, x: u32, y: u32) -> [u8; 3] {
     let index = ((y * pixmap.width() + x) as usize) * n;
     let samples = pixmap.samples();
     [samples[index], samples[index + 1], samples[index + 2]]
-}
-
-fn assert_snapshot(snapshot: &str, rendered: &mupdf::Pixmap) {
-    if std::env::var_os("UPDATE_SHAPE_SNAPSHOTS").is_some() {
-        rendered.save_as(snapshot, ImageFormat::PNG).unwrap();
-    }
-
-    assert!(
-        Path::new(snapshot).exists(),
-        "missing snapshot {snapshot}; rerun with UPDATE_SHAPE_SNAPSHOTS=1"
-    );
-    let expected = Image::from_file(snapshot).unwrap().to_pixmap().unwrap();
-    assert_eq!(rendered.width(), expected.width());
-    assert_eq!(rendered.height(), expected.height());
-    assert_eq!(rendered.n(), expected.n());
-    assert_eq!(rendered.samples(), expected.samples());
 }
 
 pub mod m5 {
