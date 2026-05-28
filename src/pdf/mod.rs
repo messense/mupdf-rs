@@ -6,7 +6,6 @@ pub mod intent;
 pub mod links;
 pub mod object;
 pub mod page;
-pub mod shape;
 
 #[cfg(test)]
 mod tests_annotation;
@@ -21,18 +20,15 @@ pub use links::{
 };
 pub use object::PdfObject;
 pub use page::{FontInfo, InsertFontOptions, PdfPage};
-pub use shape::{
-    FinishOptions, PdfColor, RectRadius, Shape, TextAlign, TextOptions, TextboxOptions,
-};
 
 #[must_use]
 pub struct DocOperation<'a> {
-    doc: &'a mut PdfDocument,
+    pub(crate) doc: &'a mut PdfDocument,
     success: bool,
 }
 
 impl<'a> DocOperation<'a> {
-    fn begin(doc: &'a mut PdfDocument, name: &str) -> Result<Self, crate::Error> {
+    pub(crate) fn begin(doc: &'a mut PdfDocument, name: &str) -> Result<Self, crate::Error> {
         doc.begin_operation(name)?;
         Ok(Self {
             doc,

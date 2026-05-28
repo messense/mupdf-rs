@@ -8,7 +8,7 @@ const SQUIGGLE_CONTROL_SCALE: f32 = 2.414_213_7;
 /// Radius specification for [`Shape::draw_rect_with_radius`].
 ///
 /// ```
-/// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, RectRadius, Shape, Size};
+/// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, RectRadius, Shape}, Rect, Size};
 ///
 /// # fn main() -> Result<(), mupdf::Error> {
 /// let mut doc = PdfDocument::new();
@@ -106,7 +106,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_line`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -133,7 +133,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_polyline`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -179,7 +179,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_rect` for the non-rounded case.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Rect, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -221,7 +221,7 @@ impl Shape<'_> {
     /// the compact PDF `re` operator for non-rounded rectangles.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Rect, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -268,7 +268,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_bezier`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -320,7 +320,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_curve`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -347,7 +347,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_sector`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -413,7 +413,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_circle`, implemented as a full `draw_sector` arc.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -442,7 +442,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_oval`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Rect, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Rect, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -477,7 +477,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_quad`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Quad, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Quad, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -505,7 +505,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_zigzag`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -553,7 +553,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.draw_squiggle`.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();

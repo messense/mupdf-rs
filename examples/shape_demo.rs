@@ -2,10 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use mupdf::pdf::{PdfDocument, PdfObject, PdfPage};
-use mupdf::{
-    Colorspace, FinishOptions, ImageFormat, Matrix, PdfColor, Point, Quad, Rect, RectRadius, Shape,
-    Size, TextAlign, TextOptions, TextboxOptions,
+use mupdf::shape::{
+    FinishOptions, PdfColor, RectRadius, Shape, TextAlign, TextOptions, TextboxOptions,
 };
+use mupdf::{Colorspace, ImageFormat, Matrix, Point, Quad, Rect, Size};
 
 const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../tests/files/custom.ttf");
 

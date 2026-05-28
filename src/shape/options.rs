@@ -3,7 +3,7 @@ use crate::{CjkFontOrdering, Matrix, Point, SimpleFontEncoding, WriteMode};
 /// Color components for Shape drawing operators.
 ///
 /// ```
-/// use mupdf::PdfColor;
+/// use mupdf::shape::PdfColor;
 ///
 /// let stroke = PdfColor::rgb(1.0, 0.0, 0.0);
 /// let fill = PdfColor::gray(0.5);
@@ -65,7 +65,7 @@ impl From<[f32; 4]> for PdfColor {
 /// Options controlling how the currently accumulated Shape path is painted.
 ///
 /// ```
-/// use mupdf::{pdf::PdfDocument, FinishOptions, PdfColor, Point, Shape, Size};
+/// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, PdfColor, Shape}, Point, Size};
 ///
 /// # fn main() -> Result<(), mupdf::Error> {
 /// let mut doc = PdfDocument::new();
@@ -136,7 +136,7 @@ impl Default for FinishOptions {
 /// Options controlling text inserted by [`Shape::insert_text`](super::Shape::insert_text).
 ///
 /// ```
-/// use mupdf::{pdf::PdfDocument, PdfColor, Point, Shape, Size, TextOptions};
+/// use mupdf::{pdf::PdfDocument, shape::{PdfColor, Shape, TextOptions}, Point, Size};
 ///
 /// # fn main() -> Result<(), mupdf::Error> {
 /// let mut doc = PdfDocument::new();
@@ -221,7 +221,7 @@ impl Default for TextOptions<'_> {
 /// Text alignment for [`Shape::insert_textbox`](super::Shape::insert_textbox).
 ///
 /// ```
-/// use mupdf::{TextAlign, TextboxOptions};
+/// use mupdf::shape::{TextAlign, TextboxOptions};
 ///
 /// let opts = TextboxOptions {
 ///     align: TextAlign::Justify,
@@ -245,7 +245,7 @@ pub enum TextAlign {
 /// Options controlling text inserted by [`Shape::insert_textbox`](super::Shape::insert_textbox).
 ///
 /// ```
-/// use mupdf::{pdf::PdfDocument, Rect, Shape, Size, TextboxOptions};
+/// use mupdf::{pdf::PdfDocument, shape::{Shape, TextboxOptions}, Rect, Size};
 ///
 /// # fn main() -> Result<(), mupdf::Error> {
 /// let mut doc = PdfDocument::new();

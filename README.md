@@ -16,7 +16,8 @@ then committing them to the document in a single transaction.
 
 ```rust,no_run
 use mupdf::pdf::PdfDocument;
-use mupdf::{FinishOptions, PdfColor, Point, Rect, Shape, Size, TextOptions};
+use mupdf::shape::{FinishOptions, PdfColor, Shape, TextOptions};
+use mupdf::{Point, Rect, Size};
 
 fn main() -> Result<(), mupdf::Error> {
     let mut doc = PdfDocument::new();

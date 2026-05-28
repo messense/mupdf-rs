@@ -1,10 +1,8 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{
-    Colorspace, Image, ImageFormat, Matrix, PdfColor, Point, Rect, Shape, Size, TextAlign,
-    TextOptions, TextboxOptions,
-};
+use mupdf::shape::{PdfColor, Shape, TextAlign, TextOptions, TextboxOptions};
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Rect, Size};
 use std::path::Path;
 
 fn render_page(page: &PdfPage) -> mupdf::Pixmap {

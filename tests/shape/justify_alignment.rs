@@ -1,9 +1,8 @@
 #![cfg(not(target_arch = "wasm32"))]
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{
-    Colorspace, Image, ImageFormat, Matrix, PdfColor, Rect, Shape, Size, TextAlign, TextboxOptions,
-};
+use mupdf::shape::{PdfColor, Shape, TextAlign, TextboxOptions};
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Rect, Size};
 use std::path::Path;
 
 const JUSTIFY_TEXT: &str = concat!(

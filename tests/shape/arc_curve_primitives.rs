@@ -1,10 +1,8 @@
 use std::path::Path;
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{
-    Colorspace, FinishOptions, Image, ImageFormat, Matrix, PdfColor, Point, Quad, Rect, RectRadius,
-    Shape, Size,
-};
+use mupdf::shape::{FinishOptions, PdfColor, RectRadius, Shape};
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Quad, Rect, Size};
 
 fn render_page(page: &PdfPage) -> mupdf::Pixmap {
     page.to_pixmap(

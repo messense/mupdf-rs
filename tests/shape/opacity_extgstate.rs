@@ -3,7 +3,8 @@
 use std::path::Path;
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{Colorspace, FinishOptions, Image, ImageFormat, Matrix, PdfColor, Rect, Shape, Size};
+use mupdf::shape::{FinishOptions, PdfColor, Shape};
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Rect, Size};
 
 const OPACITY_OVERLAY_SNAPSHOT: &str = "tests/shape/snapshots/opacity_overlay.png";
 

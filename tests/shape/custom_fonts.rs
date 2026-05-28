@@ -3,7 +3,8 @@
 use std::path::Path;
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{Colorspace, Image, ImageFormat, Matrix, PdfColor, Point, Shape, Size, TextOptions};
+use mupdf::shape::{PdfColor, Shape, TextOptions};
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Size};
 
 const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../files/custom.ttf");
 const CUSTOM_FONT_SNAPSHOT: &str = "tests/shape/snapshots/text_custom_font.png";

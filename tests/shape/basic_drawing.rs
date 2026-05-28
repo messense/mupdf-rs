@@ -1,5 +1,6 @@
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{Colorspace, Matrix, Point, Rect, Shape, Size};
+use mupdf::shape::Shape;
+use mupdf::{Colorspace, Matrix, Point, Rect, Size};
 
 fn render_page(page: &PdfPage) -> mupdf::Pixmap {
     page.to_pixmap(

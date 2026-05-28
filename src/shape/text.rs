@@ -28,7 +28,7 @@ impl Shape<'_> {
     /// is normalized to 0, 90, 180, or 270 degrees.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, Point, Shape, Size, TextOptions};
+    /// use mupdf::{pdf::PdfDocument, shape::{Shape, TextOptions}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -180,7 +180,7 @@ impl Shape<'_> {
     /// is appended.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, Rect, Shape, Size, TextAlign, TextboxOptions};
+    /// use mupdf::{pdf::PdfDocument, shape::{Shape, TextAlign, TextboxOptions}, Rect, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -690,7 +690,8 @@ fn font_for_text_metrics(name: &str, fontfile: Option<&[u8]>) -> Result<Font, Er
 mod tests {
     use super::*;
     use crate::pdf::{FontInfo, PdfDocument};
-    use crate::{PdfColor, Rect, SimpleFontEncoding, Size, WriteMode};
+    use crate::shape::PdfColor;
+    use crate::{Rect, SimpleFontEncoding, Size, WriteMode};
 
     fn text_cont_for(text: &str, opts: &TextOptions) -> String {
         let mut doc = PdfDocument::new();

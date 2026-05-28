@@ -7,10 +7,10 @@ use std::process::Command;
 use std::sync::Mutex;
 
 use mupdf::pdf::{PdfDocument, PdfObject, PdfPage};
-use mupdf::{
-    Colorspace, FinishOptions, Image, ImageFormat, Matrix, PdfColor, Point, Rect, RectRadius,
-    Shape, Size, TextAlign, TextOptions, TextPageFlags, TextboxOptions,
+use mupdf::shape::{
+    FinishOptions, PdfColor, RectRadius, Shape, TextAlign, TextOptions, TextboxOptions,
 };
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Rect, Size, TextPageFlags};
 
 const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../files/custom.ttf");
 const SHAPE_DEMO_FIRST_PAGE_SNAPSHOT: &str = "tests/shape/snapshots/shape_demo.png";
@@ -592,9 +592,9 @@ pub mod cross {
 
         fn public_shape_methods() -> BTreeSet<&'static str> {
             let source_files = [
-                include_str!("../../src/pdf/shape/drawing.rs"),
-                include_str!("../../src/pdf/shape/finish.rs"),
-                include_str!("../../src/pdf/shape/text.rs"),
+                include_str!("../../src/shape/drawing.rs"),
+                include_str!("../../src/shape/finish.rs"),
+                include_str!("../../src/shape/text.rs"),
             ];
             source_files
                 .into_iter()

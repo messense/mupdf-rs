@@ -19,7 +19,7 @@ pub use options::{FinishOptions, PdfColor, TextAlign, TextOptions, TextboxOption
 /// intentionally prevents other mutable page operations from aliasing the builder's page state:
 ///
 /// ```
-/// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+/// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
 ///
 /// # fn main() -> Result<(), mupdf::Error> {
 /// let mut doc = PdfDocument::new();
@@ -34,7 +34,7 @@ pub use options::{FinishOptions, PdfColor, TextAlign, TextOptions, TextboxOption
 /// ```
 ///
 /// ```compile_fail
-/// use mupdf::{pdf::PdfDocument, Shape, Size};
+/// use mupdf::{pdf::PdfDocument, shape::Shape, Size};
 ///
 /// let mut doc = PdfDocument::new();
 /// let mut page = doc.new_page(Size::A4).unwrap();
@@ -66,7 +66,7 @@ impl<'a> Shape<'a> {
     /// matrix so later drawing methods can consistently transform coordinates.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::Shape, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();

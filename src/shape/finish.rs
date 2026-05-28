@@ -9,7 +9,7 @@ impl Shape<'_> {
     /// Equivalent of PyMuPDF `Shape.finish` for stroke/fill path painting options.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, PdfColor, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, PdfColor, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -116,7 +116,7 @@ impl Shape<'_> {
     /// When `overlay` is false, the shape stream is inserted before existing page contents.
     ///
     /// ```
-    /// use mupdf::{pdf::PdfDocument, FinishOptions, Point, Shape, Size};
+    /// use mupdf::{pdf::PdfDocument, shape::{FinishOptions, Shape}, Point, Size};
     ///
     /// # fn main() -> Result<(), mupdf::Error> {
     /// let mut doc = PdfDocument::new();
@@ -1255,7 +1255,7 @@ mod tests {
     #[test]
     fn commit_overlay_wraps_existing() {
         let mut doc =
-            PdfDocument::from_bytes(include_bytes!("../../../tests/files/dummy.pdf")).unwrap();
+            PdfDocument::from_bytes(include_bytes!("../../tests/files/dummy.pdf")).unwrap();
         let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
         let original = page.contents().unwrap().unwrap();
         let original_bytes = original.read_stream().unwrap();

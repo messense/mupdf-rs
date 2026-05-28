@@ -1,7 +1,8 @@
 use std::path::Path;
 
 use mupdf::pdf::{PdfDocument, PdfPage};
-use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Rect, Shape, Size};
+use mupdf::shape::Shape;
+use mupdf::{Colorspace, Image, ImageFormat, Matrix, Point, Rect, Size};
 
 fn render_page(page: &PdfPage) -> mupdf::Pixmap {
     page.to_pixmap(
@@ -31,7 +32,7 @@ fn assert_snapshot(snapshot: &str, rendered: &mupdf::Pixmap) {
 
 pub mod draw {
     use super::*;
-    use mupdf::PdfColor;
+    use mupdf::shape::{FinishOptions, PdfColor};
 
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
@@ -63,7 +64,7 @@ pub mod draw {
             shape
                 .draw_rect(&Rect::new(50.0, 50.0, 200.0, 150.0))
                 .unwrap()
-                .finish(&mupdf::FinishOptions {
+                .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
                     fill: Some(PdfColor::rgb(1.0, 1.0, 0.0)),
                     width: 2.0,
@@ -92,7 +93,7 @@ pub mod draw {
                     Point::new(300.0, 100.0),
                 ])
                 .unwrap()
-                .finish(&mupdf::FinishOptions {
+                .finish(&FinishOptions {
                     close_path: true,
                     width: 1.5,
                     ..Default::default()
@@ -116,7 +117,7 @@ pub mod draw {
             shape
                 .draw_line(Point::new(40.0, 420.0), Point::new(555.0, 420.0))
                 .unwrap()
-                .finish(&mupdf::FinishOptions {
+                .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
                     width: 4.0,
                     ..Default::default()
@@ -150,7 +151,7 @@ pub mod draw {
                     Point::new(200.0, 0.0),
                 )
                 .unwrap()
-                .finish(&mupdf::FinishOptions {
+                .finish(&FinishOptions {
                     width: 2.0,
                     ..Default::default()
                 })

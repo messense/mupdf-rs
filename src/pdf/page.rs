@@ -1527,9 +1527,8 @@ mod test {
     use crate::pdf::{
         InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
     };
-    use crate::{
-        Buffer, CjkFontOrdering, Matrix, Point, Rect, Shape, SimpleFontEncoding, Size, TextOptions,
-    };
+    use crate::shape::{Shape, TextOptions};
+    use crate::{Buffer, CjkFontOrdering, Matrix, Point, Rect, SimpleFontEncoding, Size};
 
     const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../../tests/files/custom.ttf");
 
