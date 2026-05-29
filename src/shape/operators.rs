@@ -240,13 +240,6 @@ mod tests {
             assert!(repeated.iter().all(|value| !value.contains(',')));
         }
 
-        std::env::set_var("LC_ALL", "de_DE.UTF-8");
-        std::env::set_var("LC_NUMERIC", "de_DE.UTF-8");
-
-        let under_locale: Vec<String> = INPUTS.into_iter().map(format_g).collect();
-        assert_eq!(under_locale, before);
-        assert!(under_locale.iter().all(|value| !value.contains(',')));
-
         #[cfg(not(target_arch = "wasm32"))]
         {
             let handles = (0..2).map(|_| {

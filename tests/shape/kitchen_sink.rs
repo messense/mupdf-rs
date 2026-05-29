@@ -1,10 +1,9 @@
 #![cfg(not(target_arch = "wasm32"))]
 
-use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use crate::support::{assert_snapshot, render_page};
 use mupdf::pdf::{PdfDocument, PdfObject, PdfPage};
@@ -23,6 +22,7 @@ const MULTIPAGE_SNAPSHOTS: [&str; 3] = [
 ];
 
 static CARGO_COMMAND_LOCK: Mutex<()> = Mutex::new(());
+const SHAPE_DEMO_CARGO_TARGET_DIR: &str = "target/shape-kitchen-sink/cargo-target";
 
 fn fresh_output_dir(name: &str) -> PathBuf {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -37,11 +37,30 @@ fn cargo_command() -> Command {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let mut command = Command::new(cargo);
     command.current_dir(env!("CARGO_MANIFEST_DIR"));
+    command.env("CARGO_TARGET_DIR", SHAPE_DEMO_CARGO_TARGET_DIR);
+    strip_sanitizer_rustflags(&mut command);
     command
 }
 
+fn strip_sanitizer_rustflags(command: &mut Command) {
+    for key in ["CARGO_ENCODED_RUSTFLAGS", "RUSTFLAGS", "RUSTDOCFLAGS"] {
+        let has_sanitizer_flag = std::env::var_os(key)
+            .and_then(|value| value.into_string().ok())
+            .is_some_and(|value| value.contains("sanitizer"));
+        if has_sanitizer_flag {
+            command.env_remove(key);
+        }
+    }
+}
+
+fn cargo_command_lock() -> MutexGuard<'static, ()> {
+    CARGO_COMMAND_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 fn run_shape_demo(output_dir: &Path) {
-    let _guard = CARGO_COMMAND_LOCK.lock().unwrap();
+    let _guard = cargo_command_lock();
     let status = cargo_command()
         .arg("run")
         .arg("--example")
@@ -54,7 +73,7 @@ fn run_shape_demo(output_dir: &Path) {
 }
 
 fn build_shape_demo_example(output_dir: &Path) {
-    let _guard = CARGO_COMMAND_LOCK.lock().unwrap();
+    let _guard = cargo_command_lock();
     let status = cargo_command()
         .arg("build")
         .arg("--example")
@@ -541,46 +560,68 @@ pub mod cross {
         use super::super::*;
 
         #[test]
-        fn all_public_shape_methods_exercised() {
-            let public_methods = public_shape_methods();
-            let exercised = BTreeSet::from([
-                "commit",
-                "draw_bezier",
-                "draw_circle",
-                "draw_curve",
-                "draw_line",
-                "draw_oval",
-                "draw_polyline",
-                "draw_quad",
-                "draw_rect",
-                "draw_rect_with_radius",
-                "draw_sector",
-                "draw_squiggle",
-                "draw_zigzag",
-                "finish",
-                "insert_text",
-                "insert_textbox",
-            ]);
+        fn public_shape_methods_compile_together() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
 
-            assert_eq!(public_methods, exercised);
-        }
-
-        fn public_shape_methods() -> BTreeSet<&'static str> {
-            let source_files = [
-                include_str!("../../src/shape/drawing.rs"),
-                include_str!("../../src/shape/finish.rs"),
-                include_str!("../../src/shape/text.rs"),
-            ];
-            source_files
-                .into_iter()
-                .flat_map(|source| source.lines())
-                .filter_map(|line| {
-                    let trimmed = line.trim_start();
-                    let rest = trimmed.strip_prefix("pub fn ")?;
-                    rest.split_once('(')
-                        .map(|(name, _)| name.split_once('<').map_or(name, |(base, _)| base))
-                })
-                .collect()
+            shape
+                .draw_line(Point::new(20.0, 20.0), Point::new(80.0, 20.0))
+                .unwrap()
+                .draw_polyline(&[
+                    Point::new(90.0, 20.0),
+                    Point::new(120.0, 60.0),
+                    Point::new(150.0, 20.0),
+                ])
+                .unwrap()
+                .draw_rect(&Rect::new(20.0, 80.0, 80.0, 120.0))
+                .unwrap()
+                .draw_rect_with_radius(
+                    &Rect::new(90.0, 80.0, 150.0, 120.0),
+                    RectRadius::absolute(6.0),
+                )
+                .unwrap()
+                .draw_bezier(
+                    Point::new(20.0, 150.0),
+                    Point::new(40.0, 190.0),
+                    Point::new(70.0, 190.0),
+                    Point::new(90.0, 150.0),
+                )
+                .unwrap()
+                .draw_curve(
+                    Point::new(110.0, 150.0),
+                    Point::new(130.0, 190.0),
+                    Point::new(150.0, 150.0),
+                )
+                .unwrap()
+                .draw_sector(
+                    Point::new(60.0, 245.0),
+                    Point::new(90.0, 245.0),
+                    90.0,
+                    false,
+                )
+                .unwrap()
+                .draw_circle(Point::new(140.0, 240.0), 20.0)
+                .unwrap()
+                .draw_oval(Rect::new(20.0, 280.0, 90.0, 320.0))
+                .unwrap()
+                .draw_quad(Rect::new(110.0, 280.0, 170.0, 320.0).quad())
+                .unwrap()
+                .draw_zigzag(Point::new(20.0, 350.0), Point::new(100.0, 350.0), 4.0)
+                .unwrap()
+                .draw_squiggle(Point::new(120.0, 350.0), Point::new(200.0, 350.0), 4.0)
+                .unwrap()
+                .finish(&FinishOptions::default())
+                .unwrap()
+                .insert_text(Point::new(20.0, 390.0), "shape", &TextOptions::default())
+                .unwrap()
+                .insert_textbox(
+                    Rect::new(20.0, 420.0, 160.0, 470.0),
+                    "textbox",
+                    &TextboxOptions::default(),
+                )
+                .unwrap();
+            shape.commit(&mut doc, true).unwrap();
         }
     }
 

@@ -90,16 +90,6 @@ impl From<f32> for RectRadius {
     }
 }
 
-impl From<(f32, f32)> for RectRadius {
-    fn from((rx, ry): (f32, f32)) -> Self {
-        if finite_abs(rx) <= 1.0 && finite_abs(ry) <= 1.0 {
-            Self::Fractional(rx, ry)
-        } else {
-            Self::AbsoluteXY(rx, ry)
-        }
-    }
-}
-
 impl Shape<'_> {
     /// Draws a straight line from `p1` to `p2`.
     ///
@@ -989,7 +979,10 @@ mod tests {
         let mut shape = shape_with_identity_ctm(&mut page);
 
         shape
-            .draw_rect_with_radius(&Rect::new(0.0, 0.0, 100.0, 50.0), (10.0, 10.0))
+            .draw_rect_with_radius(
+                &Rect::new(0.0, 0.0, 100.0, 50.0),
+                RectRadius::absolute_xy(10.0, 10.0),
+            )
             .unwrap();
 
         assert_eq!(
@@ -1058,7 +1051,9 @@ mod tests {
         let mut fractional_page = doc.new_page(Size::A4).unwrap();
         let fractional = {
             let mut shape = shape_with_identity_ctm(&mut fractional_page);
-            shape.draw_rect_with_radius(&rect, (0.25, 0.5)).unwrap();
+            shape
+                .draw_rect_with_radius(&rect, RectRadius::fractional(0.25, 0.5))
+                .unwrap();
             shape.draw_cont().to_owned()
         };
 
