@@ -1,4 +1,4 @@
-use crate::{CjkFontOrdering, Matrix, Point, SimpleFontEncoding, WriteMode};
+use crate::{CjkFontOrdering, Error, Matrix, Point, SimpleFontEncoding, WriteMode};
 
 /// Color components for Shape drawing operators.
 ///
@@ -41,6 +41,20 @@ impl PdfColor {
             Self::Rgb(components) => components,
             Self::Cmyk(components) => components,
         }
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), Error> {
+        if self
+            .components()
+            .iter()
+            .all(|component| component.is_finite() && (0.0..=1.0).contains(component))
+        {
+            return Ok(());
+        }
+
+        Err(Error::InvalidArgument(
+            "color components must be finite values in the 0..=1 range".to_owned(),
+        ))
     }
 }
 
@@ -124,7 +138,7 @@ impl Default for FinishOptions {
             miter_limit: None,
             dashes: None,
             even_odd: false,
-            close_path: false,
+            close_path: true,
             morph: None,
             stroke_opacity: None,
             fill_opacity: None,

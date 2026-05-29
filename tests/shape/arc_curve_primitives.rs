@@ -69,6 +69,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
                     width: 2.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -78,6 +79,7 @@ pub mod drawing {
                     color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
                     fill: Some(PdfColor::rgb(0.0, 0.0, 1.0)),
                     width: 1.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -86,6 +88,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.0, 0.5, 0.0)),
                     width: 2.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -99,6 +102,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.6, 0.0, 0.8)),
                     width: 2.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -128,6 +132,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
                     width: 3.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -163,6 +168,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
                     width: 1.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()
@@ -226,6 +232,7 @@ pub mod drawing {
                 .finish(&FinishOptions {
                     color: Some(PdfColor::rgb(0.0, 0.0, 0.0)),
                     width: 0.75,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()

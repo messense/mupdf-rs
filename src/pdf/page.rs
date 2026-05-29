@@ -64,22 +64,41 @@ impl<'a> InsertFontOptions<'a> {
 }
 
 fn canonical_base14_name(name: &str) -> Option<&'static str> {
-    match name {
-        "helv" | "Helvetica" => Some("Helvetica"),
-        "heit" | "Helvetica-Oblique" => Some("Helvetica-Oblique"),
-        "hebo" | "Helvetica-Bold" => Some("Helvetica-Bold"),
-        "heboit" | "Helvetica-BoldOblique" => Some("Helvetica-BoldOblique"),
-        "cour" | "Courier" => Some("Courier"),
-        "coit" | "Courier-Oblique" => Some("Courier-Oblique"),
-        "cobo" | "Courier-Bold" => Some("Courier-Bold"),
-        "coboit" | "Courier-BoldOblique" => Some("Courier-BoldOblique"),
-        "tiro" | "Times-Roman" => Some("Times-Roman"),
-        "tibo" | "Times-Bold" => Some("Times-Bold"),
-        "tiit" | "Times-Italic" => Some("Times-Italic"),
-        "tibi" | "Times-BoldItalic" => Some("Times-BoldItalic"),
-        "symb" | "Symbol" => Some("Symbol"),
-        "zadb" | "ZapfDingbats" => Some("ZapfDingbats"),
+    match name.trim_start_matches('/').to_ascii_lowercase().as_str() {
+        "helv" | "helvetica" => Some("Helvetica"),
+        "heit" | "helvetica-oblique" => Some("Helvetica-Oblique"),
+        "hebo" | "helvetica-bold" => Some("Helvetica-Bold"),
+        "heboit" | "helvetica-boldoblique" => Some("Helvetica-BoldOblique"),
+        "cour" | "courier" => Some("Courier"),
+        "coit" | "courier-oblique" => Some("Courier-Oblique"),
+        "cobo" | "courier-bold" => Some("Courier-Bold"),
+        "coboit" | "courier-boldoblique" => Some("Courier-BoldOblique"),
+        "tiro" | "times-roman" => Some("Times-Roman"),
+        "tibo" | "times-bold" => Some("Times-Bold"),
+        "tiit" | "times-italic" => Some("Times-Italic"),
+        "tibi" | "times-bolditalic" => Some("Times-BoldItalic"),
+        "symb" | "symbol" => Some("Symbol"),
+        "zadb" | "zapfdingbats" => Some("ZapfDingbats"),
         _ => None,
+    }
+}
+
+fn cjk_ordering_from_font_name(name: &str) -> Option<CjkFontOrdering> {
+    match name.trim_start_matches('/').to_ascii_lowercase().as_str() {
+        "china-t" => Some(CjkFontOrdering::AdobeCns),
+        "china-s" => Some(CjkFontOrdering::AdobeGb),
+        "japan" => Some(CjkFontOrdering::AdobeJapan),
+        "korea" => Some(CjkFontOrdering::AdobeKorea),
+        _ => None,
+    }
+}
+
+fn cjk_font_name(ordering: CjkFontOrdering) -> &'static str {
+    match ordering {
+        CjkFontOrdering::AdobeCns => "china-t",
+        CjkFontOrdering::AdobeGb => "china-s",
+        CjkFontOrdering::AdobeJapan => "japan",
+        CjkFontOrdering::AdobeKorea => "korea",
     }
 }
 
@@ -965,10 +984,10 @@ impl PdfPage {
         canonical_name: &str,
         opts: &InsertFontOptions<'_>,
     ) -> Result<(PdfObject, FontInfo), Error> {
-        let font = if let Some(font_data) = opts.fontfile {
-            Font::from_bytes(canonical_name, font_data)?
-        } else {
-            Font::new(canonical_name)?
+        let font = match (opts.fontfile, opts.ordering) {
+            (Some(font_data), _) => Font::from_bytes(canonical_name, font_data)?,
+            (None, Some(ordering)) => Font::new_cjk(ordering)?,
+            (None, None) => Font::new(canonical_name)?,
         };
 
         let simple = opts.simple && opts.ordering.is_none() && opts.fontfile.is_none();
@@ -1019,11 +1038,24 @@ impl PdfPage {
     ) -> Result<(String, i32, FontInfo), Error> {
         self.assert_document_owner(doc);
 
+        let mut opts = *opts;
         let canonical_name = match opts.fontfile {
             Some(_) => opts.name.to_owned(),
-            None => canonical_base14_name(opts.name)
-                .ok_or_else(|| Error::InvalidArgument(format!("unsupported font: {}", opts.name)))?
-                .to_owned(),
+            None => {
+                if let Some(ordering) = opts
+                    .ordering
+                    .or_else(|| cjk_ordering_from_font_name(opts.name))
+                {
+                    opts.ordering = Some(ordering);
+                    cjk_font_name(ordering).to_owned()
+                } else {
+                    canonical_base14_name(opts.name)
+                        .ok_or_else(|| {
+                            Error::InvalidArgument(format!("unsupported font: {}", opts.name))
+                        })?
+                        .to_owned()
+                }
+            }
         };
 
         let page_obj = self.object();
@@ -1048,18 +1080,18 @@ impl PdfPage {
 
         if let Some(font_dict) = existing_font_dict.as_ref() {
             if let Some(existing) =
-                Self::find_registered_page_font(doc, font_dict, &canonical_name, opts)?
+                Self::find_registered_page_font(doc, font_dict, &canonical_name, &opts)?
             {
                 return Ok(existing);
             }
         }
 
         let (font_obj, info) = if let Some((xref, info)) =
-            Self::find_cached_document_font(doc, &canonical_name, opts)
+            Self::find_cached_document_font(doc, &canonical_name, &opts)
         {
             (doc.new_indirect(xref, 0)?, info)
         } else {
-            Self::build_font_object(doc, &canonical_name, opts)?
+            Self::build_font_object(doc, &canonical_name, &opts)?
         };
         let xref = font_obj.as_indirect()?;
 
@@ -1528,7 +1560,7 @@ mod test {
         InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
     };
     use crate::shape::{Shape, TextOptions};
-    use crate::{Buffer, CjkFontOrdering, Matrix, Point, Rect, SimpleFontEncoding, Size};
+    use crate::{Buffer, CjkFontOrdering, Error, Matrix, Point, Rect, SimpleFontEncoding, Size};
 
     const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../../tests/files/custom.ttf");
 
@@ -2123,6 +2155,21 @@ mod test {
     }
 
     #[test]
+    fn test_page_insert_font_accepts_case_insensitive_base14_alias() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("HELV"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+    }
+
+    #[test]
     fn test_page_insert_font_skips_preexisting_f_slots() {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
@@ -2295,6 +2342,25 @@ mod test {
                 .unwrap();
 
             assert!(shape.text_cont().contains("[<0041>] TJ"));
+        }
+
+        #[test]
+        fn cjk_font_alias_registers_without_fontfile() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = InsertFontOptions::new("JAPAN");
+
+            match page.insert_font(&mut doc, &opts) {
+                Ok((slot, xref, info)) => {
+                    assert_eq!(slot, "/F0");
+                    assert!(xref > 0);
+                    assert_eq!(info.name, "japan");
+                    assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
+                    assert!(!info.simple);
+                }
+                Err(Error::MuPdf(err)) if err.message.contains("builtin CJK font") => {}
+                Err(err) => panic!("unexpected CJK alias error: {err:?}"),
+            }
         }
 
         #[test]

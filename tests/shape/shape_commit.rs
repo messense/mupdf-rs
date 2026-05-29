@@ -126,6 +126,7 @@ pub mod draw {
                 .unwrap()
                 .finish(&FinishOptions {
                     width: 2.0,
+                    close_path: false,
                     ..Default::default()
                 })
                 .unwrap()

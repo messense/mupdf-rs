@@ -1,6 +1,6 @@
 use super::operators::{color_code, format_g, tj_str, ColorRole};
 use super::{Shape, TextAlign, TextOptions, TextboxOptions};
-use crate::pdf::{InsertFontOptions, PdfPage};
+use crate::pdf::{FontInfo, InsertFontOptions, PdfPage};
 use crate::{Error, Font, Point, Rect};
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -67,6 +67,7 @@ impl Shape<'_> {
             opts.border_width,
             opts.miter_limit,
         )?;
+        validate_text_colors(opts.color.as_ref(), opts.fill.as_ref())?;
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
@@ -92,10 +93,12 @@ impl Shape<'_> {
                 wmode: opts.wmode,
                 serif: opts.serif,
             };
-            let (font_name, xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
-            self.font_info_cache
-                .entry(xref)
-                .or_insert_with(|| font_info.clone());
+            let (font_name, xref, mut font_info) = self.page.insert_font(&mut doc, &font_opts)?;
+            extend_text_glyphs_for_text(&mut font_info, opts.fontfile, text)?;
+            self.font_info_cache.insert(xref, font_info.clone());
+            doc.font_info_cache
+                .borrow_mut()
+                .insert(xref, font_info.clone());
             (font_name, font_info)
         };
         let (oc_name, opacity_name) = {
@@ -146,11 +149,11 @@ impl Shape<'_> {
         }
 
         if let Some(color) = &opts.color {
-            block.push_str(&color_code(color.components(), ColorRole::Stroke));
+            block.push_str(&color_code(color.components(), ColorRole::Stroke)?);
         }
         let fill = text_fill_color(opts.color.as_ref(), opts.fill.as_ref(), opts.render_mode);
         if let Some(fill) = fill {
-            block.push_str(&color_code(fill.components(), ColorRole::Fill));
+            block.push_str(&color_code(fill.components(), ColorRole::Fill)?);
         }
 
         for (line_index, line) in lines.iter().take(lines_to_emit).enumerate() {
@@ -253,6 +256,7 @@ impl Shape<'_> {
                 ));
             }
         }
+        validate_text_colors(opts.color.as_ref(), opts.fill.as_ref())?;
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
@@ -260,7 +264,7 @@ impl Shape<'_> {
             PdfPage::validate_optional_content_xref(&doc, oc_xref)?;
         }
 
-        let (font_name, font_info) = {
+        let (font_name, xref, mut font_info) = {
             let mut doc = self.page.document_handle()?;
             {
                 let mut cache = doc.font_info_cache.borrow_mut();
@@ -279,12 +283,17 @@ impl Shape<'_> {
                 serif: opts.serif,
             };
             let (font_name, xref, font_info) = self.page.insert_font(&mut doc, &font_opts)?;
-            self.font_info_cache
-                .entry(xref)
-                .or_insert_with(|| font_info.clone());
-            (font_name, font_info)
+            (font_name, xref, font_info)
         };
-        let font = font_for_text_metrics(&font_info.name, opts.fontfile)?;
+        let font = font_for_text_metrics(&font_info, opts.fontfile)?;
+        extend_text_glyphs(&mut font_info, &font, text);
+        self.font_info_cache.insert(xref, font_info.clone());
+        {
+            let doc = self.page.document_handle()?;
+            doc.font_info_cache
+                .borrow_mut()
+                .insert(xref, font_info.clone());
+        }
 
         let max_width = textbox_line_width(rect, rotate);
         let max_height = textbox_line_capacity_height(rect, rotate);
@@ -339,11 +348,11 @@ impl Shape<'_> {
         }
 
         if let Some(color) = &opts.color {
-            block.push_str(&color_code(color.components(), ColorRole::Stroke));
+            block.push_str(&color_code(color.components(), ColorRole::Stroke)?);
         }
         let fill = text_fill_color(opts.color.as_ref(), opts.fill.as_ref(), opts.render_mode);
         if let Some(fill) = fill {
-            block.push_str(&color_code(fill.components(), ColorRole::Fill));
+            block.push_str(&color_code(fill.components(), ColorRole::Fill)?);
         }
 
         for (line_index, line) in lines.iter().enumerate() {
@@ -422,6 +431,19 @@ fn validate_text_scalars(
                 "miter_limit must be a non-negative finite value".to_owned(),
             ));
         }
+    }
+    Ok(())
+}
+
+fn validate_text_colors(
+    color: Option<&super::PdfColor>,
+    fill: Option<&super::PdfColor>,
+) -> Result<(), Error> {
+    if let Some(color) = color {
+        color.validate()?;
+    }
+    if let Some(fill) = fill {
+        fill.validate()?;
     }
     Ok(())
 }
@@ -686,10 +708,38 @@ fn text_width(
     Ok(width)
 }
 
-fn font_for_text_metrics(name: &str, fontfile: Option<&[u8]>) -> Result<Font, Error> {
-    match fontfile {
-        Some(bytes) => Font::from_bytes(name, bytes),
-        None => Font::new(name),
+fn font_for_text_metrics(font_info: &FontInfo, fontfile: Option<&[u8]>) -> Result<Font, Error> {
+    match (fontfile, font_info.ordering) {
+        (Some(bytes), _) => Font::from_bytes(&font_info.name, bytes),
+        (None, Some(ordering)) => Font::new_cjk(ordering),
+        (None, None) => Font::new(&font_info.name),
+    }
+}
+
+fn extend_text_glyphs_for_text(
+    font_info: &mut FontInfo,
+    fontfile: Option<&[u8]>,
+    text: &str,
+) -> Result<(), Error> {
+    if font_info.simple || font_info.ordering.is_some() {
+        return Ok(());
+    }
+
+    let font = font_for_text_metrics(font_info, fontfile)?;
+    extend_text_glyphs(font_info, &font, text);
+    Ok(())
+}
+
+fn extend_text_glyphs(font_info: &mut FontInfo, font: &Font, text: &str) {
+    if font_info.simple || font_info.ordering.is_some() {
+        return;
+    }
+
+    let glyphs = font_info.glyphs.get_or_insert_with(Default::default);
+    for code in text.chars().map(|ch| ch as u32) {
+        glyphs
+            .entry(code)
+            .or_insert_with(|| font.encode_character(code as i32).unwrap_or(0));
     }
 }
 
@@ -698,7 +748,7 @@ mod tests {
     use super::*;
     use crate::pdf::{FontInfo, PdfDocument};
     use crate::shape::PdfColor;
-    use crate::{Rect, SimpleFontEncoding, Size, WriteMode};
+    use crate::{Error, Rect, SimpleFontEncoding, Size, WriteMode};
 
     fn text_cont_for(text: &str, opts: &TextOptions) -> String {
         let mut doc = PdfDocument::new();
@@ -773,6 +823,26 @@ mod tests {
         );
 
         assert!(result.is_err());
+        assert!(shape.text_cont().is_empty());
+    }
+
+    #[test]
+    fn insert_text_rejects_invalid_colors_without_appending_content() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+        let err = shape
+            .insert_text(
+                Point::new(50.0, 100.0),
+                "bad",
+                &TextOptions {
+                    fill: Some(PdfColor::rgb(0.0, f32::NAN, 0.0)),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+
+        assert!(matches!(err, Error::InvalidArgument(_)));
         assert!(shape.text_cont().is_empty());
     }
 
@@ -1001,6 +1071,27 @@ mod tests {
 
         assert!(result.unwrap() < 0.0);
         assert!(text_cont.is_empty());
+    }
+
+    #[test]
+    fn insert_textbox_rejects_invalid_colors_without_appending_content() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::new(600.0, 800.0)).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+
+        let err = shape
+            .insert_textbox(
+                Rect::new(50.0, 100.0, 150.0, 130.0),
+                "bad",
+                &TextboxOptions {
+                    color: Some(PdfColor::gray(1.5)),
+                    ..Default::default()
+                },
+            )
+            .unwrap_err();
+
+        assert!(matches!(err, Error::InvalidArgument(_)));
+        assert!(shape.text_cont().is_empty());
     }
 
     fn textbox_text_entries(text_cont: &str) -> Vec<(String, Option<f32>)> {

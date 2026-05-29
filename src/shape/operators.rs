@@ -1,5 +1,5 @@
 use crate::pdf::FontInfo;
-use crate::{Font, Matrix, Point};
+use crate::{Error, Font, Matrix, Point};
 
 #[derive(Clone, Copy)]
 pub(super) enum ColorRole {
@@ -67,13 +67,15 @@ fn strip_trailing_fraction_zeros(value: &mut String) {
     }
 }
 
-pub(super) fn color_code(components: &[f32], role: ColorRole) -> String {
+pub(super) fn color_code(components: &[f32], role: ColorRole) -> Result<String, Error> {
     if !matches!(components.len(), 1 | 3 | 4)
         || !components
             .iter()
             .all(|component| component.is_finite() && (0.0..=1.0).contains(component))
     {
-        return String::new();
+        return Err(Error::InvalidArgument(
+            "color components must be finite values in the 0..=1 range".to_owned(),
+        ));
     }
 
     let operator = match components.len() {
@@ -89,14 +91,14 @@ pub(super) fn color_code(components: &[f32], role: ColorRole) -> String {
             ColorRole::Stroke => "K",
             ColorRole::Fill => "k",
         },
-        _ => return String::new(),
+        _ => unreachable!("color component count was validated"),
     };
     let components = components
         .iter()
         .map(|component| format_g(*component))
         .collect::<Vec<_>>()
         .join(" ");
-    format!("{components} {operator}\n")
+    Ok(format!("{components} {operator}\n"))
 }
 
 pub(super) fn tj_str(text: &str, font_info: &FontInfo) -> String {
@@ -149,7 +151,7 @@ pub(super) fn tj_str(text: &str, font_info: &FontInfo) -> String {
                         .and_then(|font| font.encode_character(code as i32).ok())
                         .and_then(|glyph| u32::try_from(glyph).ok())
                 })
-                .or(Some(code))
+                .or(Some(0))
         };
 
         if let Some(glyph) = glyph {
@@ -279,12 +281,12 @@ mod tests {
         ];
 
         for (components, role, expected) in cases {
-            assert_eq!(color_code(components, role), expected);
+            assert_eq!(color_code(components, role).unwrap(), expected);
         }
     }
 
     #[test]
-    fn color_code_rejects_invalid_components_with_empty_string() {
+    fn color_code_rejects_invalid_components() {
         let invalid_cases = [
             &[][..],
             &[0.5, 0.5][..],
@@ -294,8 +296,8 @@ mod tests {
         ];
 
         for components in invalid_cases {
-            assert_eq!(color_code(components, ColorRole::Fill), "");
-            assert_eq!(color_code(components, ColorRole::Stroke), "");
+            assert!(color_code(components, ColorRole::Fill).is_err());
+            assert!(color_code(components, ColorRole::Stroke).is_err());
         }
     }
 
@@ -308,7 +310,7 @@ mod tests {
             format_g(0.0)
         );
         assert_eq!(
-            color_code(&[0.123_456_79, 0.0, 0.0], ColorRole::Fill),
+            color_code(&[0.123_456_79, 0.0, 0.0], ColorRole::Fill).unwrap(),
             expected
         );
     }
@@ -355,5 +357,13 @@ mod tests {
     #[test]
     fn tj_str_non_simple_falls_back_to_runtime_font_lookup() {
         assert_eq!(tj_str("a", &font_info(false, None)), "[<0042>]");
+    }
+
+    #[test]
+    fn tj_str_non_simple_missing_glyph_uses_notdef() {
+        let mut info = font_info(false, Some(HashMap::new()));
+        info.name = "__missing_runtime_font__".to_owned();
+
+        assert_eq!(tj_str("Ω", &info), "[<0000>]");
     }
 }

@@ -62,8 +62,8 @@ pub struct Shape<'a> {
 impl<'a> Shape<'a> {
     /// Creates a new shape builder bound to `page`.
     ///
-    /// The constructor caches the page crop-box geometry and current transformation
-    /// matrix so later drawing methods can consistently transform coordinates.
+    /// The constructor caches the page media-box size, crop-box origin, and current
+    /// transformation matrix so later drawing methods can consistently transform coordinates.
     ///
     /// ```
     /// use mupdf::{pdf::PdfDocument, shape::Shape, Size};
@@ -77,14 +77,15 @@ impl<'a> Shape<'a> {
     /// # }
     /// ```
     pub fn new(page: &'a mut PdfPage) -> Result<Self, Error> {
+        let media_box = page.media_box()?;
         let crop_box = page.crop_box()?;
         let pctm = page.ctm()?;
         let ipctm = pctm.invert().ok_or(Error::NonInvertibleMatrix)?;
 
         Ok(Self {
             page,
-            width: crop_box.width(),
-            height: crop_box.height(),
+            width: media_box.width(),
+            height: media_box.height(),
             x: crop_box.x0,
             y: crop_box.y0,
             pctm,
@@ -275,13 +276,28 @@ mod tests {
 
         let shape = Shape::new(&mut page).unwrap();
 
-        assert_eq!(shape.width(), 842.0);
-        assert_eq!(shape.height(), 595.0);
+        assert_eq!(shape.width(), 595.0);
+        assert_eq!(shape.height(), 842.0);
         assert_eq!(shape.x(), 0.0);
         assert_eq!(shape.y(), 247.0);
         assert_ne!(shape.pctm(), &Matrix::IDENTITY);
         assert_matrix_near(&(shape.pctm() * shape.ipctm()), &Matrix::IDENTITY, 1e-5);
         assert_matrix_near(&(shape.ipctm() * shape.pctm()), &Matrix::IDENTITY, 1e-5);
+    }
+
+    #[test]
+    fn new_uses_media_size_and_crop_origin() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        page.set_crop_box(crate::Rect::new(100.0, 100.0, 400.0, 400.0))
+            .unwrap();
+
+        let shape = Shape::new(&mut page).unwrap();
+
+        assert_eq!(shape.width(), 595.0);
+        assert_eq!(shape.height(), 842.0);
+        assert_eq!(shape.x(), 100.0);
+        assert_eq!(shape.y(), 100.0);
     }
 
     #[test]

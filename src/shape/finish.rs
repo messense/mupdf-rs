@@ -87,11 +87,11 @@ impl Shape<'_> {
                 block.push_str(" d\n");
             }
         }
-        if let Some(color) = &opts.color {
-            block.push_str(&color_code(color.components(), ColorRole::Stroke));
+        if let Some(color) = effective_stroke_color(opts) {
+            block.push_str(&color_code(color.components(), ColorRole::Stroke)?);
         }
         if let Some(fill) = &opts.fill {
-            block.push_str(&color_code(fill.components(), ColorRole::Fill));
+            block.push_str(&color_code(fill.components(), ColorRole::Fill)?);
         }
         if opts.close_path {
             block.push_str("h\n");
@@ -183,7 +183,11 @@ fn cm_operator(matrix: &Matrix) -> String {
 }
 
 fn paint_operator(opts: &FinishOptions) -> &'static str {
-    match (opts.color.is_some(), opts.fill.is_some(), opts.even_odd) {
+    match (
+        effective_stroke_color(opts).is_some(),
+        opts.fill.is_some(),
+        opts.even_odd,
+    ) {
         (true, true, true) => "B*",
         (true, true, false) => "B",
         (true, false, _) => "S",
@@ -193,11 +197,21 @@ fn paint_operator(opts: &FinishOptions) -> &'static str {
     }
 }
 
+fn effective_stroke_color(opts: &FinishOptions) -> Option<&super::PdfColor> {
+    (opts.width > 0.0).then_some(opts.color.as_ref()).flatten()
+}
+
 fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
     if !opts.width.is_finite() || opts.width < 0.0 {
         return Err(Error::InvalidArgument(
             "width must be a non-negative finite value".to_owned(),
         ));
+    }
+    if let Some(color) = effective_stroke_color(opts) {
+        color.validate()?;
+    }
+    if let Some(fill) = &opts.fill {
+        fill.validate()?;
     }
     if let Some(miter_limit) = opts.miter_limit {
         if !miter_limit.is_finite() || miter_limit < 0.0 {
@@ -223,7 +237,7 @@ fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
 mod tests {
     use super::super::{FinishOptions, PdfColor, Shape, TextOptions};
     use crate::pdf::{PdfDocument, PdfObject, PdfPage};
-    use crate::{Colorspace, Image, ImageFormat, Matrix, Point, Quad, Rect, Size};
+    use crate::{Colorspace, Error, Image, ImageFormat, Matrix, Point, Quad, Rect, Size};
     use std::path::Path;
     use std::str;
 
@@ -377,7 +391,7 @@ mod tests {
 
         assert_eq!(
             shape.total_cont(),
-            "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nQ\n"
+            "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nh\nS\nQ\n"
         );
         assert!(shape.draw_cont().is_empty());
         assert_eq!(shape.last_point(), None);
@@ -405,7 +419,7 @@ mod tests {
 
         assert_eq!(
             total_cont,
-            "q\n0 1 -1 0 100 0 cm\n10 20 30 40 re\n1 w\n0 0 0 RG\nS\nQ\n"
+            "q\n0 1 -1 0 100 0 cm\n10 20 30 40 re\n1 w\n0 0 0 RG\nh\nS\nQ\n"
         );
     }
 
@@ -698,6 +712,53 @@ mod tests {
     }
 
     #[test]
+    fn finish_zero_width_disables_stroking() {
+        let filled = finish_rect(&FinishOptions {
+            color: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+            fill: Some(PdfColor::rgb(0.0, 1.0, 0.0)),
+            width: 0.0,
+            ..Default::default()
+        });
+
+        assert!(filled.contains("0 w\n"));
+        assert!(!filled.contains(" RG\n"));
+        assert!(filled.ends_with("0 1 0 rg\nh\nf\nQ\n"));
+
+        let stroke_only = finished_line(&FinishOptions {
+            color: Some(PdfColor::rgb(1.0, 0.0, 0.0)),
+            width: 0.0,
+            ..Default::default()
+        });
+        assert!(!stroke_only.contains(" RG\n"));
+        assert!(stroke_only.ends_with("0 w\nh\nn\nQ\n"));
+
+        let ignored_invalid_stroke = finished_line(&FinishOptions {
+            color: Some(PdfColor::rgb(2.0, 0.0, 0.0)),
+            width: 0.0,
+            ..Default::default()
+        });
+        assert!(ignored_invalid_stroke.ends_with("0 w\nh\nn\nQ\n"));
+    }
+
+    #[test]
+    fn finish_rejects_invalid_colors() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut shape = Shape::new(&mut page).unwrap();
+
+        let err = shape
+            .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
+            .unwrap()
+            .finish(&FinishOptions {
+                color: Some(PdfColor::rgb(2.0, 0.0, 0.0)),
+                ..Default::default()
+            })
+            .unwrap_err();
+
+        assert!(matches!(err, Error::InvalidArgument(_)));
+    }
+
+    #[test]
     fn finish_without_draws_is_noop() {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
@@ -715,7 +776,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             shape.total_cont(),
-            "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nQ\n"
+            "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nh\nS\nQ\n"
         );
     }
 
@@ -739,8 +800,8 @@ mod tests {
         assert_eq!(
             shape.total_cont(),
             concat!(
-                "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nQ\n",
-                "q\n50 60 m\n70 80 l\n1 w\n0 0 0 RG\nS\nQ\n"
+                "q\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nh\nS\nQ\n",
+                "q\n50 60 m\n70 80 l\n1 w\n0 0 0 RG\nh\nS\nQ\n"
             )
         );
     }
@@ -780,7 +841,7 @@ mod tests {
             assert_eq!(
                 shape.total_cont(),
                 format!(
-                    "q\n/OC /{} BDC\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nS\nEMC\nQ\n",
+                    "q\n/OC /{} BDC\n10 20 m\n30 40 l\n1 w\n0 0 0 RG\nh\nS\nEMC\nQ\n",
                     entries[0].0
                 )
             );

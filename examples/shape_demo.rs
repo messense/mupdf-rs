@@ -89,6 +89,7 @@ fn draw_primitives_page(doc: &mut PdfDocument, page: &mut PdfPage) -> Result<(),
             color: Some(PdfColor::rgb(0.75, 0.0, 0.0)),
             fill: Some(PdfColor::rgb(1.0, 0.88, 0.82)),
             width: 2.0,
+            close_path: false,
             ..Default::default()
         })?
         .draw_circle(Point::new(105.0, 380.0), 38.0)?
@@ -103,6 +104,7 @@ fn draw_primitives_page(doc: &mut PdfDocument, page: &mut PdfPage) -> Result<(),
             color: Some(PdfColor::rgb(0.0, 0.35, 0.0)),
             fill: Some(PdfColor::rgb(0.86, 1.0, 0.86)),
             width: 2.0,
+            close_path: false,
             ..Default::default()
         })?
         .draw_zigzag(Point::new(60.0, 570.0), Point::new(250.0, 570.0), 7.0)?
@@ -110,6 +112,7 @@ fn draw_primitives_page(doc: &mut PdfDocument, page: &mut PdfPage) -> Result<(),
         .finish(&FinishOptions {
             color: Some(PdfColor::rgb(0.1, 0.1, 0.7)),
             width: 1.5,
+            close_path: false,
             ..Default::default()
         })?
         .commit(doc, true)?;
