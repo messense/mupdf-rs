@@ -156,7 +156,7 @@ impl PdfObject {
     pub fn as_string(&self) -> Result<&str, Error> {
         let str_ptr = unsafe { ffi_try!(mupdf_pdf_to_string(context(), self.inner)) }?;
         let c_str = unsafe { CStr::from_ptr(str_ptr) };
-        Ok(c_str.to_str().unwrap())
+        c_str.to_str().map_err(|_| Error::InvalidUtf8)
     }
 
     pub fn as_bytes(&self) -> Result<&[u8], Error> {

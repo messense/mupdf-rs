@@ -20,6 +20,11 @@ bool mupdf_pdf_redact_page(fz_context *ctx, pdf_page *page, mupdf_error_t **errp
     TRY_CATCH(bool, false, pdf_redact_page(ctx, page->doc, page, NULL));
 }
 
+bool mupdf_pdf_redact_page_with_options(fz_context *ctx, pdf_page *page, pdf_redact_options *opts, mupdf_error_t **errptr)
+{
+    TRY_CATCH(bool, false, pdf_redact_page(ctx, page->doc, page, opts));
+}
+
 void mupdf_pdf_filter_page_contents(fz_context *ctx, pdf_page *page, pdf_filter_options *filter, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_filter_page_contents(ctx, page->doc, page, filter));

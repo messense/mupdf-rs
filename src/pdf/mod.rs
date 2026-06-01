@@ -10,7 +10,12 @@ pub mod page;
 #[cfg(test)]
 mod tests_annotation;
 
-pub use annotation::{LineEndingStyle, PdfAnnotation, PdfAnnotationType};
+pub use annotation::{
+    AnnotationArea, AnnotationBorderEffect, AnnotationBorderStyle, AnnotationDefaultAppearance,
+    AnnotationFlags, AnnotationQuadPoints, AnnotationTextAlign, LineEndingStyle, PdfAnnotation,
+    PdfAnnotationType, PdfRedactImageMethod, PdfRedactLineArtMethod, PdfRedactOptions,
+    PdfRedactTextMethod,
+};
 pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
 pub use filter::PdfFilterOptions;
 pub use graft_map::PdfGraftMap;
