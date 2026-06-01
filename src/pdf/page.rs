@@ -12,16 +12,18 @@ use std::{
 use mupdf_sys::*;
 
 use crate::link::LinkDestination;
+use crate::pdf::annotation::bounding_rect_for_quads;
 use crate::pdf::links::{
     build_link_annotation, parse_external_link, CachedResolver, DestPageResolver,
 };
 use crate::pdf::{
-    DocOperation, LinkAction, PdfAction, PdfAnnotation, PdfAnnotationType, PdfDestination,
-    PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot, PdfObject,
+    AnnotationArea, AnnotationQuadPoints, DocOperation, LinkAction, PdfAction, PdfAnnotation,
+    PdfAnnotationType, PdfDestination, PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot,
+    PdfObject, PdfRedactOptions,
 };
 use crate::{
     context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Matrix,
-    Page, Rect, SimpleFontEncoding, WriteMode,
+    Page, Point, Rect, SimpleFontEncoding, WriteMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -152,7 +154,233 @@ impl PdfPage {
         })
     }
 
+    fn create_configured_annotation<F>(
+        &mut self,
+        subtype: PdfAnnotationType,
+        configure: F,
+    ) -> Result<PdfAnnotation, Error>
+    where
+        F: FnOnce(&mut Self, &mut PdfAnnotation) -> Result<(), Error>,
+    {
+        let mut annot = self.create_annotation(subtype)?;
+        if let Err(err) = configure(self, &mut annot) {
+            let _ = unsafe {
+                ffi_try!(mupdf_pdf_delete_annot(
+                    context(),
+                    self.as_mut_ptr(),
+                    annot.inner.as_ptr()
+                ))
+            };
+            return Err(err);
+        }
+        Ok(annot)
+    }
+
+    fn set_annotation_rect_entry(
+        &self,
+        annot: &mut PdfAnnotation,
+        rect: Rect,
+    ) -> Result<(), Error> {
+        validate_non_empty_rect(rect, "annotation requires a non-empty valid rectangle")?;
+
+        let inv_ctm = self.ctm()?.invert().ok_or(Error::NonInvertibleMatrix)?;
+        let rect = rect.transform(&inv_ctm);
+        let doc = self.document_handle()?;
+        let mut rect_array = doc.new_array_with_capacity(4)?;
+        rect.encode_into(&mut rect_array)?;
+        annot.object().dict_put("Rect", rect_array)
+    }
+
+    fn create_annotation_with_rect(
+        &mut self,
+        subtype: PdfAnnotationType,
+        rect: Rect,
+    ) -> Result<PdfAnnotation, Error> {
+        self.create_configured_annotation(subtype, |_, annot| annot.set_rect(rect))
+    }
+
+    pub fn add_text_annotation(
+        &mut self,
+        rect: Rect,
+        contents: &str,
+    ) -> Result<PdfAnnotation, Error> {
+        self.create_configured_annotation(PdfAnnotationType::Text, |_, annot| {
+            annot.set_rect(rect)?;
+            annot.set_contents(contents)
+        })
+    }
+
+    pub fn add_free_text_annotation(
+        &mut self,
+        rect: Rect,
+        contents: &str,
+    ) -> Result<PdfAnnotation, Error> {
+        self.create_configured_annotation(PdfAnnotationType::FreeText, |_, annot| {
+            annot.set_rect(rect)?;
+            annot.set_contents(contents)
+        })
+    }
+
+    pub fn add_caret_annotation(&mut self, rect: Rect) -> Result<PdfAnnotation, Error> {
+        self.create_annotation_with_rect(PdfAnnotationType::Caret, rect)
+    }
+
+    pub fn add_line_annotation(
+        &mut self,
+        start: Point,
+        end: Point,
+    ) -> Result<PdfAnnotation, Error> {
+        let rect = padded_bounding_rect_for_points(&[start, end])?;
+        self.create_configured_annotation(PdfAnnotationType::Line, |page, annot| {
+            annot.set_line(start, end)?;
+            page.set_annotation_rect_entry(annot, rect)
+        })
+    }
+
+    pub fn add_rect_annotation(&mut self, rect: Rect) -> Result<PdfAnnotation, Error> {
+        self.create_annotation_with_rect(PdfAnnotationType::Square, rect)
+    }
+
+    pub fn add_square_annotation(&mut self, rect: Rect) -> Result<PdfAnnotation, Error> {
+        self.add_rect_annotation(rect)
+    }
+
+    pub fn add_circle_annotation(&mut self, rect: Rect) -> Result<PdfAnnotation, Error> {
+        self.create_annotation_with_rect(PdfAnnotationType::Circle, rect)
+    }
+
+    pub fn add_polygon_annotation(
+        &mut self,
+        points: impl IntoIterator<Item = Point>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_vertex_annotation(PdfAnnotationType::Polygon, points, 3)
+    }
+
+    pub fn add_polyline_annotation(
+        &mut self,
+        points: impl IntoIterator<Item = Point>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_vertex_annotation(PdfAnnotationType::PloyLine, points, 2)
+    }
+
+    fn add_vertex_annotation(
+        &mut self,
+        subtype: PdfAnnotationType,
+        points: impl IntoIterator<Item = Point>,
+        min_points: usize,
+    ) -> Result<PdfAnnotation, Error> {
+        let points: Vec<Point> = points.into_iter().collect();
+        if points.len() < min_points {
+            return Err(Error::InvalidArgument(format!(
+                "{subtype:?} annotation requires at least {min_points} points"
+            )));
+        }
+        let rect = padded_bounding_rect_for_points(&points)?;
+        self.create_configured_annotation(subtype, |page, annot| {
+            annot.set_vertices(points.iter().copied())?;
+            page.set_annotation_rect_entry(annot, rect)
+        })
+    }
+
+    pub fn add_ink_annotation<I, S>(&mut self, strokes: I) -> Result<PdfAnnotation, Error>
+    where
+        I: IntoIterator<Item = S>,
+        S: IntoIterator<Item = Point>,
+    {
+        let strokes: Vec<Vec<Point>> = strokes
+            .into_iter()
+            .map(|stroke| stroke.into_iter().collect())
+            .collect();
+        if strokes.is_empty() {
+            return Err(Error::InvalidArgument(
+                "ink annotation requires at least one stroke".to_owned(),
+            ));
+        }
+        if strokes.iter().any(Vec::is_empty) {
+            return Err(Error::InvalidArgument(
+                "ink annotation strokes must not be empty".to_owned(),
+            ));
+        }
+        let points: Vec<Point> = strokes.iter().flatten().copied().collect();
+        let rect = padded_bounding_rect_for_points(&points)?;
+        self.create_configured_annotation(PdfAnnotationType::Ink, |page, annot| {
+            annot.set_ink_list(strokes.iter().map(|stroke| stroke.iter().copied()))?;
+            page.set_annotation_rect_entry(annot, rect)
+        })
+    }
+
+    pub fn add_highlight_annotation(
+        &mut self,
+        quads: impl Into<AnnotationQuadPoints>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_text_markup_annotation(PdfAnnotationType::Highlight, quads)
+    }
+
+    pub fn add_underline_annotation(
+        &mut self,
+        quads: impl Into<AnnotationQuadPoints>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_text_markup_annotation(PdfAnnotationType::Underline, quads)
+    }
+
+    pub fn add_squiggly_annotation(
+        &mut self,
+        quads: impl Into<AnnotationQuadPoints>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_text_markup_annotation(PdfAnnotationType::Squiggly, quads)
+    }
+
+    pub fn add_strikeout_annotation(
+        &mut self,
+        quads: impl Into<AnnotationQuadPoints>,
+    ) -> Result<PdfAnnotation, Error> {
+        self.add_text_markup_annotation(PdfAnnotationType::StrikeOut, quads)
+    }
+
+    fn add_text_markup_annotation(
+        &mut self,
+        subtype: PdfAnnotationType,
+        quads: impl Into<AnnotationQuadPoints>,
+    ) -> Result<PdfAnnotation, Error> {
+        let quads = quads.into();
+        let rect = validate_quad_area(
+            quads.as_slice(),
+            &format!("{subtype:?} annotation requires non-empty valid quad points"),
+        )?;
+        self.create_configured_annotation(subtype, |page, annot| {
+            annot.set_quad_points(quads)?;
+            page.set_annotation_rect_entry(annot, rect)
+        })
+    }
+
+    pub fn add_stamp_annotation(
+        &mut self,
+        rect: Rect,
+        icon_name: &str,
+    ) -> Result<PdfAnnotation, Error> {
+        self.create_configured_annotation(PdfAnnotationType::Stamp, |_, annot| {
+            annot.set_rect(rect)?;
+            annot.set_icon_name(icon_name)
+        })
+    }
+
+    pub fn add_redact_annotation(
+        &mut self,
+        area: impl Into<AnnotationArea>,
+    ) -> Result<PdfAnnotation, Error> {
+        let area = validate_redaction_area(area.into())?;
+        self.create_configured_annotation(PdfAnnotationType::Redact, |_, annot| {
+            set_annotation_area(annot, area)
+        })
+    }
+
     pub fn delete_annotation(&mut self, annot: PdfAnnotation) -> Result<(), Error> {
+        let annot_page = annot.page_ptr()?;
+        if annot_page != self.as_mut_ptr() {
+            return Err(Error::InvalidArgument(
+                "annotation does not belong to this page".to_owned(),
+            ));
+        }
         unsafe {
             ffi_try!(mupdf_pdf_delete_annot(
                 context(),
@@ -176,6 +404,29 @@ impl PdfPage {
 
     pub fn redact(&mut self) -> Result<bool, Error> {
         unsafe { ffi_try!(mupdf_pdf_redact_page(context(), self.as_mut_ptr())) }
+    }
+
+    pub fn redact_with_options(&mut self, options: PdfRedactOptions) -> Result<bool, Error> {
+        let mut raw = options.into_raw();
+        unsafe {
+            ffi_try!(mupdf_pdf_redact_page_with_options(
+                context(),
+                self.as_mut_ptr(),
+                &raw mut raw
+            ))
+        }
+    }
+
+    /// Applies all redaction annotations on this page using PyMuPDF-like defaults.
+    pub fn apply_redactions(&mut self) -> Result<bool, Error> {
+        self.apply_redactions_with_options(PdfRedactOptions::pymupdf_default())
+    }
+
+    pub fn apply_redactions_with_options(
+        &mut self,
+        options: PdfRedactOptions,
+    ) -> Result<bool, Error> {
+        self.redact_with_options(options)
     }
 
     pub fn object(&self) -> PdfObject {
@@ -1451,6 +1702,102 @@ impl Iterator for PdfLinkIter {
             }
         }
     }
+}
+
+fn set_annotation_area(annot: &mut PdfAnnotation, area: AnnotationArea) -> Result<(), Error> {
+    match area {
+        AnnotationArea::Rect(rect) => {
+            let rect = validate_non_empty_rect(
+                rect,
+                "redaction annotation requires a non-empty valid area",
+            )?;
+            annot.set_rect(rect)
+        }
+        AnnotationArea::QuadPoints(quads) => {
+            let rect = validate_quad_area(
+                quads.as_slice(),
+                "redaction annotation requires a non-empty valid area",
+            )?;
+            annot.set_rect(rect)?;
+            annot.set_quad_points(quads)
+        }
+    }
+}
+
+fn validate_redaction_area(area: AnnotationArea) -> Result<AnnotationArea, Error> {
+    match area {
+        AnnotationArea::Rect(rect) => {
+            validate_non_empty_rect(rect, "redaction annotation requires a non-empty valid area")
+                .map(AnnotationArea::Rect)
+        }
+        AnnotationArea::QuadPoints(quads) => {
+            validate_quad_area(
+                quads.as_slice(),
+                "redaction annotation requires a non-empty valid area",
+            )?;
+            Ok(AnnotationArea::QuadPoints(quads))
+        }
+    }
+}
+
+fn validate_quad_area(quads: &[crate::Quad], message: &str) -> Result<Rect, Error> {
+    if quads.is_empty() {
+        return Err(Error::InvalidArgument(message.to_owned()));
+    }
+
+    for quad in quads {
+        validate_non_empty_rect(Rect::from(quad.clone()), message)?;
+        if quad_area(quad).abs() <= f32::EPSILON {
+            return Err(Error::InvalidArgument(message.to_owned()));
+        }
+    }
+
+    let rect =
+        bounding_rect_for_quads(quads).ok_or_else(|| Error::InvalidArgument(message.to_owned()))?;
+    validate_non_empty_rect(rect, message)
+}
+
+fn quad_area(quad: &crate::Quad) -> f32 {
+    let points = [quad.ul, quad.ur, quad.lr, quad.ll];
+    let mut area = 0.0;
+    for index in 0..points.len() {
+        let current = points[index];
+        let next = points[(index + 1) % points.len()];
+        area += current.x * next.y - next.x * current.y;
+    }
+    area * 0.5
+}
+
+fn validate_non_empty_rect(rect: Rect, message: &str) -> Result<Rect, Error> {
+    if !rect.is_valid() || rect.is_empty() {
+        return Err(Error::InvalidArgument(message.to_owned()));
+    }
+    Ok(rect)
+}
+
+const ANNOTATION_RECT_PADDING: f32 = 3.0;
+
+fn padded_bounding_rect_for_points(points: &[Point]) -> Result<Rect, Error> {
+    let mut iter = points.iter();
+    let first = iter.next().ok_or_else(|| {
+        Error::InvalidArgument("annotation requires at least one point".to_owned())
+    })?;
+    let (mut x0, mut y0, mut x1, mut y1) = (first.x, first.y, first.x, first.y);
+    for point in iter {
+        x0 = x0.min(point.x);
+        y0 = y0.min(point.y);
+        x1 = x1.max(point.x);
+        y1 = y1.max(point.y);
+    }
+    validate_non_empty_rect(
+        Rect::new(
+            x0 - ANNOTATION_RECT_PADDING,
+            y0 - ANNOTATION_RECT_PADDING,
+            x1 + ANNOTATION_RECT_PADDING,
+            y1 + ANNOTATION_RECT_PADDING,
+        ),
+        "annotation requires a non-empty valid point bounding box",
+    )
 }
 
 /// Iterator over link annotation dictionaries on a PDF page, yielding [`PdfLinkAnnot`] items.
