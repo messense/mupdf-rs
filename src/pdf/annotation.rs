@@ -20,7 +20,7 @@ from_enum! { pdf_annot_type => c_uint,
         Square = PDF_ANNOT_SQUARE,
         Circle = PDF_ANNOT_CIRCLE,
         Polygon = PDF_ANNOT_POLYGON,
-        PloyLine = PDF_ANNOT_POLY_LINE,
+        PolyLine = PDF_ANNOT_POLY_LINE,
         Highlight = PDF_ANNOT_HIGHLIGHT,
         Underline = PDF_ANNOT_UNDERLINE,
         Squiggly = PDF_ANNOT_SQUIGGLY,
@@ -45,7 +45,7 @@ from_enum! { pdf_annot_type => c_uint,
     }
 }
 
-from_enum! { pdf_line_ending => c_uint,
+from_enum! { pdf_line_ending => pdf_line_ending,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum LineEndingStyle {
         None = PDF_ANNOT_LE_NONE,
@@ -61,7 +61,7 @@ from_enum! { pdf_line_ending => c_uint,
     }
 }
 
-from_enum! { pdf_border_style => c_uint,
+from_enum! { pdf_border_style => pdf_border_style,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum AnnotationBorderStyle {
         Solid = PDF_BORDER_STYLE_SOLID,
@@ -72,7 +72,7 @@ from_enum! { pdf_border_style => c_uint,
     }
 }
 
-from_enum! { pdf_border_effect => c_uint,
+from_enum! { pdf_border_effect => pdf_border_effect,
     #[derive(Debug, Clone, Copy, PartialEq)]
     pub enum AnnotationBorderEffect {
         None = PDF_BORDER_EFFECT_NONE,

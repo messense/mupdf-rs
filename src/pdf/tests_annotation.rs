@@ -238,7 +238,7 @@ fn annotation_property_roundtrips() {
         })
     );
     assert!(square.flags().unwrap().contains(AnnotationFlags::IS_LOCKED));
-    assert!(square.opacity().unwrap() <= 0.5);
+    assert!((square.opacity().unwrap() - 0.5).abs() < 0.001);
 }
 
 #[test]

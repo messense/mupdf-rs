@@ -260,7 +260,7 @@ impl PdfPage {
         &mut self,
         points: impl IntoIterator<Item = Point>,
     ) -> Result<PdfAnnotation, Error> {
-        self.add_vertex_annotation(PdfAnnotationType::PloyLine, points, 2)
+        self.add_vertex_annotation(PdfAnnotationType::PolyLine, points, 2)
     }
 
     fn add_vertex_annotation(
