@@ -1,5 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{hash_map::DefaultHasher, HashMap};
+use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
+use std::str;
 use std::{
     ffi::CStr,
     mem::ManuallyDrop,
@@ -17,7 +19,88 @@ use crate::pdf::{
     DocOperation, LinkAction, PdfAction, PdfAnnotation, PdfAnnotationType, PdfDestination,
     PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot, PdfObject,
 };
-use crate::{context, unsafe_impl_ffi_wrapper, Error, FFIWrapper, Matrix, Page, Rect};
+use crate::{
+    context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Matrix,
+    Page, Rect, SimpleFontEncoding, WriteMode,
+};
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct FontInfo {
+    pub ascender: f32,
+    pub descender: f32,
+    pub glyphs: Option<HashMap<u32, i32>>,
+    pub simple: bool,
+    pub ordering: Option<CjkFontOrdering>,
+    pub name: String,
+    pub encoding: SimpleFontEncoding,
+    pub wmode: WriteMode,
+    pub serif: bool,
+    pub fontfile_hash: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct InsertFontOptions<'a> {
+    pub name: &'a str,
+    pub fontfile: Option<&'a [u8]>,
+    pub simple: bool,
+    pub encoding: SimpleFontEncoding,
+    pub ordering: Option<CjkFontOrdering>,
+    pub wmode: WriteMode,
+    pub serif: bool,
+}
+
+impl<'a> InsertFontOptions<'a> {
+    pub fn new(name: &'a str) -> Self {
+        Self {
+            name,
+            fontfile: None,
+            simple: true,
+            encoding: SimpleFontEncoding::Latin,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
+        }
+    }
+}
+
+fn canonical_base14_name(name: &str) -> Option<&'static str> {
+    match name.trim_start_matches('/').to_ascii_lowercase().as_str() {
+        "helv" | "helvetica" => Some("Helvetica"),
+        "heit" | "helvetica-oblique" => Some("Helvetica-Oblique"),
+        "hebo" | "helvetica-bold" => Some("Helvetica-Bold"),
+        "heboit" | "helvetica-boldoblique" => Some("Helvetica-BoldOblique"),
+        "cour" | "courier" => Some("Courier"),
+        "coit" | "courier-oblique" => Some("Courier-Oblique"),
+        "cobo" | "courier-bold" => Some("Courier-Bold"),
+        "coboit" | "courier-boldoblique" => Some("Courier-BoldOblique"),
+        "tiro" | "times-roman" => Some("Times-Roman"),
+        "tibo" | "times-bold" => Some("Times-Bold"),
+        "tiit" | "times-italic" => Some("Times-Italic"),
+        "tibi" | "times-bolditalic" => Some("Times-BoldItalic"),
+        "symb" | "symbol" => Some("Symbol"),
+        "zadb" | "zapfdingbats" => Some("ZapfDingbats"),
+        _ => None,
+    }
+}
+
+fn cjk_ordering_from_font_name(name: &str) -> Option<CjkFontOrdering> {
+    match name.trim_start_matches('/').to_ascii_lowercase().as_str() {
+        "china-t" => Some(CjkFontOrdering::AdobeCns),
+        "china-s" => Some(CjkFontOrdering::AdobeGb),
+        "japan" => Some(CjkFontOrdering::AdobeJapan),
+        "korea" => Some(CjkFontOrdering::AdobeKorea),
+        _ => None,
+    }
+}
+
+fn cjk_font_name(ordering: CjkFontOrdering) -> &'static str {
+    match ordering {
+        CjkFontOrdering::AdobeCns => "china-t",
+        CjkFontOrdering::AdobeGb => "china-s",
+        CjkFontOrdering::AdobeJapan => "japan",
+        CjkFontOrdering::AdobeKorea => "korea",
+    }
+}
 
 #[derive(Debug)]
 pub struct PdfPage {
@@ -97,6 +180,933 @@ impl PdfPage {
 
     pub fn object(&self) -> PdfObject {
         unsafe { PdfObject::from_raw_keep_ref(self.as_ref().obj) }
+    }
+
+    pub(crate) fn document_handle(&self) -> Result<PdfDocument, Error> {
+        let doc_ptr =
+            NonNull::new(unsafe { (*self.inner.as_ptr()).doc }).ok_or(Error::UnexpectedNullPtr)?;
+        Ok(unsafe { PdfDocument::from_raw(pdf_keep_document(context(), doc_ptr.as_ptr())) })
+    }
+
+    /// Returns this page's `/Contents` object.
+    ///
+    /// The returned object is the page dictionary value as-is: a single stream, an array of
+    /// streams, or `None` when the page has no `/Contents` entry.
+    pub fn contents(&self) -> Result<Option<PdfObject>, Error> {
+        self.object().get_dict("Contents")
+    }
+
+    /// Returns this page's direct `/Resources` dictionary, creating and attaching one when missing.
+    ///
+    /// When the page has no direct resources but inherits a resource dictionary from its page
+    /// tree, the inherited dictionary is shallow-copied into a page-local indirect dictionary
+    /// before being attached. This avoids shadowing inherited resources with an empty dictionary
+    /// when new resources are added to the page. Non-dictionary direct `/Resources` entries are
+    /// replaced by a new empty indirect dictionary. Repeated calls return the same dictionary
+    /// object without allocating again.
+    pub fn resources(&self) -> Result<PdfObject, Error> {
+        let mut page_obj = self.object();
+
+        match page_obj.get_dict("Resources")? {
+            Some(resources) if resources.is_dict()? => return Ok(resources),
+            Some(_) => {}
+            None => {
+                if let Some(resources) = page_obj.get_dict_inheritable("Resources")? {
+                    if resources.is_dict()? {
+                        let mut doc = self.document_handle()?;
+                        let resources = resources.copy_dict()?;
+                        let resources = doc.add_object(&resources)?;
+                        page_obj.dict_put("Resources", resources.clone())?;
+                        return Ok(resources);
+                    }
+                }
+            }
+        }
+
+        let mut doc = self.document_handle()?;
+        let resources = doc.new_dict()?;
+        let resources = doc.add_object(&resources)?;
+        page_obj.dict_put("Resources", resources.clone())?;
+
+        Ok(resources)
+    }
+
+    pub(crate) fn assert_document_owner(&self, doc: &PdfDocument) {
+        assert_eq!(
+            doc.as_raw(),
+            unsafe { (*self.inner.as_ptr()).doc },
+            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
+        );
+    }
+
+    fn resource_subdict_for_write(
+        resources: &mut PdfObject,
+        doc: &PdfDocument,
+        key: &str,
+        existing: Option<PdfObject>,
+    ) -> Result<PdfObject, Error> {
+        if let Some(existing) = existing {
+            let copy = existing.copy_dict()?;
+            resources.dict_put_ref(key, &copy)?;
+            return Ok(copy);
+        }
+
+        let subdict = doc.new_dict()?;
+        resources.dict_put_ref(key, &subdict)?;
+        Ok(subdict)
+    }
+
+    fn push_contents_into_array(
+        contents_array: &mut PdfObject,
+        contents: &PdfObject,
+    ) -> Result<(), Error> {
+        if contents.is_null()? {
+            return Ok(());
+        }
+
+        if contents.is_array()? {
+            for index in 0..contents.len()? {
+                if let Some(item) = contents.get_array(index as i32)? {
+                    contents_array.array_push(item)?;
+                }
+            }
+        } else {
+            contents_array.array_push(contents.clone())?;
+        }
+
+        Ok(())
+    }
+
+    /// Inserts a new content stream into this page's `/Contents` array.
+    ///
+    /// Creates a new PDF stream containing `bytes`, promotes a missing, null, or single-stream
+    /// `/Contents` entry to an array, then appends it when `overlay` is true or prepends it when
+    /// `overlay` is false. Returns the xref number of the newly created stream.
+    ///
+    /// This ports PyMuPDF's `JM_insert_contents` helper used by `Shape.commit`.
+    pub fn insert_contents(
+        &mut self,
+        doc: &mut PdfDocument,
+        bytes: &[u8],
+        overlay: bool,
+    ) -> Result<i32, Error> {
+        self.assert_document_owner(doc);
+
+        let operation = DocOperation::begin(doc, "Insert contents")?;
+        let new_xref = self.insert_contents_in_operation(operation.doc, bytes, overlay)?;
+        operation.commit()?;
+
+        Ok(new_xref)
+    }
+
+    pub(crate) fn insert_contents_in_operation(
+        &mut self,
+        doc: &mut PdfDocument,
+        bytes: &[u8],
+        overlay: bool,
+    ) -> Result<i32, Error> {
+        let mut page_obj = self.object();
+        let old_contents = page_obj.get_dict("Contents")?;
+
+        let stream_buf = Buffer::from_bytes(bytes)?;
+        let new_stream = doc.add_stream(&stream_buf, None, false)?;
+        let new_xref = new_stream.as_indirect()?;
+
+        let old_len = match old_contents.as_ref() {
+            Some(contents) if contents.is_array()? => contents.len()? as i32,
+            Some(contents) if !contents.is_null()? => 1,
+            _ => 0,
+        };
+        let mut contents_array = doc.new_array_with_capacity(old_len + 1)?;
+
+        if overlay {
+            if let Some(contents) = &old_contents {
+                Self::push_contents_into_array(&mut contents_array, contents)?;
+            }
+            contents_array.array_push(new_stream)?;
+        } else {
+            contents_array.array_push(new_stream)?;
+            if let Some(contents) = &old_contents {
+                Self::push_contents_into_array(&mut contents_array, contents)?;
+            }
+        }
+
+        page_obj.dict_put("Contents", contents_array)?;
+
+        Ok(new_xref)
+    }
+
+    /// Wraps this page's existing content streams in a balanced PDF graphics state.
+    ///
+    /// Inserts a `q\n` content stream as an underlay and a `Q\n` content stream as an
+    /// overlay. This intentionally is not idempotent: repeated calls add another balanced
+    /// pair around the existing contents.
+    pub fn wrap_contents(&mut self, doc: &mut PdfDocument) -> Result<(), Error> {
+        self.assert_document_owner(doc);
+
+        let operation = DocOperation::begin(doc, "Wrap contents")?;
+        self.insert_contents_in_operation(operation.doc, b"q\n", false)?;
+        self.insert_contents_in_operation(operation.doc, b"Q\n", true)?;
+        operation.commit()
+    }
+
+    fn validate_opacity_value(value: f32, role: &str) -> Result<(), Error> {
+        if value.is_finite() && (0.0..=1.0).contains(&value) {
+            return Ok(());
+        }
+
+        Err(Error::InvalidArgument(format!(
+            "{role} opacity must be in the range [0.0, 1.0]"
+        )))
+    }
+
+    pub(crate) fn validate_opacity_pair(
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<(), Error> {
+        if let Some(stroke_opacity) = stroke_opacity {
+            Self::validate_opacity_value(stroke_opacity, "stroke")?;
+        }
+        if let Some(fill_opacity) = fill_opacity {
+            Self::validate_opacity_value(fill_opacity, "fill")?;
+        }
+        Ok(())
+    }
+
+    fn ext_gstate_alpha_matches(
+        ext_gstate: &PdfObject,
+        key: &str,
+        expected: Option<f32>,
+    ) -> Result<bool, Error> {
+        let Some(actual) = ext_gstate.get_dict(key)? else {
+            return Ok(expected.is_none());
+        };
+
+        let Some(expected) = expected else {
+            return Ok(false);
+        };
+
+        Ok(actual.is_number()? && (actual.as_float()? - expected).abs() <= 1e-6)
+    }
+
+    fn ext_gstate_matches(
+        ext_gstate: &PdfObject,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<bool, Error> {
+        Ok(
+            Self::ext_gstate_alpha_matches(ext_gstate, "CA", stroke_opacity)?
+                && Self::ext_gstate_alpha_matches(ext_gstate, "ca", fill_opacity)?,
+        )
+    }
+
+    fn find_ext_gstate_resource(
+        ext_gstates: &PdfObject,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<Option<String>, Error> {
+        for idx in 0..ext_gstates.dict_len()? {
+            let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = ext_gstates.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if value.is_dict()? && Self::ext_gstate_matches(&value, stroke_opacity, fill_opacity)? {
+                return Ok(Some(format!("/{key_name}")));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_ext_gstate_resource_slot(ext_gstates: Option<&PdfObject>) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(ext_gstates) = ext_gstates {
+            for idx in 0..ext_gstates.dict_len()? {
+                let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('A')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("A{index}"))
+    }
+
+    pub(crate) fn validate_optional_content_xref(
+        doc: &PdfDocument,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let oc_ref = doc.new_indirect(oc_xref, 0)?;
+        let Some(oc_obj) = oc_ref.resolve()? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} does not resolve to an object"
+            )));
+        };
+        if !oc_obj.is_dict()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} must point to an OCG or OCMD dictionary"
+            )));
+        }
+
+        let Some(type_obj) = oc_obj.get_dict("Type")? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} is missing /Type"
+            )));
+        };
+        if !type_obj.is_name()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} has non-name /Type"
+            )));
+        }
+
+        match type_obj.as_name()? {
+            b"OCG" | b"OCMD" => Ok(()),
+            _ => Err(Error::InvalidArgument(format!(
+                "optional content xref {oc_xref} must have /Type /OCG or /OCMD"
+            ))),
+        }
+    }
+
+    fn array_contains_indirect_xref(array: &PdfObject, xref: i32) -> Result<bool, Error> {
+        for index in 0..array.len()? {
+            let Some(item) = array.get_array(index as i32)? else {
+                continue;
+            };
+            if item.is_indirect()? && item.as_indirect()? == xref {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn ensure_array_contains_indirect_ref(
+        array: &mut PdfObject,
+        reference: &PdfObject,
+        xref: i32,
+    ) -> Result<(), Error> {
+        if !Self::array_contains_indirect_xref(array, xref)? {
+            array.array_push_ref(reference)?;
+        }
+        Ok(())
+    }
+
+    fn ensure_optional_content_config_array(
+        doc: &PdfDocument,
+        default_config: &mut PdfObject,
+        key: &str,
+        oc_ref: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let mut array = match default_config.get_dict(key)? {
+            Some(array) if array.is_array()? => array,
+            _ => {
+                let array = doc.new_array()?;
+                default_config.dict_put_ref(key, &array)?;
+                array
+            }
+        };
+        Self::ensure_array_contains_indirect_ref(&mut array, oc_ref, oc_xref)
+    }
+
+    fn ensure_optional_content_catalog_registration(
+        doc: &PdfDocument,
+        oc_ref: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<(), Error> {
+        let Some(oc_obj) = oc_ref.resolve()? else {
+            return Ok(());
+        };
+        let Some(type_obj) = oc_obj.get_dict("Type")? else {
+            return Ok(());
+        };
+        if type_obj.as_name()? != b"OCG" {
+            return Ok(());
+        }
+
+        let mut catalog = doc.catalog()?;
+        let mut oc_properties = match catalog.get_dict("OCProperties")? {
+            Some(oc_properties) if oc_properties.is_dict()? => oc_properties,
+            _ => {
+                let oc_properties = doc.new_dict()?;
+                catalog.dict_put_ref("OCProperties", &oc_properties)?;
+                oc_properties
+            }
+        };
+
+        let mut ocgs = match oc_properties.get_dict("OCGs")? {
+            Some(ocgs) if ocgs.is_array()? => ocgs,
+            _ => {
+                let ocgs = doc.new_array()?;
+                oc_properties.dict_put_ref("OCGs", &ocgs)?;
+                ocgs
+            }
+        };
+        if !Self::array_contains_indirect_xref(&ocgs, oc_xref)? {
+            ocgs.array_push_ref(oc_ref)?;
+        }
+
+        let mut default_config = match oc_properties.get_dict("D")? {
+            Some(default_config) if default_config.is_dict()? => default_config,
+            _ => {
+                let default_config = doc.new_dict()?;
+                oc_properties.dict_put_ref("D", &default_config)?;
+                default_config
+            }
+        };
+        Self::ensure_optional_content_config_array(
+            doc,
+            &mut default_config,
+            "ON",
+            oc_ref,
+            oc_xref,
+        )?;
+        Self::ensure_optional_content_config_array(
+            doc,
+            &mut default_config,
+            "Order",
+            oc_ref,
+            oc_xref,
+        )
+    }
+
+    fn find_optional_content_resource(
+        properties: &PdfObject,
+        oc_xref: i32,
+    ) -> Result<Option<String>, Error> {
+        for idx in 0..properties.dict_len()? {
+            let Some(key) = properties.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = properties.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if value.is_indirect()? && value.as_indirect()? == oc_xref {
+                return Ok(Some(format!("/{key_name}")));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn next_optional_content_resource_slot(
+        properties: Option<&PdfObject>,
+    ) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(properties) = properties {
+            for idx in 0..properties.dict_len()? {
+                let Some(key) = properties.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('P')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("P{index}"))
+    }
+
+    /// Registers or reuses a page `/ExtGState` entry for stroke and fill opacity.
+    ///
+    /// Returns a PDF resource name (including the leading slash) when either opacity is set.
+    /// Identical `(stroke_opacity, fill_opacity)` pairs reuse the same `/ExtGState` dictionary,
+    /// while combined stroke and fill opacity values are stored in one dictionary.
+    pub fn register_ext_gstate(
+        &mut self,
+        doc: &mut PdfDocument,
+        stroke_opacity: Option<f32>,
+        fill_opacity: Option<f32>,
+    ) -> Result<Option<String>, Error> {
+        self.assert_document_owner(doc);
+
+        Self::validate_opacity_pair(stroke_opacity, fill_opacity)?;
+        if stroke_opacity.is_none() && fill_opacity.is_none() {
+            return Ok(None);
+        }
+
+        let mut resources = self.resources()?;
+        let existing_ext_gstates = match resources.get_dict("ExtGState")? {
+            Some(ext_gstates) if ext_gstates.is_dict()? => Some(ext_gstates),
+            _ => None,
+        };
+
+        if let Some(ext_gstates) = existing_ext_gstates.as_ref() {
+            if let Some(name) =
+                Self::find_ext_gstate_resource(ext_gstates, stroke_opacity, fill_opacity)?
+            {
+                return Ok(Some(name));
+            }
+        }
+
+        let slot_name = Self::next_ext_gstate_resource_slot(existing_ext_gstates.as_ref())?;
+        let mut ext_gstates = Self::resource_subdict_for_write(
+            &mut resources,
+            doc,
+            "ExtGState",
+            existing_ext_gstates,
+        )?;
+
+        let mut ext_gstate = doc.new_dict_with_capacity(3)?;
+        ext_gstate.dict_put("Type", PdfObject::new_name("ExtGState")?)?;
+        if let Some(stroke_opacity) = stroke_opacity {
+            ext_gstate.dict_put("CA", PdfObject::new_real(stroke_opacity)?)?;
+        }
+        if let Some(fill_opacity) = fill_opacity {
+            ext_gstate.dict_put("ca", PdfObject::new_real(fill_opacity)?)?;
+        }
+        ext_gstates.dict_put(slot_name.as_str(), ext_gstate)?;
+
+        Ok(Some(format!("/{slot_name}")))
+    }
+
+    /// Registers or reuses a page `/Properties` entry for optional content.
+    ///
+    /// Returns a PDF resource name (including the leading slash). The supplied xref must
+    /// resolve to an OCG or OCMD dictionary. Reusing the same xref on the same page returns
+    /// the existing `/Properties` slot without adding another resource entry.
+    pub fn register_optional_content(
+        &mut self,
+        doc: &mut PdfDocument,
+        oc_xref: i32,
+    ) -> Result<String, Error> {
+        self.assert_document_owner(doc);
+
+        Self::validate_optional_content_xref(doc, oc_xref)?;
+        let oc_ref = doc.new_indirect(oc_xref, 0)?;
+        Self::ensure_optional_content_catalog_registration(doc, &oc_ref, oc_xref)?;
+
+        let mut resources = self.resources()?;
+        let existing_properties = match resources.get_dict("Properties")? {
+            Some(properties) if properties.is_dict()? => Some(properties),
+            _ => None,
+        };
+
+        if let Some(properties) = existing_properties.as_ref() {
+            if let Some(name) = Self::find_optional_content_resource(properties, oc_xref)? {
+                return Ok(name);
+            }
+        }
+
+        let slot_name = Self::next_optional_content_resource_slot(existing_properties.as_ref())?;
+        let mut properties = Self::resource_subdict_for_write(
+            &mut resources,
+            doc,
+            "Properties",
+            existing_properties,
+        )?;
+
+        properties.dict_put_ref(slot_name.as_str(), &oc_ref)?;
+
+        Ok(format!("/{slot_name}"))
+    }
+
+    fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {
+        let opts_simple = opts.simple && opts.ordering.is_none() && opts.fontfile.is_none();
+        if info.name != name
+            || info.simple != opts_simple
+            || info.ordering != opts.ordering
+            || info.fontfile_hash != Self::fontfile_hash(opts.fontfile)
+        {
+            return false;
+        }
+
+        if info.simple && info.encoding != opts.encoding {
+            return false;
+        }
+
+        if info.ordering.is_some() && (info.wmode != opts.wmode || info.serif != opts.serif) {
+            return false;
+        }
+
+        true
+    }
+
+    fn fontfile_hash(fontfile: Option<&[u8]>) -> Option<u64> {
+        fontfile.map(|bytes| {
+            let mut hasher = DefaultHasher::new();
+            bytes.hash(&mut hasher);
+            hasher.finish()
+        })
+    }
+
+    fn normalized_base_font_name(name: &str) -> &str {
+        match name.split_once('+') {
+            Some((prefix, suffix))
+                if prefix.len() == 6 && prefix.bytes().all(|byte| byte.is_ascii_uppercase()) =>
+            {
+                suffix
+            }
+            _ => name,
+        }
+    }
+
+    fn resource_font_base_name(font_obj: &PdfObject) -> Result<Option<String>, Error> {
+        if let Some(base_font) = font_obj.get_dict("BaseFont")? {
+            let base_font = str::from_utf8(base_font.as_name()?)
+                .map(Self::normalized_base_font_name)
+                .map(str::to_owned)
+                .ok();
+            if base_font.is_some() {
+                return Ok(base_font);
+            }
+        }
+
+        let Some(descendant_fonts) = font_obj.get_dict("DescendantFonts")? else {
+            return Ok(None);
+        };
+        let Some(descendant_font) = descendant_fonts.get_array(0)? else {
+            return Ok(None);
+        };
+        let Some(base_font) = descendant_font.get_dict("BaseFont")? else {
+            return Ok(None);
+        };
+
+        Ok(str::from_utf8(base_font.as_name()?)
+            .map(Self::normalized_base_font_name)
+            .map(str::to_owned)
+            .ok())
+    }
+
+    fn resource_simple_font_encoding(
+        font_obj: &PdfObject,
+    ) -> Result<Option<SimpleFontEncoding>, Error> {
+        let Some(encoding) = font_obj.get_dict("Encoding")? else {
+            return Ok(Some(SimpleFontEncoding::Latin));
+        };
+
+        if !encoding.is_dict()? {
+            let Ok(encoding_name) = encoding.as_name() else {
+                return Ok(None);
+            };
+            let Ok(encoding_name) = str::from_utf8(encoding_name) else {
+                return Ok(None);
+            };
+            return match encoding_name {
+                "WinAnsiEncoding" => Ok(Some(SimpleFontEncoding::Latin)),
+                _ => Ok(None),
+            };
+        }
+
+        let Some(differences) = encoding.get_dict("Differences")? else {
+            return Ok(None);
+        };
+
+        for index in 0..differences.len()? {
+            let Some(item) = differences.get_array(index as i32)? else {
+                continue;
+            };
+            let Ok(name) = item.as_name() else {
+                continue;
+            };
+            let Ok(name) = str::from_utf8(name) else {
+                continue;
+            };
+            if name.contains("cyrillic") || name.starts_with("afii10") {
+                return Ok(Some(SimpleFontEncoding::Cyrillic));
+            }
+            if matches!(
+                name,
+                "Alpha"
+                    | "Beta"
+                    | "Gamma"
+                    | "Deltagreek"
+                    | "Omegagreek"
+                    | "alpha"
+                    | "beta"
+                    | "gamma"
+                    | "delta"
+                    | "mugreek"
+                    | "omega"
+                    | "tonos"
+            ) {
+                return Ok(Some(SimpleFontEncoding::Greek));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn font_info_from_resource_font(
+        font_obj: &PdfObject,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<Option<FontInfo>, Error> {
+        if opts.fontfile.is_some() || opts.ordering.is_some() || !opts.simple {
+            return Ok(None);
+        }
+
+        let Some(base_name) = Self::resource_font_base_name(font_obj)? else {
+            return Ok(None);
+        };
+        if base_name != canonical_name {
+            return Ok(None);
+        }
+
+        let Some(encoding) = Self::resource_simple_font_encoding(font_obj)? else {
+            return Ok(None);
+        };
+        let font = Font::new(canonical_name)?;
+        let info = FontInfo {
+            ascender: font.ascender(),
+            descender: font.descender(),
+            glyphs: None,
+            simple: true,
+            encoding,
+            ordering: None,
+            wmode: WriteMode::Horizontal,
+            serif: false,
+            fontfile_hash: None,
+            name: canonical_name.to_owned(),
+        };
+
+        Ok(Self::cached_font_matches(&info, canonical_name, opts).then_some(info))
+    }
+
+    fn find_registered_page_font(
+        doc: &PdfDocument,
+        font_dict: &PdfObject,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<Option<(String, i32, FontInfo)>, Error> {
+        for idx in 0..font_dict.dict_len()? {
+            let Some(key) = font_dict.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = font_dict.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            let Ok(xref) = value.as_indirect() else {
+                continue;
+            };
+            if xref <= 0 {
+                continue;
+            }
+
+            if let Some(info) = doc.font_info_cache.borrow().get(&xref) {
+                if Self::cached_font_matches(info, canonical_name, opts) {
+                    return Ok(Some((format!("/{key_name}"), xref, info.clone())));
+                }
+                continue;
+            }
+
+            if let Some(info) = Self::font_info_from_resource_font(&value, canonical_name, opts)? {
+                doc.font_info_cache.borrow_mut().insert(xref, info.clone());
+                return Ok(Some((format!("/{key_name}"), xref, info)));
+            }
+        }
+
+        Ok(None)
+    }
+
+    fn find_cached_document_font(
+        doc: &PdfDocument,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Option<(i32, FontInfo)> {
+        doc.font_info_cache
+            .borrow()
+            .iter()
+            .find_map(|(xref, info)| {
+                Self::cached_font_matches(info, canonical_name, opts).then(|| (*xref, info.clone()))
+            })
+    }
+
+    fn next_font_resource_slot(font_dict: Option<&PdfObject>) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(font_dict) = font_dict {
+            for idx in 0..font_dict.dict_len()? {
+                let Some(key) = font_dict.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix('F')
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("F{index}"))
+    }
+
+    fn build_font_object(
+        doc: &mut PdfDocument,
+        canonical_name: &str,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<(PdfObject, FontInfo), Error> {
+        let font = match (opts.fontfile, opts.ordering) {
+            (Some(font_data), _) => Font::from_bytes(canonical_name, font_data)?,
+            (None, Some(ordering)) => Font::new_cjk(ordering)?,
+            (None, None) => Font::new(canonical_name)?,
+        };
+
+        let simple = opts.simple && opts.ordering.is_none() && opts.fontfile.is_none();
+        let glyphs = if opts.fontfile.is_some() && opts.ordering.is_none() {
+            Some(Self::font_glyph_map(&font))
+        } else {
+            None
+        };
+
+        let font_obj = if let Some(ordering) = opts.ordering {
+            doc.add_cjk_font(&font, ordering, opts.wmode, opts.serif)?
+        } else if simple {
+            doc.add_simple_font(&font, opts.encoding)?
+        } else {
+            doc.add_font(&font)?
+        };
+
+        let info = FontInfo {
+            ascender: font.ascender(),
+            descender: font.descender(),
+            glyphs,
+            simple,
+            encoding: opts.encoding,
+            ordering: opts.ordering,
+            wmode: opts.wmode,
+            serif: opts.serif,
+            fontfile_hash: Self::fontfile_hash(opts.fontfile),
+            name: canonical_name.to_owned(),
+        };
+
+        Ok((font_obj, info))
+    }
+
+    fn font_glyph_map(font: &Font) -> HashMap<u32, i32> {
+        let mut glyphs = HashMap::new();
+        for code in 0..=255_u32 {
+            if let Ok(glyph) = font.encode_character(code as i32) {
+                glyphs.insert(code, glyph);
+            }
+        }
+        glyphs
+    }
+
+    pub fn insert_font(
+        &mut self,
+        doc: &mut PdfDocument,
+        opts: &InsertFontOptions<'_>,
+    ) -> Result<(String, i32, FontInfo), Error> {
+        self.assert_document_owner(doc);
+
+        let mut opts = *opts;
+        let canonical_name = match opts.fontfile {
+            Some(_) => opts.name.to_owned(),
+            None => {
+                if let Some(ordering) = opts
+                    .ordering
+                    .or_else(|| cjk_ordering_from_font_name(opts.name))
+                {
+                    opts.ordering = Some(ordering);
+                    cjk_font_name(ordering).to_owned()
+                } else {
+                    canonical_base14_name(opts.name)
+                        .ok_or_else(|| {
+                            Error::InvalidArgument(format!("unsupported font: {}", opts.name))
+                        })?
+                        .to_owned()
+                }
+            }
+        };
+
+        let page_obj = self.object();
+        let direct_resources = page_obj.get_dict("Resources")?;
+        let existing_resources = match direct_resources {
+            Some(resources) if resources.is_dict()? => Some(resources),
+            Some(_) => None,
+            None => match page_obj.get_dict_inheritable("Resources")? {
+                Some(resources) if resources.is_dict()? => Some(resources),
+                _ => None,
+            },
+        };
+        let existing_font_dict = match existing_resources
+            .as_ref()
+            .map(|resources| resources.get_dict("Font"))
+            .transpose()?
+            .flatten()
+        {
+            Some(font_dict) if font_dict.is_dict()? => Some(font_dict),
+            _ => None,
+        };
+
+        if let Some(font_dict) = existing_font_dict.as_ref() {
+            if let Some(existing) =
+                Self::find_registered_page_font(doc, font_dict, &canonical_name, &opts)?
+            {
+                return Ok(existing);
+            }
+        }
+
+        let (font_obj, info) = if let Some((xref, info)) =
+            Self::find_cached_document_font(doc, &canonical_name, &opts)
+        {
+            (doc.new_indirect(xref, 0)?, info)
+        } else {
+            Self::build_font_object(doc, &canonical_name, &opts)?
+        };
+        let xref = font_obj.as_indirect()?;
+
+        let slot_name = Self::next_font_resource_slot(existing_font_dict.as_ref())?;
+        let mut resources = self.resources()?;
+        let mut font_dict =
+            Self::resource_subdict_for_write(&mut resources, doc, "Font", existing_font_dict)?;
+
+        font_dict.dict_put_ref(slot_name.as_str(), &font_obj)?;
+        doc.font_info_cache
+            .borrow_mut()
+            .entry(xref)
+            .or_insert_with(|| info.clone());
+
+        Ok((format!("/{slot_name}"), xref, info))
     }
 
     pub fn rotation(&self) -> Result<i32, Error> {
@@ -343,11 +1353,7 @@ impl PdfPage {
             return Ok(());
         }
 
-        assert_eq!(
-            doc.as_raw(),
-            unsafe { (*self.inner.as_ptr()).doc },
-            "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
-        );
+        self.assert_document_owner(doc);
 
         let operation = DocOperation::begin(doc, "Add links")?;
 
@@ -550,8 +1556,87 @@ impl TryFrom<Page> for PdfPage {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
-    use crate::pdf::{PdfAnnotation, PdfAnnotationType, PdfDocument, PdfPage};
-    use crate::{Matrix, Rect, Size};
+    use crate::pdf::{
+        InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
+    };
+    use crate::shape::{Shape, TextOptions};
+    use crate::{Buffer, CjkFontOrdering, Error, Matrix, Point, Rect, SimpleFontEncoding, Size};
+
+    const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../../tests/files/custom.ttf");
+
+    fn contents_xrefs(page: &PdfPage) -> Vec<i32> {
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        (0..contents.len().unwrap())
+            .map(|index| {
+                contents
+                    .get_array(index as i32)
+                    .unwrap()
+                    .unwrap()
+                    .as_indirect()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    fn load_dummy_page() -> (PdfDocument, PdfPage) {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+        (doc, page)
+    }
+
+    fn add_stream(doc: &mut PdfDocument, bytes: &[u8]) -> PdfObject {
+        doc.add_stream(&Buffer::from_bytes(bytes).unwrap(), None, false)
+            .unwrap()
+    }
+
+    fn default_font_options(name: &str) -> InsertFontOptions<'_> {
+        InsertFontOptions::new(name)
+    }
+
+    fn custom_font_options<'a>(name: &'a str, bytes: &'a [u8]) -> InsertFontOptions<'a> {
+        InsertFontOptions {
+            fontfile: Some(bytes),
+            ..InsertFontOptions::new(name)
+        }
+    }
+
+    fn page_font_dict(page: &PdfPage) -> PdfObject {
+        page.resources().unwrap().get_dict("Font").unwrap().unwrap()
+    }
+
+    fn page_font_xref(page: &PdfPage, slot: &str) -> i32 {
+        page_font_dict(page)
+            .get_dict(slot)
+            .unwrap()
+            .unwrap()
+            .as_indirect()
+            .unwrap()
+    }
+
+    fn page_font_dict_len_without_creating_resources(page: &PdfPage) -> Option<usize> {
+        let resources = page.object().get_dict("Resources").unwrap()?;
+        let font_dict = resources.get_dict("Font").unwrap()?;
+        Some(font_dict.dict_len().unwrap() as usize)
+    }
+
+    fn new_page_with_contents_array(
+        doc: &mut PdfDocument,
+        payloads: &[&[u8]],
+    ) -> (PdfPage, Vec<i32>) {
+        let page = doc.new_page(Size::A4).unwrap();
+        let mut xrefs = Vec::with_capacity(payloads.len());
+        let mut contents_array = doc.new_array_with_capacity(payloads.len() as i32).unwrap();
+
+        for payload in payloads {
+            let stream = add_stream(doc, payload);
+            xrefs.push(stream.as_indirect().unwrap());
+            contents_array.array_push(stream).unwrap();
+        }
+
+        page.object().dict_put("Contents", contents_array).unwrap();
+        (page, xrefs)
+    }
 
     #[test]
     fn test_page_properties() {
@@ -606,5 +1691,710 @@ mod test {
         assert_eq!(annots.len(), 1);
         assert_eq!(annots[0].r#type().unwrap(), PdfAnnotationType::Text);
         assert_eq!(annots[0].rect().unwrap(), expected);
+    }
+
+    #[test]
+    fn test_page_contents_none_for_blank_page() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+
+        assert!(page.contents().unwrap().is_none());
+    }
+
+    #[test]
+    fn test_page_contents_single_stream_fixture() {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+        let contents = page.contents().unwrap().unwrap();
+
+        assert!(contents.is_stream().unwrap());
+        assert!(contents.as_indirect().unwrap() > 0);
+    }
+
+    #[test]
+    fn test_page_contents_multistream_array() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        let first = doc
+            .add_stream(&Buffer::from_bytes(b"q\n").unwrap(), None, false)
+            .unwrap();
+        let second = doc
+            .add_stream(&Buffer::from_bytes(b"Q\n").unwrap(), None, false)
+            .unwrap();
+        let mut contents_array = doc.new_array_with_capacity(2).unwrap();
+        contents_array.array_push(first).unwrap();
+        contents_array.array_push(second).unwrap();
+        page.object().dict_put("Contents", contents_array).unwrap();
+
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        assert_eq!(contents.len().unwrap(), 2);
+    }
+
+    #[test]
+    fn test_page_resources_existing_dict_stable() {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page.resources().unwrap();
+        let second = page.resources().unwrap();
+
+        assert!(first.is_dict().unwrap());
+        assert_eq!(first.as_indirect().unwrap(), second.as_indirect().unwrap());
+    }
+
+    #[test]
+    fn test_page_resources_auto_creates_missing_dict() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        page.object().dict_delete("Resources").unwrap();
+        assert!(page.object().get_dict("Resources").unwrap().is_none());
+
+        let object_count_before = doc.count_objects().unwrap();
+        let resources = page.resources().unwrap();
+
+        assert!(resources.is_dict().unwrap());
+        assert!(resources.as_indirect().unwrap() > 0);
+        assert_eq!(resources.dict_len().unwrap(), 0);
+        assert!(page.object().get_dict("Resources").unwrap().is_some());
+        assert_eq!(doc.count_objects().unwrap(), object_count_before + 1);
+    }
+
+    #[test]
+    fn test_page_resources_copy_inherited_dict_when_missing() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        let mut page_obj = page.object();
+        let mut parent = page_obj.get_dict("Parent").unwrap().unwrap();
+        page_obj.dict_delete("Resources").unwrap();
+
+        let mut inherited_font = doc.new_dict().unwrap();
+        inherited_font
+            .dict_put("F9", doc.new_dict().unwrap())
+            .unwrap();
+        let mut inherited_resources = doc.new_dict().unwrap();
+        inherited_resources
+            .dict_put("Font", inherited_font.clone())
+            .unwrap();
+        parent
+            .dict_put("Resources", inherited_resources.clone())
+            .unwrap();
+
+        let mut resources = page.resources().unwrap();
+        resources
+            .dict_put("X-Test", PdfObject::new_int(1).unwrap())
+            .unwrap();
+
+        assert!(page_obj
+            .get_dict("Resources")
+            .unwrap()
+            .unwrap()
+            .is_indirect()
+            .unwrap());
+        assert!(resources
+            .get_dict("Font")
+            .unwrap()
+            .unwrap()
+            .get_dict("F9")
+            .unwrap()
+            .is_some());
+        assert!(inherited_resources.get_dict("X-Test").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_page_resources_idempotent_after_auto_create() {
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        page.object().dict_delete("Resources").unwrap();
+
+        let first = page.resources().unwrap();
+        let object_count_after_first = doc.count_objects().unwrap();
+        let second = page.resources().unwrap();
+
+        assert_eq!(first.as_indirect().unwrap(), second.as_indirect().unwrap());
+        assert_eq!(doc.count_objects().unwrap(), object_count_after_first);
+    }
+
+    #[test]
+    fn test_page_insert_contents_empty_page_creates_array() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let xref = page.insert_contents(&mut doc, b"q Q\n", true).unwrap();
+
+        assert!(xref > 0);
+        assert_eq!(contents_xrefs(&page), vec![xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_promotes_single_stream_overlay() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+
+        let new_xref = page
+            .insert_contents(&mut doc, b"q 1 0 0 rg 10 10 20 20 re f Q\n", true)
+            .unwrap();
+
+        assert_eq!(contents_xrefs(&page), vec![original_xref, new_xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_overlay_and_underlay_ordering() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+        let overlay_xref = page.insert_contents(&mut doc, b"overlay\n", true).unwrap();
+        assert_eq!(contents_xrefs(&page), vec![original_xref, overlay_xref]);
+
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+        let underlay_xref = page
+            .insert_contents(&mut doc, b"underlay\n", false)
+            .unwrap();
+        assert_eq!(contents_xrefs(&page), vec![underlay_xref, original_xref]);
+    }
+
+    #[test]
+    fn test_page_insert_contents_preserves_prior_array_contents() {
+        let mut doc = PdfDocument::new();
+        let (mut page, original_xrefs) = new_page_with_contents_array(&mut doc, &[b"a\n", b"b\n"]);
+
+        let c = page.insert_contents(&mut doc, b"c\n", true).unwrap();
+        let d = page.insert_contents(&mut doc, b"d\n", true).unwrap();
+
+        assert_eq!(
+            contents_xrefs(&page),
+            vec![original_xrefs[0], original_xrefs[1], c, d]
+        );
+
+        let mut doc = PdfDocument::new();
+        let (mut page, original_xrefs) = new_page_with_contents_array(&mut doc, &[b"a\n", b"b\n"]);
+
+        let c = page.insert_contents(&mut doc, b"c\n", false).unwrap();
+        let d = page.insert_contents(&mut doc, b"d\n", true).unwrap();
+
+        assert_eq!(
+            contents_xrefs(&page),
+            vec![c, original_xrefs[0], original_xrefs[1], d]
+        );
+    }
+
+    #[test]
+    fn test_page_insert_contents_returned_xref_bytes_round_trip() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let payload = b"q 1 0 0 rg 100 100 50 50 re f Q\n";
+
+        let xref = page.insert_contents(&mut doc, payload, true).unwrap();
+        let mut stream = doc.new_indirect(xref, 0).unwrap();
+
+        assert_eq!(stream.as_indirect().unwrap(), xref);
+        assert_eq!(stream.read_stream().unwrap(), payload);
+
+        let rewritten = Buffer::from_bytes(b"rewritten\n").unwrap();
+        stream.write_stream_buffer(&rewritten).unwrap();
+        assert_eq!(stream.read_stream().unwrap(), b"rewritten\n");
+    }
+
+    #[test]
+    fn test_page_insert_contents_distinct_streams_with_same_bytes() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let payload = b"q 0 1 0 rg 20 20 10 10 re f Q\n";
+
+        let first = page.insert_contents(&mut doc, payload, true).unwrap();
+        let second = page.insert_contents(&mut doc, payload, true).unwrap();
+
+        assert_ne!(first, second);
+        assert_eq!(contents_xrefs(&page), vec![first, second]);
+        assert_eq!(
+            doc.new_indirect(first, 0).unwrap().read_stream().unwrap(),
+            payload
+        );
+        assert_eq!(
+            doc.new_indirect(second, 0).unwrap().read_stream().unwrap(),
+            payload
+        );
+    }
+
+    fn contents_stream_bytes(page: &PdfPage) -> Vec<Vec<u8>> {
+        let contents = page.contents().unwrap().unwrap();
+        assert!(contents.is_array().unwrap());
+        (0..contents.len().unwrap())
+            .map(|index| {
+                contents
+                    .get_array(index as i32)
+                    .unwrap()
+                    .unwrap()
+                    .read_stream()
+                    .unwrap()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_page_wrap_contents_brackets_existing_stream() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original_xref = page.contents().unwrap().unwrap().as_indirect().unwrap();
+
+        page.wrap_contents(&mut doc).unwrap();
+
+        let xrefs = contents_xrefs(&page);
+        assert_eq!(xrefs.len(), 3);
+        assert_eq!(xrefs[1], original_xref);
+
+        let stream_bytes = contents_stream_bytes(&page);
+        assert_eq!(stream_bytes[0], b"q\n");
+        assert_eq!(stream_bytes[2], b"Q\n");
+    }
+
+    #[test]
+    fn test_page_wrap_contents_nests_when_called_twice() {
+        let (mut doc, mut page) = load_dummy_page();
+        let original = page.contents().unwrap().unwrap();
+        let original_xref = original.as_indirect().unwrap();
+        let original_bytes = original.read_stream().unwrap();
+
+        page.wrap_contents(&mut doc).unwrap();
+        page.wrap_contents(&mut doc).unwrap();
+
+        let xrefs = contents_xrefs(&page);
+        assert_eq!(xrefs.len(), 5);
+        assert_eq!(xrefs[2], original_xref);
+
+        let stream_bytes = contents_stream_bytes(&page);
+        assert_eq!(stream_bytes[0], b"q\n");
+        assert_eq!(stream_bytes[1], b"q\n");
+        assert_eq!(stream_bytes[2], original_bytes);
+        assert_eq!(stream_bytes[3], b"Q\n");
+        assert_eq!(stream_bytes[4], b"Q\n");
+    }
+
+    #[test]
+    fn test_page_insert_font_helv_registers_f0_resource() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+        assert_eq!(page_font_xref(&page, "F0"), xref);
+        assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
+    }
+
+    #[test]
+    fn test_page_insert_font_is_idempotent_for_same_name() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let first = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_reuses_preexisting_font_after_reopen() {
+        let mut source_doc = PdfDocument::new();
+        let mut source_page = source_doc.new_page(Size::A4).unwrap();
+        let inserted = source_page
+            .insert_font(&mut source_doc, &default_font_options("helv"))
+            .unwrap();
+        assert_eq!(inserted.0, "/F0");
+        assert_eq!(page_font_dict(&source_page).dict_len().unwrap(), 1);
+
+        let mut bytes = Vec::new();
+        source_doc.write_to(&mut bytes).unwrap();
+        drop(source_page);
+        drop(source_doc);
+
+        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        assert!(doc.font_info_cache.borrow().is_empty());
+        let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.0, "/F0");
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
+        assert_eq!(page_font_xref(&page, "F0"), first.1);
+        assert_eq!(doc.font_info_cache.borrow().get(&first.1), Some(&first.2));
+    }
+
+    #[test]
+    fn test_page_insert_font_distinguishes_simple_encoding() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let latin = InsertFontOptions {
+            encoding: SimpleFontEncoding::Latin,
+            ..default_font_options("helv")
+        };
+        let greek = InsertFontOptions {
+            encoding: SimpleFontEncoding::Greek,
+            ..default_font_options("helv")
+        };
+
+        let first = page.insert_font(&mut doc, &latin).unwrap();
+        let second = page.insert_font(&mut doc, &greek).unwrap();
+
+        assert_ne!(first.0, second.0);
+        assert_ne!(first.1, second.1);
+        assert_eq!(first.2.encoding, SimpleFontEncoding::Latin);
+        assert_eq!(second.2.encoding, SimpleFontEncoding::Greek);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 2);
+        assert_eq!(page_font_xref(&page, "F0"), first.1);
+        assert_eq!(page_font_xref(&page, "F1"), second.1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 2);
+    }
+
+    #[test]
+    fn test_page_insert_font_reuses_preexisting_greek_font_after_reopen() {
+        let greek = InsertFontOptions {
+            encoding: SimpleFontEncoding::Greek,
+            ..default_font_options("helv")
+        };
+        let mut source_doc = PdfDocument::new();
+        let mut source_page = source_doc.new_page(Size::A4).unwrap();
+        source_page.insert_font(&mut source_doc, &greek).unwrap();
+
+        let mut bytes = Vec::new();
+        source_doc.write_to(&mut bytes).unwrap();
+        drop(source_page);
+        drop(source_doc);
+
+        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        assert!(doc.font_info_cache.borrow().is_empty());
+        let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
+
+        let first = page.insert_font(&mut doc, &greek).unwrap();
+        let second = page.insert_font(&mut doc, &greek).unwrap();
+
+        assert_eq!(first, second);
+        assert_eq!(first.0, "/F0");
+        assert_eq!(first.2.encoding, SimpleFontEncoding::Greek);
+        assert_eq!(page_font_dict(&page).dict_len().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_allocates_next_slot_for_new_font() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (helv_slot, helv_xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let (cour_slot, cour_xref, _) = page
+            .insert_font(&mut doc, &default_font_options("cour"))
+            .unwrap();
+
+        assert_eq!(helv_slot, "/F0");
+        assert_eq!(cour_slot, "/F1");
+        assert_ne!(helv_xref, cour_xref);
+        assert_eq!(page_font_xref(&page, "F0"), helv_xref);
+        assert_eq!(page_font_xref(&page, "F1"), cour_xref);
+    }
+
+    #[test]
+    fn test_page_insert_font_base14_alias_table() {
+        let cases = [
+            ("helv", "Helvetica"),
+            ("heit", "Helvetica-Oblique"),
+            ("hebo", "Helvetica-Bold"),
+            ("heboit", "Helvetica-BoldOblique"),
+            ("cour", "Courier"),
+            ("coit", "Courier-Oblique"),
+            ("cobo", "Courier-Bold"),
+            ("coboit", "Courier-BoldOblique"),
+            ("tiro", "Times-Roman"),
+            ("tibo", "Times-Bold"),
+            ("tiit", "Times-Italic"),
+            ("tibi", "Times-BoldItalic"),
+            ("symb", "Symbol"),
+            ("zadb", "ZapfDingbats"),
+        ];
+
+        let mut doc = PdfDocument::new();
+        for (alias, canonical) in cases {
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let (_, _, info) = page
+                .insert_font(&mut doc, &default_font_options(alias))
+                .unwrap();
+            assert_eq!(info.name, canonical, "alias {alias}");
+            assert!(info.simple, "alias {alias}");
+        }
+    }
+
+    #[test]
+    fn test_page_insert_font_accepts_canonical_base14_name() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("Helvetica"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+    }
+
+    #[test]
+    fn test_page_insert_font_accepts_case_insensitive_base14_alias() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (slot, xref, info) = page
+            .insert_font(&mut doc, &default_font_options("HELV"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert!(xref > 0);
+        assert_eq!(info.name, "Helvetica");
+        assert!(info.simple);
+    }
+
+    #[test]
+    fn test_page_insert_font_skips_preexisting_f_slots() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut resources = page.resources().unwrap();
+        let mut font_dict = doc.new_dict().unwrap();
+        font_dict.dict_put("F0", doc.new_dict().unwrap()).unwrap();
+        resources.dict_put("Font", font_dict).unwrap();
+
+        let (slot, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F1");
+        assert_eq!(page_font_xref(&page, "F1"), xref);
+        assert!(page_font_dict(&page).get_dict("F0").unwrap().is_some());
+    }
+
+    #[test]
+    fn test_page_insert_font_copies_inherited_font_dict_before_mutating() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let mut page_obj = page.object();
+        let mut parent = page_obj.get_dict("Parent").unwrap().unwrap();
+        page_obj.dict_delete("Resources").unwrap();
+
+        let mut inherited_font = doc.new_dict().unwrap();
+        inherited_font
+            .dict_put("F9", doc.new_dict().unwrap())
+            .unwrap();
+        let mut inherited_resources = doc.new_dict().unwrap();
+        inherited_resources
+            .dict_put("Font", inherited_font.clone())
+            .unwrap();
+        parent.dict_put("Resources", inherited_resources).unwrap();
+
+        let (slot, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(slot, "/F0");
+        assert_eq!(page_font_xref(&page, "F0"), xref);
+        assert!(page_font_dict(&page).get_dict("F9").unwrap().is_some());
+        assert!(inherited_font.get_dict("F0").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_page_insert_font_shares_xref_across_pages() {
+        let mut doc = PdfDocument::new();
+        let mut first_page = doc.new_page(Size::A4).unwrap();
+        let mut second_page = doc.new_page(Size::A4).unwrap();
+
+        let first = first_page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        let second = second_page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(first.1, second.1);
+        assert_eq!(page_font_xref(&first_page, "F0"), first.1);
+        assert_eq!(page_font_xref(&second_page, "F0"), first.1);
+        assert_eq!(doc.font_info_cache.borrow().len(), 1);
+    }
+
+    #[test]
+    fn test_page_insert_font_cache_is_not_duplicated() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+
+        let (_, xref, _) = page
+            .insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+        assert!(doc.font_info_cache.borrow().contains_key(&xref));
+        let cache_len = doc.font_info_cache.borrow().len();
+
+        page.insert_font(&mut doc, &default_font_options("helv"))
+            .unwrap();
+
+        assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+    }
+
+    #[test]
+    fn test_page_insert_font_unknown_name_errors_without_mutation() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        assert!(page
+            .resources()
+            .unwrap()
+            .get_dict("Font")
+            .unwrap()
+            .is_none());
+        let cache_len = doc.font_info_cache.borrow().len();
+
+        let result = page.insert_font(&mut doc, &default_font_options("not-a-font"));
+
+        assert!(result.is_err());
+        assert!(page
+            .resources()
+            .unwrap()
+            .get_dict("Font")
+            .unwrap()
+            .is_none());
+        assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+    }
+
+    mod fonts {
+        use super::*;
+
+        #[test]
+        fn custom_ttf_via_add_font() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = custom_font_options("CustomPdfFont", CUSTOM_FONT_BYTES);
+
+            let (slot, xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+
+            assert_eq!(slot, "/F0");
+            assert!(xref > 0);
+            assert_eq!(page_font_xref(&page, "F0"), xref);
+            assert_eq!(info.name, "CustomPdfFont");
+            assert!(!info.simple);
+            assert_eq!(info.ordering, None);
+            assert!(info.fontfile_hash.is_some());
+            assert!(info
+                .glyphs
+                .as_ref()
+                .is_some_and(|glyphs| glyphs.contains_key(&('A' as u32))));
+            assert_eq!(doc.font_info_cache.borrow().get(&xref), Some(&info));
+
+            let font_obj = doc.new_indirect(xref, 0).unwrap();
+            let subtype = font_obj
+                .get_dict("Subtype")
+                .unwrap()
+                .unwrap()
+                .as_name()
+                .unwrap()
+                .to_vec();
+            assert_eq!(subtype, b"Type0");
+        }
+
+        #[test]
+        fn cjk_font_registers_with_ordering() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = InsertFontOptions {
+                fontfile: Some(CUSTOM_FONT_BYTES),
+                ordering: Some(CjkFontOrdering::AdobeJapan),
+                ..InsertFontOptions::new("CustomCjkFont")
+            };
+
+            let (_slot, _xref, info) = page.insert_font(&mut doc, &opts).unwrap();
+
+            assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
+            assert!(!info.simple);
+
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let mut shape = Shape::new(&mut page).unwrap();
+            shape
+                .insert_text(
+                    Point::new(50.0, 100.0),
+                    "A",
+                    &TextOptions {
+                        fontname: "CustomCjkFont".to_owned(),
+                        fontfile: Some(CUSTOM_FONT_BYTES),
+                        ordering: Some(CjkFontOrdering::AdobeJapan),
+                        ..Default::default()
+                    },
+                )
+                .unwrap();
+
+            assert!(shape.text_cont().contains("[<0041>] TJ"));
+        }
+
+        #[test]
+        fn cjk_font_alias_registers_without_fontfile() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            let opts = InsertFontOptions::new("JAPAN");
+
+            match page.insert_font(&mut doc, &opts) {
+                Ok((slot, xref, info)) => {
+                    assert_eq!(slot, "/F0");
+                    assert!(xref > 0);
+                    assert_eq!(info.name, "japan");
+                    assert_eq!(info.ordering, Some(CjkFontOrdering::AdobeJapan));
+                    assert!(!info.simple);
+                }
+                Err(Error::MuPdf(err)) if err.message.contains("builtin CJK font") => {}
+                Err(err) => panic!("unexpected CJK alias error: {err:?}"),
+            }
+        }
+
+        #[test]
+        fn custom_font_shared_across_pages() {
+            let mut doc = PdfDocument::new();
+            let mut first_page = doc.new_page(Size::A4).unwrap();
+            let mut second_page = doc.new_page(Size::A4).unwrap();
+            let opts = custom_font_options("SharedCustomFont", CUSTOM_FONT_BYTES);
+
+            let first = first_page.insert_font(&mut doc, &opts).unwrap();
+            let second = second_page.insert_font(&mut doc, &opts).unwrap();
+
+            assert_eq!(first.1, second.1);
+            assert_eq!(page_font_xref(&first_page, "F0"), first.1);
+            assert_eq!(page_font_xref(&second_page, "F0"), first.1);
+            assert_eq!(doc.font_info_cache.borrow().len(), 1);
+        }
+
+        #[test]
+        fn malformed_bytes_errors() {
+            let mut doc = PdfDocument::new();
+            let mut page = doc.new_page(Size::A4).unwrap();
+            page.object().dict_delete("Resources").unwrap();
+            let cache_len = doc.font_info_cache.borrow().len();
+            let object_count = doc.count_objects().unwrap();
+            let opts = custom_font_options("BrokenFont", b"not a font");
+
+            let result = page.insert_font(&mut doc, &opts);
+
+            assert!(result.is_err());
+            assert!(page.object().get_dict("Resources").unwrap().is_none());
+            assert_eq!(page_font_dict_len_without_creating_resources(&page), None);
+            assert_eq!(doc.font_info_cache.borrow().len(), cache_len);
+            assert_eq!(doc.count_objects().unwrap(), object_count);
+        }
     }
 }

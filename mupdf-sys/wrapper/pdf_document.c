@@ -27,6 +27,11 @@ pdf_obj *mupdf_pdf_add_object(fz_context *ctx, pdf_document *pdf, pdf_obj *obj, 
     TRY_CATCH(pdf_obj*, NULL, pdf_add_object(ctx, pdf, obj));
 }
 
+pdf_obj *mupdf_pdf_add_stream(fz_context *ctx, pdf_document *pdf, fz_buffer *buf, pdf_obj *obj, int compressed, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_obj*, NULL, pdf_add_stream(ctx, pdf, buf, obj, compressed));
+}
+
 pdf_obj *mupdf_pdf_create_object(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     TRY_CATCH(pdf_obj*, NULL, pdf_new_indirect(ctx, pdf, pdf_create_object(ctx, pdf), 0));

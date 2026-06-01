@@ -88,6 +88,11 @@ impl Font {
         .map(|inner| Self { inner })
     }
 
+    pub fn new_cjk(ordering: CjkFontOrdering) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_new_cjk_font(context(), ordering as i32)) }
+            .map(|inner| Self { inner })
+    }
+
     pub fn name(&self) -> &str {
         let f_name = unsafe { fz_font_name(context(), self.inner) };
         let c_name = unsafe { CStr::from_ptr(f_name) };

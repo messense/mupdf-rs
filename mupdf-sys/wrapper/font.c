@@ -31,6 +31,11 @@ fz_font *mupdf_new_font_from_buffer(fz_context *ctx, const char *name, int index
     TRY_CATCH(fz_font*, NULL, fz_new_font_from_buffer(ctx, name, buffer, index, 0));
 }
 
+fz_font *mupdf_new_cjk_font(fz_context *ctx, int ordering, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_font*, NULL, fz_new_cjk_font(ctx, ordering));
+}
+
 int mupdf_encode_character(fz_context *ctx, fz_font *font, int unicode, mupdf_error_t **errptr)
 {
     TRY_CATCH(int, 0, fz_encode_character(ctx, font, unicode));

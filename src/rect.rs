@@ -176,6 +176,36 @@ impl Rect {
         Point::new(self.x0, self.y0)
     }
 
+    /// Returns the top-left corner, preserving the rectangle's stored coordinates.
+    #[inline]
+    pub fn tl(&self) -> Point {
+        Point::new(self.x0, self.y0)
+    }
+
+    /// Returns the top-right corner, preserving the rectangle's stored coordinates.
+    #[inline]
+    pub fn tr(&self) -> Point {
+        Point::new(self.x1, self.y0)
+    }
+
+    /// Returns the bottom-left corner, preserving the rectangle's stored coordinates.
+    #[inline]
+    pub fn bl(&self) -> Point {
+        Point::new(self.x0, self.y1)
+    }
+
+    /// Returns the bottom-right corner, preserving the rectangle's stored coordinates.
+    #[inline]
+    pub fn br(&self) -> Point {
+        Point::new(self.x1, self.y1)
+    }
+
+    /// Returns this rectangle's corners as a quadrilateral.
+    #[inline]
+    pub fn quad(&self) -> Quad {
+        Quad::new(self.tl(), self.tr(), self.bl(), self.br())
+    }
+
     pub fn size(&self) -> Size {
         Size::new(self.width(), self.height())
     }
@@ -260,5 +290,40 @@ impl From<Rect> for fz_rect {
     fn from(val: Rect) -> Self {
         let Rect { x0, y0, x1, y1 } = val;
         fz_rect { x0, y0, x1, y1 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corner_accessors_use_rect_coordinates() {
+        let rect = Rect::new(10.0, 20.0, 30.0, 40.0);
+        assert_eq!(rect.tl(), Point::new(10.0, 20.0));
+        assert_eq!(rect.tr(), Point::new(30.0, 20.0));
+        assert_eq!(rect.bl(), Point::new(10.0, 40.0));
+        assert_eq!(rect.br(), Point::new(30.0, 40.0));
+    }
+
+    #[test]
+    fn corner_accessors_preserve_inverted_rect_coordinates() {
+        let rect = Rect::new(30.0, 40.0, 10.0, 20.0);
+        assert_eq!(rect.tl(), Point::new(30.0, 40.0));
+        assert_eq!(rect.tr(), Point::new(10.0, 40.0));
+        assert_eq!(rect.bl(), Point::new(30.0, 20.0));
+        assert_eq!(rect.br(), Point::new(10.0, 20.0));
+    }
+
+    #[test]
+    fn quad_matches_rect_corners() {
+        let rect = Rect::new(10.0, 20.0, 30.0, 40.0);
+        let quad = rect.quad();
+
+        assert_eq!(quad.ul, rect.tl());
+        assert_eq!(quad.ur, rect.tr());
+        assert_eq!(quad.ll, rect.bl());
+        assert_eq!(quad.lr, rect.br());
+        assert_eq!(Rect::from(quad), rect);
     }
 }

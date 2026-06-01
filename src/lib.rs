@@ -60,6 +60,8 @@ pub mod rect;
 pub mod separations;
 /// Shadings
 pub mod shade;
+/// Shape drawing and text APIs for PDF pages
+pub mod shape;
 /// Size type
 pub mod size;
 /// Stroke state
@@ -102,6 +104,7 @@ pub use matrix::Matrix;
 pub use outline::Outline;
 pub use page::Page;
 pub use path::{Path, PathWalker};
+pub use pdf::{FontInfo, InsertFontOptions};
 pub use pixmap::{ImageFormat, Pixmap};
 pub use point::Point;
 pub use quad::Quad;

@@ -19,16 +19,16 @@ pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
 pub use object::PdfObject;
-pub use page::PdfPage;
+pub use page::{FontInfo, InsertFontOptions, PdfPage};
 
 #[must_use]
 pub struct DocOperation<'a> {
-    doc: &'a mut PdfDocument,
+    pub(crate) doc: &'a mut PdfDocument,
     success: bool,
 }
 
 impl<'a> DocOperation<'a> {
-    fn begin(doc: &'a mut PdfDocument, name: &str) -> Result<Self, crate::Error> {
+    pub(crate) fn begin(doc: &'a mut PdfDocument, name: &str) -> Result<Self, crate::Error> {
         doc.begin_operation(name)?;
         Ok(Self {
             doc,

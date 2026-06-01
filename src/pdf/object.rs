@@ -295,6 +295,16 @@ impl PdfObject {
             .map(|inner| unsafe { Self::from_raw(inner) })
     }
 
+    /// Creates a shallow copy of this dictionary, resolving any indirect reference.
+    ///
+    /// Wraps `pdf_copy_dict`: resolves `self` if indirect, then copies each
+    /// entry into a new direct dictionary. Returns an error if `self` is not a
+    /// dictionary.
+    pub fn copy_dict(&self) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_pdf_copy_dict(context(), self.inner)) }
+            .map(|inner| unsafe { Self::from_raw(inner) })
+    }
+
     pub fn array_put(&mut self, index: i32, value: Self) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_array_put(

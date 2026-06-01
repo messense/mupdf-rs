@@ -77,6 +77,9 @@ pub enum Error {
     UnexpectedNullPtr,
     UnknownEnumVariant,
     InvalidDestination(String),
+    InvalidArgument(String),
+    NotYetImplemented(String),
+    NonInvertibleMatrix,
 }
 
 impl fmt::Display for Error {
@@ -95,6 +98,9 @@ impl fmt::Display for Error {
             ),
             Error::UnknownEnumVariant => write!(f, "unknown enum variant provided"),
             Error::InvalidDestination(msg) => write!(f, "invalid PDF destination: {msg}"),
+            Error::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
+            Error::NotYetImplemented(msg) => write!(f, "not yet implemented: {msg}"),
+            Error::NonInvertibleMatrix => write!(f, "matrix is not invertible"),
         }
     }
 }
