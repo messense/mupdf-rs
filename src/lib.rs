@@ -26,6 +26,8 @@ pub mod display_list;
 pub mod document;
 /// Easy creation of new documents
 pub mod document_writer;
+/// Vector drawing extraction
+pub mod drawing;
 /// File paths
 pub mod file_path;
 /// Font
