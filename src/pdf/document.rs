@@ -1054,6 +1054,15 @@ mod test {
     }
 
     #[test]
+    fn test_as_bytes_preserves_nul_bytes() {
+        let pdf = PdfDocument::new();
+        let obj = pdf.new_object_from_str(r"(a\000b)").unwrap();
+
+        assert!(obj.is_string().unwrap());
+        assert_eq!(obj.as_bytes().unwrap().as_slice(), b"a\0b");
+    }
+
+    #[test]
     fn test_as_name_indirect_delete() {
         let mut pdf = PdfDocument::new();
 

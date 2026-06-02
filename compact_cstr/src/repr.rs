@@ -195,6 +195,12 @@ enum HeapLastByte {
 /// `EcoVec<u8>` is `(NonNull<u8>, usize, PhantomData)`, so its first word is pointer-typed.
 /// That word lines up with [`Repr`]'s pointer-typed `ptr` field, so
 /// `mem::transmute<HeapRepr, Repr>` carries the data pointer's provenance through.
+///
+/// KNOWN ISSUE: this representation depends on `ecow::EcoVec`'s private field order and layout.
+/// The size/alignment assertions below catch some incompatible changes, but cannot prove the
+/// `EcoVec` pointer remains at byte offset 0 or that its length remains the second word. If `ecow`
+/// changes that private layout, the transmute-based heap representation must be redesigned or the
+/// dependency pinned to a version whose layout has been audited.
 #[repr(C)]
 pub(super) struct HeapRepr {
     vector: ManuallyDrop<EcoVec<u8>>,

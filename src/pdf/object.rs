@@ -229,7 +229,7 @@ impl PdfObject {
     /// Compare this name object to a string.
     /// Returns `false` if this object is not a name or does not match.
     pub fn name_eq(&self, name: impl AsRef<[u8]>) -> bool {
-        self.as_name().is_ok_and(|bytes| bytes == name.as_ref())
+        self.is_name().unwrap_or(false) && self.as_name().is_ok_and(|bytes| bytes == name.as_ref())
     }
 
     pub fn as_string(&self) -> Result<CompactCString, Error> {
