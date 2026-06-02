@@ -11,6 +11,7 @@ use std::{
 
 use mupdf_sys::*;
 
+use crate::drawing::Drawing;
 use crate::link::LinkDestination;
 use crate::pdf::annotation::bounding_rect_for_quads;
 use crate::pdf::links::{
@@ -1371,12 +1372,42 @@ impl PdfPage {
     }
 
     pub fn set_rotation(&mut self, rotate: i32) -> Result<(), Error> {
+        self.set_rotation_raw(rotate)
+    }
+
+    fn set_rotation_raw(&self, rotate: i32) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_page_set_rotation(
                 context(),
-                self.as_mut_ptr(),
+                self.as_ptr().cast_mut(),
                 rotate
             ))
+        }
+    }
+
+    /// Extracts the page's vector drawings in unrotated page coordinates.
+    ///
+    /// PyMuPDF temporarily clears PDF page rotation before extracting drawings; this mirrors that
+    /// behavior for [`PdfPage`].
+    pub fn drawings(&self) -> Result<Vec<Drawing>, Error> {
+        let rotation = self.rotation()?;
+        if rotation % 90 != 0 {
+            return Err(Error::InvalidArgument(format!(
+                "page rotation must be a multiple of 90, got {rotation}"
+            )));
+        }
+        if rotation == 0 {
+            return Deref::deref(self).drawings();
+        }
+
+        let guard = PdfPageRotationGuard::new(self, rotation)?;
+        let drawings = Deref::deref(self).drawings();
+        let restore = guard.restore();
+
+        match (drawings, restore) {
+            (Ok(drawings), Ok(())) => Ok(drawings),
+            (Err(error), _) => Err(error),
+            (Ok(_), Err(error)) => Err(error),
         }
     }
 
@@ -1846,6 +1877,51 @@ impl Iterator for PdfLinkAnnotIter {
                 Ok(_) => continue,
                 Err(e) => return Some(Err(e)),
             }
+        }
+    }
+}
+
+struct PdfPageRotationGuard<'a> {
+    page: &'a PdfPage,
+    rotation: i32,
+    had_direct_rotate: bool,
+    restored: bool,
+}
+
+impl<'a> PdfPageRotationGuard<'a> {
+    fn new(page: &'a PdfPage, rotation: i32) -> Result<Self, Error> {
+        let had_direct_rotate = page.object().get_dict("Rotate")?.is_some();
+        page.set_rotation_raw(0)?;
+        Ok(Self {
+            page,
+            rotation,
+            had_direct_rotate,
+            restored: false,
+        })
+    }
+
+    fn restore(mut self) -> Result<(), Error> {
+        let result = self.restore_inner();
+        if result.is_ok() {
+            self.restored = true;
+        }
+        result
+    }
+
+    fn restore_inner(&self) -> Result<(), Error> {
+        if self.had_direct_rotate {
+            self.page.set_rotation_raw(self.rotation)?;
+        } else {
+            self.page.object().dict_delete("Rotate")?;
+        }
+        Ok(())
+    }
+}
+
+impl Drop for PdfPageRotationGuard<'_> {
+    fn drop(&mut self) {
+        if !self.restored {
+            let _ = self.restore_inner();
         }
     }
 }

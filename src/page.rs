@@ -1,9 +1,12 @@
+use std::cell::RefCell;
 use std::ffi::{c_int, CStr, CString};
 use std::io::Read;
 use std::ptr::NonNull;
+use std::rc::Rc;
 
 use mupdf_sys::*;
 
+use crate::drawing::{Drawing, DrawingDevice};
 use crate::Document;
 use crate::{
     array::FzArray, context, link::LinkDestination, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper,
@@ -154,6 +157,36 @@ impl Page {
                 ctm.into(),
                 cookie.inner
             ))
+        }
+    }
+
+    /// Extracts the page's vector drawings.
+    ///
+    /// This is the Rust equivalent of PyMuPDF's default `Page.get_drawings()` output: path
+    /// painting operations are returned as drawing records with line / curve / rectangle / quad
+    /// items, RGB colors, opacity, stroke style, sequence number and optional-content layer name.
+    pub fn drawings(&self) -> Result<Vec<Drawing>, Error> {
+        self.drawings_internal(None)
+    }
+
+    /// Extracts the page's vector drawings with a [`Cookie`] for cancellation / progress.
+    pub fn drawings_with_cookie(&self, cookie: &Cookie) -> Result<Vec<Drawing>, Error> {
+        self.drawings_internal(Some(cookie))
+    }
+
+    fn drawings_internal(&self, cookie: Option<&Cookie>) -> Result<Vec<Drawing>, Error> {
+        let recorder = Rc::new(RefCell::new(DrawingDevice::default()));
+        let device = Device::from_native(recorder.clone())?;
+
+        match cookie {
+            Some(cookie) => self.run_with_cookie(&device, &Matrix::IDENTITY, cookie)?,
+            None => self.run(&device, &Matrix::IDENTITY)?,
+        }
+
+        drop(device);
+        {
+            let mut recorder = recorder.borrow_mut();
+            recorder.finish()
         }
     }
 
