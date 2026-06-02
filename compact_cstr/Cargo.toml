@@ -1,0 +1,14 @@
+[package]
+name = "compact_cstr"
+version.workspace = true
+edition.workspace = true
+description = "Compact, NUL-terminated owned byte/string types used by mupdf-rs"
+license = "AGPL-3.0"
+repository = "https://github.com/messense/mupdf-rs"
+
+[dependencies]
+ecow = "0.2"
+memchr = "2"
+
+[dev-dependencies]
+proptest = "1"

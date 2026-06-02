@@ -6,6 +6,7 @@ use std::{
 
 use mupdf_sys::*;
 
+use crate::pdf::object::TryAsCStr;
 use crate::{color::AnnotationColor, pdf::Intent};
 use crate::{context, from_enum, Error};
 use crate::{pdf::PdfFilterOptions, pdf::PdfObject, Matrix, Point, Quad, Rect};
@@ -629,9 +630,9 @@ impl PdfAnnotation {
         Ok(Some(c_str.to_str().map_err(|_| Error::InvalidUtf8)?))
     }
 
-    pub fn set_author(&mut self, author: &str) -> Result<(), Error> {
+    pub fn set_author(&mut self, author: impl TryAsCStr) -> Result<(), Error> {
         self.ensure_attached()?;
-        let c_author = CString::new(author)?;
+        let c_author = author.try_as_c_str()?;
         unsafe {
             ffi_try!(mupdf_pdf_set_annot_author(
                 context(),

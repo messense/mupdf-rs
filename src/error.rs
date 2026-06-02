@@ -80,6 +80,7 @@ pub enum Error {
     InvalidArgument(String),
     NotYetImplemented(String),
     NonInvertibleMatrix,
+    InteriorNul { position: usize },
 }
 
 impl fmt::Display for Error {
@@ -101,6 +102,10 @@ impl fmt::Display for Error {
             Error::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
             Error::NotYetImplemented(msg) => write!(f, "not yet implemented: {msg}"),
             Error::NonInvertibleMatrix => write!(f, "matrix is not invertible"),
+            Error::InteriorNul { position } => write!(
+                f,
+                "string contained an interior NUL byte at position {position}"
+            ),
         }
     }
 }
@@ -122,6 +127,29 @@ impl From<MuPdfError> for Error {
 impl From<NulError> for Error {
     fn from(err: NulError) -> Self {
         Self::Nul(err)
+    }
+}
+
+impl From<compact_cstr::NulError> for Error {
+    fn from(err: compact_cstr::NulError) -> Self {
+        Self::InteriorNul {
+            position: err.position(),
+        }
+    }
+}
+
+impl From<compact_cstr::FromBytesError> for Error {
+    fn from(err: compact_cstr::FromBytesError) -> Self {
+        match err {
+            compact_cstr::FromBytesError::InteriorNul(e) => Self::from(e),
+            compact_cstr::FromBytesError::InvalidUtf8(_) => Self::InvalidUtf8,
+        }
+    }
+}
+
+impl From<std::str::Utf8Error> for Error {
+    fn from(_: std::str::Utf8Error) -> Self {
+        Self::InvalidUtf8
     }
 }
 

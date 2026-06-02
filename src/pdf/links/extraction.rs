@@ -3,7 +3,7 @@ use std::borrow::Cow;
 
 use super::{FileSpec, LinkAction, PdfAction, PdfDestination};
 use crate::destination::not_nan;
-use crate::pdf::{PdfDocument, PdfObject};
+use crate::pdf::{CompactCString, PdfDocument, PdfObject};
 use crate::{DestinationKind, Error, Rect};
 
 /// Parses a [MuPDF-compatible] link URI string into a structured [`PdfAction`] based on the Adobe
@@ -563,10 +563,10 @@ fn parse_dest_value(dest: &PdfObject, doc: &PdfDocument) -> Result<Option<PdfDes
     if dest.is_array()? && dest.len()? > 0 {
         parse_dest_array(dest, doc).map(Some)
     } else if dest.is_name()? {
-        let name = std::str::from_utf8(dest.as_name()?).map_err(|_| Error::InvalidUtf8)?;
-        Ok(Some(PdfDestination::Named(name.to_owned())))
+        let name = CompactCString::try_from(dest.as_name()?)?.to_string();
+        Ok(Some(PdfDestination::Named(name)))
     } else if dest.is_string()? {
-        Ok(Some(PdfDestination::Named(dest.as_string()?.to_owned())))
+        Ok(Some(PdfDestination::Named(dest.as_string()?.to_string())))
     } else {
         Ok(None)
     }
@@ -695,7 +695,7 @@ fn parse_action_dict(
         return Ok(None);
     };
 
-    match type_obj.as_name()? {
+    match type_obj.as_name()?.as_slice() {
         b"GoTo" => {
             let Some(dest_obj) = action.get_dict("D")? else {
                 return Ok(None);
@@ -707,18 +707,18 @@ fn parse_action_dict(
             let Some(uri_obj) = action.get_dict("URI")? else {
                 return Ok(None);
             };
-            let uri = uri_obj.as_string()?.to_owned();
+            let uri = uri_obj.as_string()?;
             // MuPDF prepends the document URI base for non-external URIs.
             // pdf-link.c:536-543
             if is_external_link(&uri) {
-                Ok(Some(PdfAction::Uri(uri)))
+                Ok(Some(PdfAction::Uri(uri.to_string())))
             } else {
                 let base = doc
                     .trailer()?
                     .get_dict("Root")?
                     .and_then(|root| root.get_dict("URI").ok().flatten())
                     .and_then(|uri_dict| uri_dict.get_dict("Base").ok().flatten())
-                    .and_then(|base_obj| base_obj.as_string().ok().map(|s| s.to_owned()));
+                    .and_then(|base_obj| base_obj.as_string().ok().map(String::from));
                 let mut full_uri = base.unwrap_or_else(|| "file://".to_owned());
                 full_uri.reserve(uri.len());
                 full_uri.push_str(&uri);
@@ -741,11 +741,11 @@ fn parse_action_dict(
                         let kind = DestinationKind::decode_from(&dest)?;
                         PdfDestination::Page { page, kind }
                     } else if dest.is_name()? {
-                        let name =
-                            std::str::from_utf8(dest.as_name()?).map_err(|_| Error::InvalidUtf8)?;
-                        PdfDestination::Named(name.to_owned())
+                        PdfDestination::Named(
+                            CompactCString::try_from(dest.as_name()?)?.to_string(),
+                        )
                     } else if dest.is_string()? {
-                        PdfDestination::Named(dest.as_string()?.to_owned())
+                        PdfDestination::Named(dest.as_string()?.to_string())
                     } else {
                         PdfDestination::default()
                     }
@@ -766,7 +766,7 @@ fn parse_action_dict(
                 return Ok(None);
             };
             let total = doc.page_count()?;
-            let target = match dest_obj.as_name()? {
+            let target = match dest_obj.as_name()?.as_slice() {
                 b"FirstPage" => Some(0),
                 b"LastPage" => Some((total - 1).max(0)),
                 b"PrevPage" => page_no.map(|p| (p - 1).max(0)),
@@ -818,7 +818,7 @@ fn parse_action_dict(
 /// [`afterward`]: https://github.com/ArtifexSoftware/mupdf/blob/60bf95d09f496ab67a5e4ea872bdd37a74b745fe/source/pdf/pdf-link.c#L304
 fn parse_filespec(obj: &PdfObject) -> Result<FileSpec, Error> {
     if obj.is_string()? {
-        return Ok(FileSpec::Path(obj.as_string()?.to_owned()));
+        return Ok(FileSpec::Path(obj.as_string()?.to_string()));
     }
 
     if obj.is_dict()? {
@@ -829,14 +829,14 @@ fn parse_filespec(obj: &PdfObject) -> Result<FileSpec, Error> {
                 // `UF`, `Unix`, `DOS`, or `Mac` as URL text, as MuPDF does, since `F` should be
                 // only a 7-bit ASCII URL string, whereas `UF`, for example, is Unicode text.
                 if let Some(f) = obj.get_dict("F")? {
-                    return Ok(FileSpec::Url(f.as_string()?.to_owned()));
+                    return Ok(FileSpec::Url(f.as_string()?.to_string()));
                 }
             }
         }
 
         if let Some(name) = get_file_name(obj)? {
             if name.is_string()? {
-                return Ok(FileSpec::Path(name.as_string()?.to_owned()));
+                return Ok(FileSpec::Path(name.as_string()?.to_string()));
             }
         }
     }

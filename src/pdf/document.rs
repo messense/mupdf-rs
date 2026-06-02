@@ -10,6 +10,7 @@ use bitflags::bitflags;
 
 use mupdf_sys::*;
 
+use crate::pdf::object::TryAsCStr;
 use crate::pdf::{FontInfo, PdfGraftMap, PdfObject, PdfPage};
 use crate::{
     context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
@@ -297,11 +298,11 @@ impl PdfDocument {
         PdfObject::new_real(f)
     }
 
-    pub fn new_string(&self, s: &str) -> Result<PdfObject, Error> {
+    pub fn new_string(&self, s: impl TryAsCStr) -> Result<PdfObject, Error> {
         PdfObject::new_string(s)
     }
 
-    pub fn new_name(&self, name: &str) -> Result<PdfObject, Error> {
+    pub fn new_name(&self, name: impl TryAsCStr) -> Result<PdfObject, Error> {
         PdfObject::new_name(name)
     }
 
@@ -335,8 +336,8 @@ impl PdfDocument {
             .map(|inner| unsafe { PdfGraftMap::from_raw(inner) })
     }
 
-    pub fn new_object_from_str(&self, src: &str) -> Result<PdfObject, Error> {
-        let c_src = CString::new(src)?;
+    pub fn new_object_from_str(&self, src: impl TryAsCStr) -> Result<PdfObject, Error> {
+        let c_src = src.try_as_c_str()?;
         unsafe {
             ffi_try!(mupdf_pdf_obj_from_str(
                 context(),
@@ -606,8 +607,8 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no)) }
     }
 
-    pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
-        let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
+    pub fn begin_operation(&self, op: impl TryAsCStr) -> Result<(), Error> {
+        let c_op = op.try_as_c_str()?;
         unsafe {
             ffi_try!(mupdf_pdf_begin_operation(
                 context(),
@@ -784,7 +785,7 @@ mod test {
     use crate::document::test_document;
     use crate::Buffer;
 
-    use super::{PdfDocument, PdfWriteOptions, Permission};
+    use super::{PdfDocument, PdfObject, PdfWriteOptions, Permission};
 
     #[test]
     fn test_pdf_write_options_passwords() {
@@ -998,5 +999,85 @@ mod test {
         assert_eq!(sentinel.as_string().unwrap(), "foo");
         assert_eq!(sentinel.to_string(), "(foo)");
         assert_eq!(obj.read_stream().unwrap(), b"dict payload");
+    }
+
+    #[test]
+    fn test_as_string_indirect_delete() {
+        let mut pdf = PdfDocument::new();
+
+        let original = "A".repeat(1000);
+
+        // 1. Create a direct string object (refcount=1)
+        let string_obj = PdfObject::new_string(&original).unwrap();
+
+        // 2. Add to document xref — returns an indirect reference.
+        //    Internally: pdf_update_object keeps the direct obj (refcount=2),
+        //    and returns a new indirect ref.
+        let indirect = pdf.add_object(&string_obj).unwrap();
+        assert!(indirect.is_indirect().unwrap());
+        let obj_num = indirect.as_indirect().unwrap();
+
+        // 3. Get string from the indirect ref.
+        let prd_str = indirect.as_string().unwrap();
+        assert_eq!(prd_str, original);
+
+        // 4. Drop the original direct PdfObject (refcount drops to 1)
+        //    (only the xref entry still holds a reference)
+        drop(string_obj);
+
+        // 5. Delete the xref entry (refcount drops to 0),
+        //    object and its text buffer are freed.
+        pdf.delete_object(obj_num).unwrap();
+
+        assert_eq!(prd_str, original);
+    }
+
+    #[test]
+    fn test_as_bytes_owned_indirect_delete() {
+        let mut pdf = PdfDocument::new();
+
+        let original = "A".repeat(1000);
+
+        let string_obj = PdfObject::new_string(&original).unwrap();
+        let indirect = pdf.add_object(&string_obj).unwrap();
+        let obj_num = indirect.as_indirect().unwrap();
+
+        // as_bytes() returns an owned CompactCBytes — safe even after deletion
+        let bytes = indirect.as_bytes().unwrap();
+        assert_eq!(bytes, original);
+
+        drop(string_obj);
+        pdf.delete_object(obj_num).unwrap();
+
+        // bytes is an owned copy — still valid
+        assert_eq!(bytes, original.as_bytes());
+    }
+
+    #[test]
+    fn test_as_bytes_preserves_nul_bytes() {
+        let pdf = PdfDocument::new();
+        let obj = pdf.new_object_from_str(r"(a\000b)").unwrap();
+
+        assert!(obj.is_string().unwrap());
+        assert_eq!(obj.as_bytes().unwrap().as_slice(), b"a\0b");
+    }
+
+    #[test]
+    fn test_as_name_indirect_delete() {
+        let mut pdf = PdfDocument::new();
+
+        let original = "A".repeat(100); // max == 127
+
+        let name_obj = PdfObject::new_name(&original).unwrap();
+        let indirect = pdf.add_object(&name_obj).unwrap();
+        let obj_num = indirect.as_indirect().unwrap();
+
+        let name = indirect.as_name().unwrap();
+        assert_eq!(name, original.as_bytes());
+
+        drop(name_obj);
+        pdf.delete_object(obj_num).unwrap();
+
+        assert_eq!(name, original.as_bytes());
     }
 }
