@@ -54,10 +54,7 @@ impl Msbuild {
         self.cl.push("/MP".to_owned());
 
         self.patch_nan(build_dir)?;
-
-        if !cfg!(feature = "all-fonts") {
-            self.remove_libresources_fonts(build_dir)?;
-        }
+        self.remove_libresources_fonts(build_dir)?;
 
         let configuration = if target.debug_profile() {
             "Debug"

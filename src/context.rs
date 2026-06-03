@@ -14,7 +14,7 @@ static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
         #[cfg(all(
             not(target_os = "android"),
             not(target_arch = "wasm32"),
-            feature = "system-fonts"
+            any(feature = "system-fonts", feature = "bundled-fonts-runtime")
         ))]
         {
             use crate::system_font;

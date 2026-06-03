@@ -50,6 +50,10 @@ jobs:
 
       - run: cargo test --features serde
 
+      - name: Test runtime bundled Noto special fallbacks
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_special_fallback_fonts
+
       - name: Test package mupdf-sys
         if: matrix.os != 'windows-2025'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml

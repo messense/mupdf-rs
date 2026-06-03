@@ -44,6 +44,21 @@ covering primitives, Bezier curves, text boxes, optional content, custom fonts, 
 For background on the original API, refer to the
 [PyMuPDF Shape documentation](https://pymupdf.readthedocs.io/en/latest/shape/).
 
+## Bundled fonts
+
+Large non-URW fonts are split out of `mupdf-sys` and can be loaded at runtime
+through optional safe-crate features:
+
+- `bundled-fonts-noto`
+- `bundled-fonts-droid`
+- `bundled-fonts-sil`
+- `bundled-fonts`, or the compatibility alias `all-fonts`, to enable all of them
+
+These features install MuPDF system-font hooks on non-Android, non-wasm targets
+so fallback font loading can resolve the bundled providers. Direct font loading,
+such as `Font::new("Noto Sans")`, can still resolve bundled fonts by name when the
+corresponding feature is enabled.
+
 ## References
 
 1. [MuPDF Explored](https://ghostscript.com/~robin/mupdf_explored.pdf)

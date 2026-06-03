@@ -60,6 +60,7 @@ fn run() -> Result<()> {
         }
 
         copy_recursive(&src_dir, build_dir.as_ref(), &[".git".as_ref()])?;
+        patch_mupdf_sources(build_dir.as_ref())?;
 
         Build::new(&target).run(&target, build_dir)?;
         build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
@@ -118,6 +119,56 @@ fn copy_recursive(src: &Path, dst: &Path, ignore: &[&OsStr]) -> Result<()> {
             copy_recursive(&src_path, &dst_path, ignore)?;
         }
     }
+    Ok(())
+}
+
+fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
+    // MuPDF's special math/music/symbol/emoji fallbacks only consult compiled-in
+    // Noto resources. When those resources are omitted to keep mupdf-sys small,
+    // give the safe crate's runtime bundled-font/system-font hook a chance to
+    // provide the same special fallback fonts by name.
+    let path = build_dir.join("source/fitz/font.c");
+    let mut source =
+        fs::read_to_string(&path).map_err(|e| format!("Unable to read {}: {e}", path.display()))?;
+    source = source.replace("\r\n", "\n");
+
+    let patches = [
+        (
+            "\t\tif (data)\n\t\t\tctx->font->math = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
+            "\t\tif (data)\n\t\t\tctx->font->math = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->math = fz_load_system_font(ctx, \"Noto Sans Math\", 0, 0, 0);\n",
+        ),
+        (
+            "\t\tif (data)\n\t\t\tctx->font->music = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
+            "\t\tif (data)\n\t\t\tctx->font->music = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->music = fz_load_system_font(ctx, \"Noto Music\", 0, 0, 0);\n",
+        ),
+        (
+            "\t\tif (data)\n\t\t\tctx->font->symbol1 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
+            "\t\tif (data)\n\t\t\tctx->font->symbol1 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->symbol1 = fz_load_system_font(ctx, \"Noto Sans Symbols\", 0, 0, 0);\n",
+        ),
+        (
+            "\t\tif (data)\n\t\t\tctx->font->symbol2 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
+            "\t\tif (data)\n\t\t\tctx->font->symbol2 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->symbol2 = fz_load_system_font(ctx, \"Noto Sans Symbols 2\", 0, 0, 0);\n",
+        ),
+        (
+            "\t\tif (data)\n\t\t\tctx->font->emoji = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
+            "\t\tif (data)\n\t\t\tctx->font->emoji = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->emoji = fz_load_system_font(ctx, \"Noto Emoji\", 0, 0, 0);\n",
+        ),
+    ];
+
+    for (old, new) in patches {
+        if source.contains(new) {
+            continue;
+        }
+        if !source.contains(old) {
+            Err(format!(
+                "Unable to patch {}; expected MuPDF font fallback snippet was not found",
+                path.display()
+            ))?;
+        }
+        source = source.replacen(old, new, 1);
+    }
+
+    fs::write(&path, source).map_err(|e| format!("Unable to write {}: {e}", path.display()))?;
     Ok(())
 }
 
@@ -335,10 +386,16 @@ impl Build {
         self.make_bool("barcode", zxingcpp);
         self.make_bool("archive", libarchive);
 
+        if cfg!(feature = "all-fonts") {
+            println!(
+                "cargo:warning=mupdf-sys/all-fonts is deprecated and no longer compiles large fonts into mupdf-sys; use mupdf's runtime bundled font features instead"
+            );
+        }
+
         for font in &FONTS {
-            // TOFU flags skip fonts when set to 1
-            // So we invert: all-fonts=true means TOFU=0 (include fonts)
-            self.define_bool(font, !cfg!(feature = "all-fonts"));
+            // TOFU flags skip fonts when set to 1. Keep non-URW fonts out of
+            // mupdf-sys so the crate remains below crates.io's package limit.
+            self.define_bool(font, true);
         }
 
         match self {

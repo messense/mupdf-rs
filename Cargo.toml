@@ -52,8 +52,20 @@ sys-lib-zxingcpp = ["mupdf-sys/sys-lib-zxingcpp"]
 # Use system brotli
 sys-lib-brotli = ["mupdf-sys/sys-lib-brotli"]
 
-all-fonts = ["mupdf-sys/all-fonts"]
 system-fonts = ["font-kit"]
+
+# Runtime bundled font providers. These load fonts through MuPDF's system font
+# hooks in the safe crate instead of compiling them into mupdf-sys.
+all-fonts = ["bundled-fonts"]
+bundled-fonts = [
+    "bundled-fonts-droid",
+    "bundled-fonts-noto",
+    "bundled-fonts-sil",
+]
+bundled-fonts-runtime = []
+bundled-fonts-droid = ["bundled-fonts-runtime", "dep:mupdf-fonts-droid"]
+bundled-fonts-noto = ["bundled-fonts-runtime", "dep:mupdf-fonts-noto"]
+bundled-fonts-sil = ["bundled-fonts-runtime", "dep:mupdf-fonts-sil"]
 
 js = ["mupdf-sys/js"]
 xps = ["mupdf-sys/xps"]
@@ -78,6 +90,9 @@ bitflags = "2.0.2"
 percent-encoding = "2.3.1"
 serde = { version = "1.0.201", features = ["derive"], optional = true }
 zerocopy = { version = "0.8.17", features = ["derive"] }
+mupdf-fonts-droid = { version = "0.7.0", path = "mupdf-fonts-droid", optional = true }
+mupdf-fonts-noto = { version = "0.7.0", path = "mupdf-fonts-noto", optional = true }
+mupdf-fonts-sil = { version = "0.7.0", path = "mupdf-fonts-sil", optional = true }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 font-kit = { version = "0.14.1", optional = true }
@@ -85,6 +100,9 @@ font-kit = { version = "0.14.1", optional = true }
 [workspace]
 members = [
     ".",
+    "mupdf-fonts-droid",
+    "mupdf-fonts-noto",
+    "mupdf-fonts-sil",
     "mupdf-sys"
 ]
 

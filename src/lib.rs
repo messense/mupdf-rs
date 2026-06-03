@@ -6,6 +6,8 @@
 pub mod bitmap;
 /// Dynamically allocated array of bytes
 pub mod buffer;
+#[cfg(feature = "bundled-fonts-runtime")]
+mod bundled_font;
 /// Color struct
 pub mod color;
 /// Color params
@@ -70,7 +72,10 @@ pub mod size;
 pub mod stroke_state;
 
 /// System font loading
-#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+#[cfg(all(
+    any(feature = "system-fonts", feature = "bundled-fonts-runtime"),
+    not(target_arch = "wasm32")
+))]
 pub mod system_font;
 /// Text objects
 pub mod text;
