@@ -25,74 +25,79 @@ pub(crate) unsafe extern "C" fn load_system_font(
     italic: c_int,
     needs_exact_metrics: c_int,
 ) -> *mut fz_font {
-    if let Ok(name) = CStr::from_ptr(name).to_str() {
-        #[cfg(feature = "bundled-fonts-runtime")]
-        {
-            let font =
-                crate::bundled_font::load_by_name(ctx, name, bold, italic, needs_exact_metrics);
-            if !font.is_null() {
-                return font;
-            }
-        }
+    if name.is_null() {
+        return ptr::null_mut();
+    }
 
-        #[cfg(feature = "system-fonts")]
-        {
-            let mut name = name;
-            let font_source = SystemSource::new();
-            let handle = match font_source.select_by_postscript_name(name) {
-                Ok(handle) => Ok(handle),
-                Err(_) => {
-                    for suffix in &["MT", "PS", "IdentityH"] {
-                        if name.ends_with(suffix) {
-                            name = name.strip_suffix(suffix).unwrap_or(name);
-                        }
+    let Ok(name) = unsafe { CStr::from_ptr(name) }.to_str() else {
+        return ptr::null_mut();
+    };
+
+    #[cfg(feature = "bundled-fonts-runtime")]
+    {
+        let font = crate::bundled_font::load_by_name(ctx, name, bold, italic, needs_exact_metrics);
+        if !font.is_null() {
+            return font;
+        }
+    }
+
+    #[cfg(feature = "system-fonts")]
+    {
+        let mut name = name;
+        let font_source = SystemSource::new();
+        let handle = match font_source.select_by_postscript_name(name) {
+            Ok(handle) => Ok(handle),
+            Err(_) => {
+                for suffix in &["MT", "PS", "IdentityH"] {
+                    if name.ends_with(suffix) {
+                        name = name.strip_suffix(suffix).unwrap_or(name);
                     }
-                    let mut properties = Properties::new();
-                    let properties = properties
-                        .weight(if bold == 1 {
-                            Weight::BOLD
-                        } else {
-                            Weight::NORMAL
-                        })
-                        .style(if italic == 1 {
-                            Style::Italic
-                        } else {
-                            Style::Normal
-                        });
-                    font_source
-                        .select_best_match(&[FamilyName::Title(name.to_string())], properties)
                 }
+                let mut properties = Properties::new();
+                let properties = properties
+                    .weight(if bold == 1 {
+                        Weight::BOLD
+                    } else {
+                        Weight::NORMAL
+                    })
+                    .style(if italic == 1 {
+                        Style::Italic
+                    } else {
+                        Style::Normal
+                    });
+                font_source.select_best_match(&[FamilyName::Title(name.to_string())], properties)
+            }
+        };
+        if let Ok(handle) = handle {
+            let font_index = match handle {
+                Handle::Path { font_index, .. } => font_index,
+                Handle::Memory { font_index, .. } => font_index,
             };
-            if let Ok(handle) = handle {
-                let font_index = match handle {
-                    Handle::Path { font_index, .. } => font_index,
-                    Handle::Memory { font_index, .. } => font_index,
-                };
-                let font = match handle.load() {
-                    Ok(f) => {
-                        let Some(font_data) = f.copy_font_data() else {
-                            return ptr::null_mut();
-                        };
-                        Font::from_bytes_with_index(
-                            &f.family_name(),
-                            font_index as i32,
-                            font_data.as_ref(),
-                        )
-                    }
-                    Err(_) => return ptr::null_mut(),
-                };
-                if let Ok(font) = font {
-                    if needs_exact_metrics == 1
-                        && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
-                    {
+            let font = match handle.load() {
+                Ok(f) => {
+                    let Some(font_data) = f.copy_font_data() else {
                         return ptr::null_mut();
-                    }
-                    fz_keep_font(ctx, font.inner);
-                    return font.inner;
+                    };
+                    Font::from_bytes_with_index(
+                        &f.family_name(),
+                        font_index as i32,
+                        font_data.as_ref(),
+                    )
                 }
+                Err(_) => return ptr::null_mut(),
+            };
+            if let Ok(font) = font {
+                if needs_exact_metrics == 1
+                    && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
+                {
+                    return ptr::null_mut();
+                }
+                fz_keep_font(ctx, font.inner);
+                return font.inner;
             }
         }
     }
+
     ptr::null_mut()
 }
 

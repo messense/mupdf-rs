@@ -67,6 +67,23 @@ fn normalized_bytes(s: &str) -> impl Iterator<Item = u8> + '_ {
 mod tests {
     use super::*;
 
+    fn assert_font_payload(font: Font) {
+        assert!(
+            font.data.len() > 1024,
+            "{} payload is suspiciously small: {} bytes",
+            font.name,
+            font.data.len()
+        );
+        assert!(
+            font.data.starts_with(b"OTTO")
+                || font.data.starts_with(b"\0\x01\0\0")
+                || font.data.starts_with(b"ttcf")
+                || font.data.starts_with(&[1, 0]),
+            "{} payload does not look like font data",
+            font.name
+        );
+    }
+
     #[test]
     fn finds_charis_sil_by_family_name() {
         assert_eq!(
@@ -78,5 +95,13 @@ mod tests {
             CHARIS_SIL_BOLD_ITALIC.data
         );
         assert!(find_by_name("Times", false, false).is_none());
+    }
+
+    #[test]
+    fn bundled_font_payloads_are_real_font_bytes() {
+        assert_font_payload(CHARIS_SIL);
+        assert_font_payload(CHARIS_SIL_BOLD);
+        assert_font_payload(CHARIS_SIL_ITALIC);
+        assert_font_payload(CHARIS_SIL_BOLD_ITALIC);
     }
 }

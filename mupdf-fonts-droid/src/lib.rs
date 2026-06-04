@@ -64,6 +64,23 @@ fn normalized_bytes(s: &str) -> impl Iterator<Item = u8> + '_ {
 mod tests {
     use super::*;
 
+    fn assert_font_payload(font: Font) {
+        assert!(
+            font.data.len() > 1024,
+            "{} payload is suspiciously small: {} bytes",
+            font.name,
+            font.data.len()
+        );
+        assert!(
+            font.data.starts_with(b"OTTO")
+                || font.data.starts_with(b"\0\x01\0\0")
+                || font.data.starts_with(b"ttcf")
+                || font.data.starts_with(&[1, 0]),
+            "{} payload does not look like font data",
+            font.name
+        );
+    }
+
     #[test]
     fn finds_droid_fonts_by_family_name() {
         assert_eq!(
@@ -79,5 +96,11 @@ mod tests {
             "Droid Sans Fallback Full"
         );
         assert!(find_by_name("Droid Sans Fallback", true, false).is_none());
+    }
+
+    #[test]
+    fn bundled_font_payloads_are_real_font_bytes() {
+        assert_font_payload(DROID_SANS_FALLBACK);
+        assert_font_payload(DROID_SANS_FALLBACK_FULL);
     }
 }

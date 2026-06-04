@@ -50,6 +50,12 @@ jobs:
 
       - run: cargo test --features serde
 
+      - name: Test bundled font crates
+        run: cargo test -p mupdf-fonts-droid -p mupdf-fonts-noto -p mupdf-fonts-sil
+
+      - name: Test runtime bundled Noto by name
+        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_font
+
       - name: Test runtime bundled Noto special fallbacks
         if: matrix.os == 'ubuntu-latest'
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_special_fallback_fonts
@@ -57,6 +63,13 @@ jobs:
       - name: Test package mupdf-sys
         if: matrix.os != 'windows-2025'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
+
+      - name: Test package bundled font crates
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo package -p mupdf-fonts-droid
+          cargo package -p mupdf-fonts-noto
+          cargo package -p mupdf-fonts-sil
 
   test-wasm:
     name: Test Suite (Emscripten)

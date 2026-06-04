@@ -28,7 +28,15 @@ jobs:
     - run: cargo publish -p mupdf-fonts-sil
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}
-    - run: sleep 30
-    - run: cargo publish
+    - name: Publish mupdf
+      run: |
+        for attempt in 1 2 3 4 5; do
+          if cargo publish; then
+            exit 0
+          fi
+          echo "cargo publish failed; retrying after crates.io index propagation ($attempt/5)"
+          sleep 30
+        done
+        exit 1
       env:
         CARGO_REGISTRY_TOKEN: ${{ steps.auth.outputs.token }}

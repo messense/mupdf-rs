@@ -59,6 +59,11 @@ so fallback font loading can resolve the bundled providers. Direct font loading,
 such as `Font::new("Noto Sans")`, can still resolve bundled fonts by name when the
 corresponding feature is enabled.
 
+Published font crates contain regular font files. In this source repository, the
+font crate payloads are symlinked to the MuPDF submodule resources to avoid
+duplicating the files in git, so source checkouts need initialized submodules and
+symlink-capable Git checkout settings.
+
 ## References
 
 1. [MuPDF Explored](https://ghostscript.com/~robin/mupdf_explored.pdf)
