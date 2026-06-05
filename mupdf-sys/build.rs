@@ -134,36 +134,43 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
 
     let patches = [
         (
+            "Noto Sans Math",
             "\t\tif (data)\n\t\t\tctx->font->math = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
             "\t\tif (data)\n\t\t\tctx->font->math = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->math = fz_load_system_font(ctx, \"Noto Sans Math\", 0, 0, 0);\n",
         ),
         (
+            "Noto Music",
             "\t\tif (data)\n\t\t\tctx->font->music = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
             "\t\tif (data)\n\t\t\tctx->font->music = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->music = fz_load_system_font(ctx, \"Noto Music\", 0, 0, 0);\n",
         ),
         (
+            "Noto Sans Symbols",
             "\t\tif (data)\n\t\t\tctx->font->symbol1 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
             "\t\tif (data)\n\t\t\tctx->font->symbol1 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->symbol1 = fz_load_system_font(ctx, \"Noto Sans Symbols\", 0, 0, 0);\n",
         ),
         (
+            "Noto Sans Symbols 2",
             "\t\tif (data)\n\t\t\tctx->font->symbol2 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
             "\t\tif (data)\n\t\t\tctx->font->symbol2 = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->symbol2 = fz_load_system_font(ctx, \"Noto Sans Symbols 2\", 0, 0, 0);\n",
         ),
         (
+            "Noto Emoji",
             "\t\tif (data)\n\t\t\tctx->font->emoji = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n",
             "\t\tif (data)\n\t\t\tctx->font->emoji = fz_new_font_from_memory(ctx, NULL, data, size, 0, 0);\n\t\telse\n\t\t\tctx->font->emoji = fz_load_system_font(ctx, \"Noto Emoji\", 0, 0, 0);\n",
         ),
     ];
 
-    for (old, new) in patches {
+    for (font_name, old, new) in patches {
         if source.contains(new) {
             continue;
         }
         if !source.contains(old) {
-            Err(format!(
-                "Unable to patch {}; expected MuPDF font fallback snippet was not found",
+            println!(
+                "cargo:warning=Unable to patch {} special fallback in {}; expected MuPDF font fallback snippet was not found",
+                font_name,
                 path.display()
-            ))?;
+            );
+            continue;
         }
         source = source.replacen(old, new, 1);
     }
