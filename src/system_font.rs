@@ -122,6 +122,13 @@ pub unsafe extern "C" fn load_system_cjk_font(
     ordering: c_int,
     serif: c_int,
 ) -> *mut fz_font {
+    // Try the requested font name first. This preserves exact CJK font requests before
+    // falling back to generic ordering-based bundled/system fonts.
+    let font = load_system_font(ctx, name, 0, 0, 0);
+    if !font.is_null() {
+        return font;
+    }
+
     #[cfg(feature = "bundled-fonts-runtime")]
     {
         let font = crate::bundled_font::load_cjk_font(ctx, ordering, serif);
@@ -132,11 +139,6 @@ pub unsafe extern "C" fn load_system_cjk_font(
 
     #[cfg(feature = "system-fonts")]
     {
-        // Try name first
-        let font = load_system_font(ctx, name, 0, 0, 0);
-        if !font.is_null() {
-            return font;
-        }
         if serif == 1 {
             match CjkFontOrdering::try_from(ordering) {
                 Ok(CjkFontOrdering::AdobeCns) => {
@@ -181,6 +183,13 @@ pub(crate) unsafe extern "C" fn load_system_cjk_font(
     _ordering: c_int,
     _serif: c_int,
 ) -> *mut fz_font {
+    // Try the requested font name first. This preserves exact CJK font requests before
+    // falling back to generic ordering-based bundled fonts.
+    let font = load_system_font(ctx, name, 0, 0, 0);
+    if !font.is_null() {
+        return font;
+    }
+
     #[cfg(feature = "bundled-fonts-runtime")]
     {
         let font = crate::bundled_font::load_cjk_font(ctx, _ordering, _serif);
@@ -189,17 +198,7 @@ pub(crate) unsafe extern "C" fn load_system_cjk_font(
         }
     }
 
-    #[cfg(feature = "system-fonts")]
-    {
-        // Try name first
-        load_system_font(ctx, name, 0, 0, 0)
-    }
-
-    #[cfg(not(feature = "system-fonts"))]
-    {
-        let _ = name;
-        ptr::null_mut()
-    }
+    ptr::null_mut()
 }
 
 pub(crate) unsafe extern "C" fn load_system_fallback_font(
@@ -221,4 +220,30 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
 
     let _ = (ctx, script, language, serif, bold, italic);
     ptr::null_mut()
+}
+
+#[cfg(all(test, feature = "bundled-fonts-droid", feature = "bundled-fonts-noto"))]
+mod tests {
+    use std::ffi::{CStr, CString};
+
+    use super::*;
+
+    #[test]
+    fn bundled_cjk_hook_prefers_explicit_font_name() {
+        let name = CString::new("Noto Sans").unwrap();
+        let ctx = crate::context();
+        // SAFETY: `ctx` is the process-global MuPDF context and `name` is a valid C string.
+        let font = unsafe { load_system_cjk_font(ctx, name.as_ptr(), FZ_ADOBE_JAPAN as c_int, 0) };
+        assert!(!font.is_null());
+
+        // SAFETY: `font` is non-null and owned by this test until it is dropped below.
+        let actual = unsafe { CStr::from_ptr(fz_font_name(ctx, font)) }
+            .to_str()
+            .unwrap()
+            .to_owned();
+        // SAFETY: `font` was returned with an owned reference from the system CJK hook.
+        unsafe { fz_drop_font(ctx, font) };
+
+        assert_eq!(actual, "Noto Sans");
+    }
 }

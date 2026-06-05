@@ -56,6 +56,9 @@ jobs:
       - name: Test runtime bundled Noto by name
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_font
 
+      - name: Test runtime bundled CJK exact names
+        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid bundled_cjk_hook_prefers_explicit_font_name
+
       - name: Test runtime bundled Noto special fallbacks
         if: matrix.os == 'ubuntu-latest'
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_special_fallback_fonts
