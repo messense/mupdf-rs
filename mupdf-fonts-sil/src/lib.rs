@@ -1,5 +1,10 @@
 #![forbid(unsafe_code)]
 
+// These are MuPDF's modified/subset CFF resources derived from Charis SIL. The
+// OFL license reserves the original font names, so expose the runtime family
+// under a non-reserved name.
+const FAMILY_NAME: &str = "MuPDF Serif";
+
 #[derive(Clone, Copy, Debug)]
 pub struct Font {
     pub name: &'static str,
@@ -7,40 +12,40 @@ pub struct Font {
     pub index: i32,
 }
 
-const CHARIS_SIL: Font = Font {
-    name: "Charis SIL",
+const MUPDF_SERIF: Font = Font {
+    name: FAMILY_NAME,
     data: include_bytes!("../fonts/CharisSIL.cff"),
     index: 0,
 };
 
-const CHARIS_SIL_BOLD: Font = Font {
-    name: "Charis SIL",
+const MUPDF_SERIF_BOLD: Font = Font {
+    name: FAMILY_NAME,
     data: include_bytes!("../fonts/CharisSIL-Bold.cff"),
     index: 0,
 };
 
-const CHARIS_SIL_ITALIC: Font = Font {
-    name: "Charis SIL",
+const MUPDF_SERIF_ITALIC: Font = Font {
+    name: FAMILY_NAME,
     data: include_bytes!("../fonts/CharisSIL-Italic.cff"),
     index: 0,
 };
 
-const CHARIS_SIL_BOLD_ITALIC: Font = Font {
-    name: "Charis SIL",
+const MUPDF_SERIF_BOLD_ITALIC: Font = Font {
+    name: FAMILY_NAME,
     data: include_bytes!("../fonts/CharisSIL-BoldItalic.cff"),
     index: 0,
 };
 
 pub fn find_by_name(name: &str, bold: bool, italic: bool) -> Option<Font> {
-    if !eq_font_name(name, "Charis SIL") && !eq_font_name(name, "CharisSIL") {
+    if !eq_font_name(name, FAMILY_NAME) && !eq_font_name(name, "MuPDFSerif") {
         return None;
     }
 
     match (bold, italic) {
-        (false, false) => Some(CHARIS_SIL),
-        (true, false) => Some(CHARIS_SIL_BOLD),
-        (false, true) => Some(CHARIS_SIL_ITALIC),
-        (true, true) => Some(CHARIS_SIL_BOLD_ITALIC),
+        (false, false) => Some(MUPDF_SERIF),
+        (true, false) => Some(MUPDF_SERIF_BOLD),
+        (false, true) => Some(MUPDF_SERIF_ITALIC),
+        (true, true) => Some(MUPDF_SERIF_BOLD_ITALIC),
     }
 }
 
@@ -85,23 +90,24 @@ mod tests {
     }
 
     #[test]
-    fn finds_charis_sil_by_family_name() {
+    fn finds_mupdf_serif_by_family_name() {
         assert_eq!(
-            find_by_name("Charis SIL", false, false).unwrap().data,
-            CHARIS_SIL.data
+            find_by_name("MuPDF Serif", false, false).unwrap().data,
+            MUPDF_SERIF.data
         );
         assert_eq!(
-            find_by_name("CharisSIL", true, true).unwrap().data,
-            CHARIS_SIL_BOLD_ITALIC.data
+            find_by_name("MuPDFSerif", true, true).unwrap().data,
+            MUPDF_SERIF_BOLD_ITALIC.data
         );
+        assert!(find_by_name("Charis SIL", false, false).is_none());
         assert!(find_by_name("Times", false, false).is_none());
     }
 
     #[test]
     fn bundled_font_payloads_are_real_font_bytes() {
-        assert_font_payload(CHARIS_SIL);
-        assert_font_payload(CHARIS_SIL_BOLD);
-        assert_font_payload(CHARIS_SIL_ITALIC);
-        assert_font_payload(CHARIS_SIL_BOLD_ITALIC);
+        assert_font_payload(MUPDF_SERIF);
+        assert_font_payload(MUPDF_SERIF_BOLD);
+        assert_font_payload(MUPDF_SERIF_ITALIC);
+        assert_font_payload(MUPDF_SERIF_BOLD_ITALIC);
     }
 }

@@ -2,7 +2,7 @@
 name = "mupdf-fonts-sil"
 version.workspace = true
 edition.workspace = true
-description = "Charis SIL bundled fonts for mupdf"
+description = "MuPDF serif bundled fonts for mupdf"
 license = "OFL-1.1"
 repository = "https://github.com/messense/mupdf-rs"
 include = ["Cargo.toml", "OFL.txt", "README.txt", "src/**", "fonts/**"]

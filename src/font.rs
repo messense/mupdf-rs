@@ -215,8 +215,8 @@ mod test {
 
     #[cfg(feature = "bundled-fonts-sil")]
     #[test]
-    fn test_bundled_charis_sil_font() {
-        let font = Font::new("Charis SIL").expect("new bundled font failed");
+    fn test_bundled_mupdf_serif_font() {
+        let font = Font::new("MuPDF Serif").expect("new bundled font failed");
         let glyph = font.encode_character('A' as i32).unwrap();
         assert_ne!(glyph, 0);
     }
@@ -248,10 +248,11 @@ mod test {
 
         use mupdf_sys::*;
 
+        let ctx = crate::context();
         let mut out_font = ptr::null_mut();
         let glyph = unsafe {
             fz_encode_character_with_fallback(
-                crate::context(),
+                ctx,
                 font.inner,
                 unicode,
                 UCDN_SCRIPT_COMMON as i32,
@@ -266,7 +267,9 @@ mod test {
             "missing fallback font for U+{unicode:04X}"
         );
 
-        let name = unsafe { CStr::from_ptr(fz_font_name(crate::context(), out_font)) }
+        // `fz_encode_character_with_fallback` returns a borrowed pointer from MuPDF's
+        // font caches. MuPDF's own callers do not drop it.
+        let name = unsafe { CStr::from_ptr(fz_font_name(ctx, out_font)) }
             .to_str()
             .unwrap();
         assert_eq!(name, expected_name);

@@ -225,7 +225,10 @@ fn is_cjk_script(script: c_int) -> bool {
         || script == UCDN_SCRIPT_BOPOMOFO as i32
 }
 
-#[cfg(test)]
+#[cfg(all(
+    test,
+    any(feature = "bundled-fonts-noto", feature = "bundled-fonts-droid")
+))]
 mod tests {
     use super::*;
 
