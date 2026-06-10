@@ -269,7 +269,8 @@ mod tests {
         for script in 0..=UCDN_LAST_SCRIPT as i32 {
             // SAFETY: `ctx` is the process-global MuPDF context. MuPDF returns
             // either NULL or a static NUL-terminated string.
-            let stem = unsafe { fz_lookup_noto_stem_from_script(ctx, script, FZ_LANG_UNSET as i32) };
+            let stem =
+                unsafe { fz_lookup_noto_stem_from_script(ctx, script, FZ_LANG_UNSET as i32) };
             if stem.is_null() {
                 continue;
             }
