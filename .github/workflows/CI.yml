@@ -56,6 +56,9 @@ jobs:
       - name: Test runtime bundled Noto by name
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_font
 
+      - name: Test bundled Noto script stem coverage
+        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto noto_crate_covers_all_mupdf_script_stems
+
       - name: Test runtime bundled CJK exact names
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid bundled_cjk_hook_prefers_explicit_font_name
 

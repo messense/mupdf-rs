@@ -251,4 +251,46 @@ mod tests {
         );
         assert!(find_by_name("Droid Sans Fallback", 1, 1, 1).is_none());
     }
+
+    /// Drift protection: every script stem MuPDF's `fz_lookup_noto_stem_from_script`
+    /// can return must resolve to a bundled Noto font, so a MuPDF submodule bump
+    /// that adds new scripts fails loudly here instead of silently rendering tofu.
+    #[cfg(feature = "bundled-fonts-noto")]
+    #[test]
+    fn noto_crate_covers_all_mupdf_script_stems() {
+        // Stems that are intentionally not served by the Noto crate: MuPDF ships
+        // no Noto CJK fonts; CJK scripts are handled by the Droid provider in
+        // `find_fallback_font` instead.
+        const UNBUNDLED_STEMS: &[&str] = &["JP", "KR", "SC", "TC"];
+
+        let ctx = crate::context();
+        let mut missing = Vec::new();
+
+        for script in 0..=UCDN_LAST_SCRIPT as i32 {
+            // SAFETY: `ctx` is the process-global MuPDF context. MuPDF returns
+            // either NULL or a static NUL-terminated string.
+            let stem = unsafe { fz_lookup_noto_stem_from_script(ctx, script, FZ_LANG_UNSET as i32) };
+            if stem.is_null() {
+                continue;
+            }
+            // SAFETY: Non-null value returned by MuPDF is a NUL-terminated C string.
+            let stem = unsafe { CStr::from_ptr(stem) }.to_str().unwrap();
+            if UNBUNDLED_STEMS.contains(&stem) {
+                continue;
+            }
+            if mupdf_fonts_noto::find_by_stem(stem, false).is_none() {
+                missing.push((script, stem));
+            }
+        }
+
+        assert!(
+            missing.is_empty(),
+            "mupdf-fonts-noto has no font for MuPDF script stems {missing:?}; \
+             add the fonts to the crate or, if MuPDF does not ship them, extend UNBUNDLED_STEMS"
+        );
+
+        // The Urdu special case in `find_fallback_font` bypasses
+        // `fz_lookup_noto_stem_from_script`; keep its hardcoded stem covered too.
+        assert!(mupdf_fonts_noto::find_by_stem("NastaliqUrdu", false).is_some());
+    }
 }
