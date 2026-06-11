@@ -75,10 +75,52 @@ pub fn set_font_loader(loader: impl FontLoader) {
     *FONT_LOADER.write().unwrap() = Some(Box::new(loader));
 }
 
+/// Built-in loaders consulted after the registered user loader, in priority
+/// order.
+const BUILT_IN_LOADERS: &[&dyn FontLoader] = &[
+    #[cfg(feature = "bundled-fonts-runtime")]
+    &crate::bundled_font::BundledFontLoader,
+    #[cfg(feature = "system-fonts")]
+    &crate::system_font::SystemFontLoader,
+];
+
 /// Run `f` against the registered font loader, if any.
-pub(crate) fn with_loader(f: impl FnOnce(&dyn FontLoader) -> Option<Font>) -> Option<Font> {
+fn with_user_loader(f: impl FnOnce(&dyn FontLoader) -> Option<Font>) -> Option<Font> {
     let guard = FONT_LOADER.read().ok()?;
     f(guard.as_ref()?.as_ref())
+}
+
+/// Run `f` against each loader in lookup order — the registered user loader
+/// first, then the built-ins — returning the first hit.
+pub(crate) fn dispatch(f: impl Fn(&dyn FontLoader) -> Option<Font>) -> Option<Font> {
+    if let Some(font) = with_user_loader(&f) {
+        return Some(font);
+    }
+    BUILT_IN_LOADERS.iter().find_map(|loader| f(*loader))
+}
+
+/// CJK lookup order: the user loader's CJK hook, then an exact-name lookup
+/// across the whole chain (an explicitly requested font wins over generic
+/// ordering-based substitutes), then the built-in loaders' CJK hooks.
+pub(crate) fn dispatch_cjk(
+    name: &str,
+    ordering: Option<CjkFontOrdering>,
+    serif: bool,
+) -> Option<Font> {
+    if let Some(ordering) = ordering {
+        if let Some(font) = with_user_loader(|l| l.load_cjk_font(name, ordering, serif)) {
+            return Some(font);
+        }
+    }
+    if !name.is_empty() {
+        if let Some(font) = dispatch(|l| l.load_font(name, FontHints::default())) {
+            return Some(font);
+        }
+    }
+    let ordering = ordering?;
+    BUILT_IN_LOADERS
+        .iter()
+        .find_map(|l| l.load_cjk_font(name, ordering, serif))
 }
 
 /// Loads fonts from `/system/fonts` using the Noto/Roboto/Droid file naming
