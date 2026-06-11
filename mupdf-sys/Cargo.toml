@@ -185,6 +185,7 @@ links="mupdf-wrapper"
 repository = "https://github.com/messense/mupdf-rs"
 
 [features]
+default = ["base14-fonts"]
 # Use system libs for most thirdparty libs
 sys-lib = []
 # Use system freetype

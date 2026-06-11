@@ -23,6 +23,13 @@ fn font_into_mupdf(ctx: *mut fz_context, font: Font) -> *mut fz_font {
     font.inner
 }
 
+/// Font lookups run arbitrary user `FontLoader` code inside an `extern "C"`
+/// callback, where unwinding would abort the process. Treat a panic as a
+/// failed lookup instead so MuPDF can fall back to its built-in handling.
+fn catch_panic(f: impl FnOnce() -> Option<Font>) -> Option<Font> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or(None)
+}
+
 pub(crate) unsafe extern "C" fn load_system_font(
     ctx: *mut fz_context,
     name: *const c_char,
@@ -44,7 +51,7 @@ pub(crate) unsafe extern "C" fn load_system_font(
         serif: false,
         needs_exact_metrics: needs_exact_metrics != 0,
     };
-    match font_loader::dispatch(|loader| loader.load_font(name, hints)) {
+    match catch_panic(|| font_loader::dispatch(|loader| loader.load_font(name, hints))) {
         Some(font) => font_into_mupdf(ctx, font),
         None => ptr::null_mut(),
     }
@@ -64,7 +71,7 @@ pub(crate) unsafe extern "C" fn load_system_cjk_font(
     };
 
     let ordering = CjkFontOrdering::try_from(ordering).ok();
-    match font_loader::dispatch_cjk(name, ordering, serif != 0) {
+    match catch_panic(|| font_loader::dispatch_cjk(name, ordering, serif != 0)) {
         Some(font) => font_into_mupdf(ctx, font),
         None => ptr::null_mut(),
     }
@@ -84,8 +91,10 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
         serif: serif != 0,
         needs_exact_metrics: false,
     };
-    match font_loader::dispatch(|loader| {
-        loader.load_fallback_font(script as u32, language as u32, hints)
+    match catch_panic(|| {
+        font_loader::dispatch(|loader| {
+            loader.load_fallback_font(script as u32, language as u32, hints)
+        })
     }) {
         Some(font) => font_into_mupdf(ctx, font),
         None => ptr::null_mut(),

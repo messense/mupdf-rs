@@ -89,7 +89,11 @@ libarchive = ["mupdf-sys/libarchive"]
 serde = ["dep:serde"]
 
 [dependencies]
-mupdf-sys = { version = "0.8.0", path = "mupdf-sys", features = ["zerocopy"] }
+# `default-features = false` so the `base14-fonts` feature above stays in
+# control of `mupdf-sys/base14-fonts` (a default feature of mupdf-sys).
+mupdf-sys = { version = "0.8.0", path = "mupdf-sys", default-features = false, features = [
+    "zerocopy",
+] }
 once_cell = "1.3.1"
 bitflags = "2.0.2"
 percent-encoding = "2.3.1"

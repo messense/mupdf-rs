@@ -85,9 +85,13 @@ const BUILT_IN_LOADERS: &[&dyn FontLoader] = &[
 ];
 
 /// Run `f` against the registered font loader, if any.
+///
+/// A panic in user loader code is treated as a miss so the lookup can fall
+/// back to the built-in loaders (and never unwinds into MuPDF).
 fn with_user_loader(f: impl FnOnce(&dyn FontLoader) -> Option<Font>) -> Option<Font> {
     let guard = FONT_LOADER.read().ok()?;
-    f(guard.as_ref()?.as_ref())
+    let loader = guard.as_ref()?.as_ref();
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(loader))).unwrap_or(None)
 }
 
 /// Run `f` against each loader in lookup order — the registered user loader
@@ -276,14 +280,20 @@ mod tests {
 
     use super::*;
 
-    /// Only responds to a name no other test uses, so registering it
+    /// Only responds to names no other test uses, so registering it
     /// globally cannot interfere with concurrently running tests.
     struct TestLoader;
 
     impl FontLoader for TestLoader {
         fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
-            (name == "MupdfRsFontLoaderTest" && hints.bold && !hints.italic)
-                .then(|| Font::new("Helvetica").unwrap())
+            if name == "MupdfRsFontLoaderPanic" {
+                panic!("font loader panicked");
+            }
+            (name == "MupdfRsFontLoaderTest" && hints.bold && !hints.italic).then(|| {
+                // Independent of the base14/bundled/system font features.
+                let data = include_bytes!("../tests/files/custom.ttf");
+                Font::from_bytes("MupdfRsFontLoaderTest", data).unwrap()
+            })
         }
     }
 
@@ -304,6 +314,18 @@ mod tests {
             .to_owned();
         // SAFETY: `font` was returned with an owned reference from the hook.
         unsafe { fz_drop_font(ctx, font) };
-        assert_eq!(actual, "Helvetica");
+        assert_eq!(actual, "MupdfRsFontLoaderTest");
+
+        // A panicking loader must be treated as a miss instead of unwinding
+        // out of the extern "C" shim (which would abort the process and thus
+        // fail this whole test binary). The lookup may still produce a font
+        // from the built-in loaders (e.g. a font-kit fallback match).
+        let name = CString::new("MupdfRsFontLoaderPanic").unwrap();
+        // SAFETY: as above.
+        let font = unsafe { crate::system_font::load_system_font(ctx, name.as_ptr(), 1, 0, 0) };
+        if !font.is_null() {
+            // SAFETY: `font` was returned with an owned reference from the hook.
+            unsafe { fz_drop_font(ctx, font) };
+        }
     }
 }
