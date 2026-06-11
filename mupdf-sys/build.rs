@@ -63,7 +63,7 @@ fn run() -> Result<()> {
         patch_mupdf_sources(build_dir.as_ref())?;
 
         Build::new(&target).run(&target, build_dir)?;
-        build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
+        build_wrapper().map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
     }
 
     generate_bindings(&target, &out_dir.join("bindings.rs"), sysroot)
@@ -179,7 +179,7 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn build_wrapper(target: &Target) -> Result<()> {
+fn build_wrapper() -> Result<()> {
     let mut build = cc::Build::new();
     for entry in fs::read_dir("wrapper")? {
         let entry = entry?;
@@ -189,9 +189,6 @@ fn build_wrapper(target: &Target) -> Result<()> {
         }
     }
     build.include("mupdf/include").include("wrapper");
-    if target.os == "android" {
-        build.define("HAVE_ANDROID", None);
-    }
     build.try_compile("mupdf-wrapper")?;
     Ok(())
 }

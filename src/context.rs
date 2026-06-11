@@ -11,21 +11,15 @@ use crate::Error;
 static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
     let ctx = unsafe {
         let base_ctx = mupdf_new_base_context();
-        #[cfg(all(
-            not(target_os = "android"),
-            not(target_arch = "wasm32"),
-            any(feature = "system-fonts", feature = "bundled-fonts-runtime")
-        ))]
-        {
-            use crate::system_font;
-            // Android version is written in C
-            fz_install_load_system_font_funcs(
-                base_ctx,
-                Some(system_font::load_system_font),
-                Some(system_font::load_system_cjk_font),
-                Some(system_font::load_system_fallback_font),
-            );
-        }
+        // Resolves fonts via the registered `FontLoader` (see
+        // `crate::font_loader::set_font_loader`) and the built-in
+        // bundled/system font lookup paths.
+        fz_install_load_system_font_funcs(
+            base_ctx,
+            Some(crate::system_font::load_system_font),
+            Some(crate::system_font::load_system_cjk_font),
+            Some(crate::system_font::load_system_fallback_font),
+        );
         base_ctx
     };
     Mutex::new(BaseContext(ctx))

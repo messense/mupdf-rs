@@ -9,7 +9,6 @@ include = [
 
     "*.rs",
     "wrapper/*",
-    "androidfonts.c",
 
     "mupdf/resources/hyphen/hyph-all.zip",
     "mupdf/resources/hyphen/hyph-std.zip",

@@ -1,9 +1,5 @@
 #include "internal.h"
 
-#ifdef HAVE_ANDROID
-#include "androidfonts.c"
-#endif
-
 /* Put the fz_context in thread-local storage */
 
 #ifdef _WIN32
@@ -83,11 +79,5 @@ fz_context *mupdf_new_base_context()
     // Disable default warning & error printing
     fz_set_warning_callback(ctx, NULL, NULL);
     fz_set_error_callback(ctx, NULL, NULL);
-#ifdef HAVE_ANDROID
-    fz_install_load_system_font_funcs(ctx,
-		load_droid_font,
-		load_droid_cjk_font,
-		load_droid_fallback_font);
-#endif
     return ctx;
 }

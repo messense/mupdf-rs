@@ -13,10 +13,19 @@ use font_kit::source::SystemSource;
 
 #[cfg(feature = "system-fonts")]
 use crate::font::Font;
-#[cfg(all(windows, feature = "system-fonts"))]
+use crate::font_loader::{self, FontHints};
 use crate::CjkFontOrdering;
 
 use mupdf_sys::*;
+
+/// Hand a `Font` over to MuPDF: return a pointer carrying one owned
+/// reference for the caller, releasing our own when `font` drops.
+fn font_into_mupdf(ctx: *mut fz_context, font: crate::Font) -> *mut fz_font {
+    // SAFETY: `ctx` and `font.inner` are valid; font reference counting in
+    // MuPDF is thread-safe across cloned contexts.
+    unsafe { fz_keep_font(ctx, font.inner) };
+    font.inner
+}
 
 pub(crate) unsafe extern "C" fn load_system_font(
     ctx: *mut fz_context,
@@ -32,6 +41,16 @@ pub(crate) unsafe extern "C" fn load_system_font(
     let Ok(name) = unsafe { CStr::from_ptr(name) }.to_str() else {
         return ptr::null_mut();
     };
+
+    let hints = FontHints {
+        bold: bold != 0,
+        italic: italic != 0,
+        serif: false,
+        needs_exact_metrics: needs_exact_metrics != 0,
+    };
+    if let Some(font) = font_loader::with_loader(|loader| loader.load_font(name, hints)) {
+        return font_into_mupdf(ctx, font);
+    }
 
     #[cfg(feature = "bundled-fonts-runtime")]
     {
@@ -115,6 +134,34 @@ unsafe fn load_font_by_names(ctx: *mut fz_context, names: &[&str]) -> *mut fz_fo
     ptr::null_mut()
 }
 
+/// Dispatch a CJK font request to the registered [`FontLoader`], if any.
+///
+/// # Safety
+///
+/// `ctx` must be a valid MuPDF context and `name` NULL or a valid C string.
+unsafe fn load_user_cjk_font(
+    ctx: *mut fz_context,
+    name: *const c_char,
+    ordering: c_int,
+    serif: c_int,
+) -> *mut fz_font {
+    let Ok(ordering) = CjkFontOrdering::try_from(ordering) else {
+        return ptr::null_mut();
+    };
+    let name = if name.is_null() {
+        ""
+    } else {
+        // SAFETY: Upheld by the caller.
+        unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("")
+    };
+    if let Some(font) =
+        font_loader::with_loader(|loader| loader.load_cjk_font(name, ordering, serif != 0))
+    {
+        return font_into_mupdf(ctx, font);
+    }
+    ptr::null_mut()
+}
+
 #[cfg(windows)]
 pub unsafe extern "C" fn load_system_cjk_font(
     ctx: *mut fz_context,
@@ -122,6 +169,11 @@ pub unsafe extern "C" fn load_system_cjk_font(
     ordering: c_int,
     serif: c_int,
 ) -> *mut fz_font {
+    let font = unsafe { load_user_cjk_font(ctx, name, ordering, serif) };
+    if !font.is_null() {
+        return font;
+    }
+
     // Try the requested font name first. This preserves exact CJK font requests before
     // falling back to generic ordering-based bundled/system fonts.
     let font = load_system_font(ctx, name, 0, 0, 0);
@@ -183,6 +235,11 @@ pub(crate) unsafe extern "C" fn load_system_cjk_font(
     _ordering: c_int,
     _serif: c_int,
 ) -> *mut fz_font {
+    let font = unsafe { load_user_cjk_font(ctx, name, _ordering, _serif) };
+    if !font.is_null() {
+        return font;
+    }
+
     // Try the requested font name first. This preserves exact CJK font requests before
     // falling back to generic ordering-based bundled fonts.
     let font = load_system_font(ctx, name, 0, 0, 0);
@@ -209,6 +266,18 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
     bold: c_int,
     italic: c_int,
 ) -> *mut fz_font {
+    let hints = FontHints {
+        bold: bold != 0,
+        italic: italic != 0,
+        serif: serif != 0,
+        needs_exact_metrics: false,
+    };
+    if let Some(font) = font_loader::with_loader(|loader| {
+        loader.load_fallback_font(script as u32, language as u32, hints)
+    }) {
+        return font_into_mupdf(ctx, font);
+    }
+
     #[cfg(feature = "bundled-fonts-runtime")]
     {
         let font =
