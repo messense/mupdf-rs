@@ -67,10 +67,9 @@ impl Font {
     pub fn new_with_index(name: &str, index: i32) -> Result<Self, Error> {
         if index == 0 {
             #[cfg(feature = "bundled-fonts-runtime")]
-            if let Some(font) = crate::bundled_font::find_by_name(name, 0, 0, 0) {
-                let inner = unsafe { crate::bundled_font::load_font(context(), font) };
-                if !inner.is_null() {
-                    return Ok(Self { inner });
+            if let Some(data) = crate::bundled_font::find_by_name(name, false, false, false) {
+                if let Some(font) = crate::bundled_font::load_font(data) {
+                    return Ok(font);
                 }
             }
         }

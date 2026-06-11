@@ -34,6 +34,8 @@ pub mod drawing;
 pub mod file_path;
 /// Font
 pub mod font;
+/// Pluggable font loading for fonts not embedded in documents
+pub mod font_loader;
 /// Glyph
 pub mod glyph;
 /// Image
@@ -72,10 +74,6 @@ pub mod size;
 pub mod stroke_state;
 
 /// System font loading
-#[cfg(all(
-    any(feature = "system-fonts", feature = "bundled-fonts-runtime"),
-    not(target_arch = "wasm32")
-))]
 pub mod system_font;
 /// Text objects
 pub mod text;
@@ -104,6 +102,7 @@ pub(crate) use error::ffi_error;
 pub use error::Error;
 pub use file_path::FilePath;
 pub use font::{CjkFontOrdering, Font, SimpleFontEncoding, WriteMode};
+pub use font_loader::{set_font_loader, AndroidFontLoader, FontHints, FontLoader};
 pub use glyph::Glyph;
 pub use image::Image;
 pub use link::Link;

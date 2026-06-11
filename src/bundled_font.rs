@@ -5,6 +5,28 @@ use std::ptr;
 
 use mupdf_sys::*;
 
+use crate::font_loader::{FontHints, FontLoader};
+use crate::{context, CjkFontOrdering, Font};
+
+/// Serves the statically bundled font crates (`mupdf-fonts-*`) through the
+/// [`FontLoader`] chain. Font bytes have static storage duration and are
+/// handed to MuPDF without copying.
+pub(crate) struct BundledFontLoader;
+
+impl FontLoader for BundledFontLoader {
+    fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
+        find_by_name(name, hints.bold, hints.italic, hints.needs_exact_metrics).and_then(load_font)
+    }
+
+    fn load_cjk_font(&self, _name: &str, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
+        find_cjk_font(ordering as c_int, serif).and_then(load_font)
+    }
+
+    fn load_fallback_font(&self, script: u32, language: u32, hints: FontHints) -> Option<Font> {
+        find_fallback_font(script as c_int, language as c_int, hints.serif).and_then(load_font)
+    }
+}
+
 #[derive(Clone, Copy)]
 pub(crate) struct FontData {
     name: &'static str,
@@ -14,14 +36,10 @@ pub(crate) struct FontData {
 
 pub(crate) fn find_by_name(
     name: &str,
-    bold: c_int,
-    italic: c_int,
-    needs_exact_metrics: c_int,
+    bold: bool,
+    italic: bool,
+    needs_exact_metrics: bool,
 ) -> Option<FontData> {
-    let bold = bold != 0;
-    let italic = italic != 0;
-    let needs_exact_metrics = needs_exact_metrics != 0;
-
     #[cfg(feature = "bundled-fonts-sil")]
     if let Some(font) = mupdf_fonts_sil::find_by_name(name, bold, italic) {
         return Some(FontData {
@@ -69,9 +87,9 @@ pub(crate) fn find_by_name(
     None
 }
 
-pub(crate) fn find_cjk_font(ordering: c_int, serif: c_int) -> Option<FontData> {
+fn find_cjk_font(ordering: c_int, serif: bool) -> Option<FontData> {
     #[cfg(feature = "bundled-fonts-droid")]
-    if let Some(font) = mupdf_fonts_droid::cjk_font(ordering, serif != 0) {
+    if let Some(font) = mupdf_fonts_droid::cjk_font(ordering, serif) {
         return Some(FontData {
             name: font.name,
             data: font.data,
@@ -83,17 +101,10 @@ pub(crate) fn find_cjk_font(ordering: c_int, serif: c_int) -> Option<FontData> {
     None
 }
 
-pub(crate) unsafe fn find_fallback_font(
-    ctx: *mut fz_context,
-    script: c_int,
-    language: c_int,
-    serif: c_int,
-    _bold: c_int,
-    _italic: c_int,
-) -> Option<FontData> {
+fn find_fallback_font(script: c_int, language: c_int, serif: bool) -> Option<FontData> {
     #[cfg(feature = "bundled-fonts-droid")]
     if is_cjk_script(script) {
-        if let Some(font) = mupdf_fonts_droid::cjk_font(FZ_ADOBE_JAPAN as i32, serif != 0) {
+        if let Some(font) = mupdf_fonts_droid::cjk_font(FZ_ADOBE_JAPAN as i32, serif) {
             return Some(FontData {
                 name: font.name,
                 data: font.data,
@@ -110,7 +121,7 @@ pub(crate) unsafe fn find_fallback_font(
             Some("NastaliqUrdu")
         } else {
             // SAFETY: MuPDF returns either NULL or a static NUL-terminated string.
-            let stem = unsafe { fz_lookup_noto_stem_from_script(ctx, script, language) };
+            let stem = unsafe { fz_lookup_noto_stem_from_script(context(), script, language) };
             if stem.is_null() {
                 None
             } else {
@@ -120,7 +131,7 @@ pub(crate) unsafe fn find_fallback_font(
         };
 
         if let Some(stem) = stem {
-            if let Some(font) = mupdf_fonts_noto::find_by_stem(stem, serif != 0) {
+            if let Some(font) = mupdf_fonts_noto::find_by_stem(stem, serif) {
                 return Some(FontData {
                     name: font.name,
                     data: font.data,
@@ -130,18 +141,14 @@ pub(crate) unsafe fn find_fallback_font(
         }
     }
 
-    let _ = (ctx, script, language, serif);
+    let _ = (script, language, serif);
     None
 }
 
-pub(crate) unsafe fn load_font(ctx: *mut fz_context, font: FontData) -> *mut fz_font {
-    let Ok(len) = c_int::try_from(font.data.len()) else {
-        return ptr::null_mut();
-    };
-
-    let Ok(name) = std::ffi::CString::new(font.name) else {
-        return ptr::null_mut();
-    };
+pub(crate) fn load_font(font: FontData) -> Option<Font> {
+    let len = c_int::try_from(font.data.len()).ok()?;
+    let name = std::ffi::CString::new(font.name).ok()?;
+    let ctx = context();
 
     let mut err: *mut mupdf_error_t = ptr::null_mut();
     // SAFETY: The font bytes have static storage duration. The wrapper catches MuPDF exceptions
@@ -160,60 +167,19 @@ pub(crate) unsafe fn load_font(ctx: *mut fz_context, font: FontData) -> *mut fz_
     if !err.is_null() {
         // SAFETY: Non-null error pointers returned by mupdf wrappers are owned by the caller.
         unsafe { mupdf_drop_error(err) };
-        return ptr::null_mut();
+        return None;
     }
 
-    if !font_ptr.is_null() {
-        // Match MuPDF's built-in Noto behavior: externally bundled fonts may be embedded.
-        unsafe { fz_set_font_embedding(ctx, font_ptr, 1) };
+    if font_ptr.is_null() {
+        return None;
     }
 
-    font_ptr
-}
+    // Match MuPDF's built-in Noto behavior: externally bundled fonts may be embedded.
+    // SAFETY: `font_ptr` is a valid font owned by us.
+    unsafe { fz_set_font_embedding(ctx, font_ptr, 1) };
 
-pub(crate) unsafe fn load_by_name(
-    ctx: *mut fz_context,
-    name: &str,
-    bold: c_int,
-    italic: c_int,
-    needs_exact_metrics: c_int,
-) -> *mut fz_font {
-    if let Some(font) = find_by_name(name, bold, italic, needs_exact_metrics) {
-        // SAFETY: The caller guarantees that `ctx` is a valid MuPDF context.
-        unsafe { load_font(ctx, font) }
-    } else {
-        ptr::null_mut()
-    }
-}
-
-pub(crate) unsafe fn load_cjk_font(
-    ctx: *mut fz_context,
-    ordering: c_int,
-    serif: c_int,
-) -> *mut fz_font {
-    if let Some(font) = find_cjk_font(ordering, serif) {
-        // SAFETY: The caller guarantees that `ctx` is a valid MuPDF context.
-        unsafe { load_font(ctx, font) }
-    } else {
-        ptr::null_mut()
-    }
-}
-
-pub(crate) unsafe fn load_fallback_font(
-    ctx: *mut fz_context,
-    script: c_int,
-    language: c_int,
-    serif: c_int,
-    bold: c_int,
-    italic: c_int,
-) -> *mut fz_font {
-    // SAFETY: The caller guarantees that `ctx` is a valid MuPDF context.
-    if let Some(font) = unsafe { find_fallback_font(ctx, script, language, serif, bold, italic) } {
-        // SAFETY: The caller guarantees that `ctx` is a valid MuPDF context.
-        unsafe { load_font(ctx, font) }
-    } else {
-        ptr::null_mut()
-    }
+    // SAFETY: `font_ptr` is a valid font with an owned reference.
+    Some(unsafe { Font::from_raw(font_ptr) })
 }
 
 #[cfg(feature = "bundled-fonts-droid")]
@@ -236,20 +202,22 @@ mod tests {
     #[test]
     fn noto_regular_font_satisfies_non_exact_bold_italic_requests() {
         assert_eq!(
-            find_by_name("Noto Sans", 1, 1, 0).unwrap().name,
+            find_by_name("Noto Sans", true, true, false).unwrap().name,
             "Noto Sans"
         );
-        assert!(find_by_name("Noto Sans", 1, 1, 1).is_none());
+        assert!(find_by_name("Noto Sans", true, true, true).is_none());
     }
 
     #[cfg(feature = "bundled-fonts-droid")]
     #[test]
     fn droid_regular_font_satisfies_non_exact_bold_italic_requests() {
         assert_eq!(
-            find_by_name("Droid Sans Fallback", 1, 1, 0).unwrap().name,
+            find_by_name("Droid Sans Fallback", true, true, false)
+                .unwrap()
+                .name,
             "Droid Sans Fallback"
         );
-        assert!(find_by_name("Droid Sans Fallback", 1, 1, 1).is_none());
+        assert!(find_by_name("Droid Sans Fallback", true, true, true).is_none());
     }
 
     /// Drift protection: every script stem MuPDF's `fz_lookup_noto_stem_from_script`

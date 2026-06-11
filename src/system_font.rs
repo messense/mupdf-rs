@@ -1,22 +1,34 @@
+//! The `extern "C"` shims installed via `fz_install_load_system_font_funcs`.
+//!
+//! Each shim translates MuPDF's raw callback arguments into safe types and
+//! dispatches to the [`FontLoader`](crate::FontLoader) chain (the registered
+//! user loader first, then the built-in loaders). `SystemFontLoader` is the
+//! built-in loader backed by `font-kit` for fonts installed on the system.
+
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
 use std::ptr;
 
-#[cfg(feature = "system-fonts")]
-use font_kit::family_name::FamilyName;
-#[cfg(feature = "system-fonts")]
-use font_kit::handle::Handle;
-#[cfg(feature = "system-fonts")]
-use font_kit::properties::{Properties, Style, Weight};
-#[cfg(feature = "system-fonts")]
-use font_kit::source::SystemSource;
-
-#[cfg(feature = "system-fonts")]
-use crate::font::Font;
-#[cfg(all(windows, feature = "system-fonts"))]
-use crate::CjkFontOrdering;
-
 use mupdf_sys::*;
+
+use crate::font_loader::{self, FontHints};
+use crate::{CjkFontOrdering, Font};
+
+/// Hand a `Font` over to MuPDF: return a pointer carrying one owned
+/// reference for the caller, releasing our own when `font` drops.
+fn font_into_mupdf(ctx: *mut fz_context, font: Font) -> *mut fz_font {
+    // SAFETY: `ctx` and `font.inner` are valid; font reference counting in
+    // MuPDF is thread-safe across cloned contexts.
+    unsafe { fz_keep_font(ctx, font.inner) };
+    font.inner
+}
+
+/// Font lookups run arbitrary user `FontLoader` code inside an `extern "C"`
+/// callback, where unwinding would abort the process. Treat a panic as a
+/// failed lookup instead so MuPDF can fall back to its built-in handling.
+fn catch_panic(f: impl FnOnce() -> Option<Font>) -> Option<Font> {
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).unwrap_or(None)
+}
 
 pub(crate) unsafe extern "C" fn load_system_font(
     ctx: *mut fz_context,
@@ -33,172 +45,36 @@ pub(crate) unsafe extern "C" fn load_system_font(
         return ptr::null_mut();
     };
 
-    #[cfg(feature = "bundled-fonts-runtime")]
-    {
-        let font = crate::bundled_font::load_by_name(ctx, name, bold, italic, needs_exact_metrics);
-        if !font.is_null() {
-            return font;
-        }
+    let hints = FontHints {
+        bold: bold != 0,
+        italic: italic != 0,
+        serif: false,
+        needs_exact_metrics: needs_exact_metrics != 0,
+    };
+    match catch_panic(|| font_loader::dispatch(|loader| loader.load_font(name, hints))) {
+        Some(font) => font_into_mupdf(ctx, font),
+        None => ptr::null_mut(),
     }
-
-    #[cfg(feature = "system-fonts")]
-    {
-        let mut name = name;
-        let font_source = SystemSource::new();
-        let handle = match font_source.select_by_postscript_name(name) {
-            Ok(handle) => Ok(handle),
-            Err(_) => {
-                for suffix in &["MT", "PS", "IdentityH"] {
-                    if name.ends_with(suffix) {
-                        name = name.strip_suffix(suffix).unwrap_or(name);
-                    }
-                }
-                let mut properties = Properties::new();
-                let properties = properties
-                    .weight(if bold == 1 {
-                        Weight::BOLD
-                    } else {
-                        Weight::NORMAL
-                    })
-                    .style(if italic == 1 {
-                        Style::Italic
-                    } else {
-                        Style::Normal
-                    });
-                font_source.select_best_match(&[FamilyName::Title(name.to_string())], properties)
-            }
-        };
-        if let Ok(handle) = handle {
-            let font_index = match handle {
-                Handle::Path { font_index, .. } => font_index,
-                Handle::Memory { font_index, .. } => font_index,
-            };
-            let font = match handle.load() {
-                Ok(f) => {
-                    let Some(font_data) = f.copy_font_data() else {
-                        return ptr::null_mut();
-                    };
-                    Font::from_bytes_with_index(
-                        &f.family_name(),
-                        font_index as i32,
-                        font_data.as_ref(),
-                    )
-                }
-                Err(_) => return ptr::null_mut(),
-            };
-            if let Ok(font) = font {
-                if needs_exact_metrics == 1
-                    && ((bold == 1 && !font.is_bold()) || (italic == 1 && !font.is_italic()))
-                {
-                    return ptr::null_mut();
-                }
-                fz_keep_font(ctx, font.inner);
-                return font.inner;
-            }
-        }
-    }
-
-    ptr::null_mut()
 }
 
-#[cfg(all(windows, feature = "system-fonts"))]
-unsafe fn load_font_by_names(ctx: *mut fz_context, names: &[&str]) -> *mut fz_font {
-    use std::ffi::CString;
-
-    for name in names {
-        let c_name = CString::new(*name).unwrap();
-        let font = load_system_font(ctx, c_name.as_ptr(), 0, 0, 0);
-        if !font.is_null() {
-            return font;
-        }
-    }
-    ptr::null_mut()
-}
-
-#[cfg(windows)]
-pub unsafe extern "C" fn load_system_cjk_font(
+pub(crate) unsafe extern "C" fn load_system_cjk_font(
     ctx: *mut fz_context,
     name: *const c_char,
     ordering: c_int,
     serif: c_int,
 ) -> *mut fz_font {
-    // Try the requested font name first. This preserves exact CJK font requests before
-    // falling back to generic ordering-based bundled/system fonts.
-    let font = load_system_font(ctx, name, 0, 0, 0);
-    if !font.is_null() {
-        return font;
-    }
+    let name = if name.is_null() {
+        ""
+    } else {
+        // SAFETY: MuPDF passes a valid NUL-terminated string.
+        unsafe { CStr::from_ptr(name) }.to_str().unwrap_or("")
+    };
 
-    #[cfg(feature = "bundled-fonts-runtime")]
-    {
-        let font = crate::bundled_font::load_cjk_font(ctx, ordering, serif);
-        if !font.is_null() {
-            return font;
-        }
+    let ordering = CjkFontOrdering::try_from(ordering).ok();
+    match catch_panic(|| font_loader::dispatch_cjk(name, ordering, serif != 0)) {
+        Some(font) => font_into_mupdf(ctx, font),
+        None => ptr::null_mut(),
     }
-
-    #[cfg(feature = "system-fonts")]
-    {
-        if serif == 1 {
-            match CjkFontOrdering::try_from(ordering) {
-                Ok(CjkFontOrdering::AdobeCns) => {
-                    return load_font_by_names(ctx, &["MingLiU"]);
-                }
-                Ok(CjkFontOrdering::AdobeGb) => {
-                    return load_font_by_names(ctx, &["SimSun"]);
-                }
-                Ok(CjkFontOrdering::AdobeJapan) => {
-                    return load_font_by_names(ctx, &["MS-Mincho"]);
-                }
-                Ok(CjkFontOrdering::AdobeKorea) => {
-                    return load_font_by_names(ctx, &["Batang"]);
-                }
-                Err(_) => {}
-            }
-        } else {
-            match CjkFontOrdering::try_from(ordering) {
-                Ok(CjkFontOrdering::AdobeCns) => {
-                    return load_font_by_names(ctx, &["DFKaiShu-SB-Estd-BF"]);
-                }
-                Ok(CjkFontOrdering::AdobeGb) => {
-                    return load_font_by_names(ctx, &["KaiTi", "KaiTi_GB2312"]);
-                }
-                Ok(CjkFontOrdering::AdobeJapan) => {
-                    return load_font_by_names(ctx, &["MS-Gothic"]);
-                }
-                Ok(CjkFontOrdering::AdobeKorea) => {
-                    return load_font_by_names(ctx, &["Gulim"]);
-                }
-                Err(_) => {}
-            }
-        }
-    }
-    ptr::null_mut()
-}
-
-#[cfg(not(windows))]
-pub(crate) unsafe extern "C" fn load_system_cjk_font(
-    ctx: *mut fz_context,
-    name: *const c_char,
-    _ordering: c_int,
-    _serif: c_int,
-) -> *mut fz_font {
-    // Try the requested font name first. This preserves exact CJK font requests before
-    // falling back to generic ordering-based bundled fonts.
-    let font = load_system_font(ctx, name, 0, 0, 0);
-    if !font.is_null() {
-        return font;
-    }
-
-    #[cfg(feature = "bundled-fonts-runtime")]
-    {
-        let font = crate::bundled_font::load_cjk_font(ctx, _ordering, _serif);
-        if !font.is_null() {
-            return font;
-        }
-    }
-
-    ptr::null_mut()
 }
 
 pub(crate) unsafe extern "C" fn load_system_fallback_font(
@@ -209,17 +85,102 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
     bold: c_int,
     italic: c_int,
 ) -> *mut fz_font {
-    #[cfg(feature = "bundled-fonts-runtime")]
-    {
+    let hints = FontHints {
+        bold: bold != 0,
+        italic: italic != 0,
+        serif: serif != 0,
+        needs_exact_metrics: false,
+    };
+    match catch_panic(|| {
+        font_loader::dispatch(|loader| {
+            loader.load_fallback_font(script as u32, language as u32, hints)
+        })
+    }) {
+        Some(font) => font_into_mupdf(ctx, font),
+        None => ptr::null_mut(),
+    }
+}
+
+/// Looks up fonts installed on the system via `font-kit`.
+// `font-kit` is only a dependency on non-wasm targets.
+#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+pub(crate) struct SystemFontLoader;
+
+#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+impl font_loader::FontLoader for SystemFontLoader {
+    fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
+        use font_kit::family_name::FamilyName;
+        use font_kit::handle::Handle;
+        use font_kit::properties::{Properties, Style, Weight};
+        use font_kit::source::SystemSource;
+
+        let mut name = name;
+        let font_source = SystemSource::new();
+        let handle = match font_source.select_by_postscript_name(name) {
+            Ok(handle) => handle,
+            Err(_) => {
+                for suffix in &["MT", "PS", "IdentityH"] {
+                    if name.ends_with(suffix) {
+                        name = name.strip_suffix(suffix).unwrap_or(name);
+                    }
+                }
+                let mut properties = Properties::new();
+                let properties = properties
+                    .weight(if hints.bold {
+                        Weight::BOLD
+                    } else {
+                        Weight::NORMAL
+                    })
+                    .style(if hints.italic {
+                        Style::Italic
+                    } else {
+                        Style::Normal
+                    });
+                font_source
+                    .select_best_match(&[FamilyName::Title(name.to_string())], properties)
+                    .ok()?
+            }
+        };
+
+        let font_index = match handle {
+            Handle::Path { font_index, .. } => font_index,
+            Handle::Memory { font_index, .. } => font_index,
+        };
+        let loaded = handle.load().ok()?;
+        let font_data = loaded.copy_font_data()?;
         let font =
-            crate::bundled_font::load_fallback_font(ctx, script, language, serif, bold, italic);
-        if !font.is_null() {
-            return font;
+            Font::from_bytes_with_index(&loaded.family_name(), font_index as i32, &font_data)
+                .ok()?;
+
+        if hints.needs_exact_metrics
+            && ((hints.bold && !font.is_bold()) || (hints.italic && !font.is_italic()))
+        {
+            return None;
         }
+        Some(font)
     }
 
-    let _ = (ctx, script, language, serif, bold, italic);
-    ptr::null_mut()
+    #[cfg(windows)]
+    fn load_cjk_font(&self, _name: &str, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
+        let names: &[&str] = if serif {
+            match ordering {
+                CjkFontOrdering::AdobeCns => &["MingLiU"],
+                CjkFontOrdering::AdobeGb => &["SimSun"],
+                CjkFontOrdering::AdobeJapan => &["MS-Mincho"],
+                CjkFontOrdering::AdobeKorea => &["Batang"],
+            }
+        } else {
+            match ordering {
+                CjkFontOrdering::AdobeCns => &["DFKaiShu-SB-Estd-BF"],
+                CjkFontOrdering::AdobeGb => &["KaiTi", "KaiTi_GB2312"],
+                CjkFontOrdering::AdobeJapan => &["MS-Gothic"],
+                CjkFontOrdering::AdobeKorea => &["Gulim"],
+            }
+        };
+        names
+            .iter()
+            .find_map(|name| self.load_font(name, FontHints::default()))
+    }
 }
 
 #[cfg(all(test, feature = "bundled-fonts-droid", feature = "bundled-fonts-noto"))]
