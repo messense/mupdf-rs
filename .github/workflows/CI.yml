@@ -63,7 +63,8 @@ jobs:
           cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid test_bundled_droid_cjk_font
       - name: Test runtime bundled Noto special fallbacks
         if: matrix.os == 'ubuntu-latest'
-        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_special_fallback_fonts
+        # base14-fonts: the test's base font is the built-in Courier
+        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto,base14-fonts test_bundled_noto_special_fallback_fonts
 
       - name: Test package mupdf-sys
         if: matrix.os != 'windows-2025'
