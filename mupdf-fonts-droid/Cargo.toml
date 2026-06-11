@@ -1,0 +1,10 @@
+[package]
+name = "mupdf-fonts-droid"
+version.workspace = true
+edition.workspace = true
+description = "Droid CJK fallback bundled fonts for mupdf"
+license = "Apache-2.0"
+repository = "https://github.com/messense/mupdf-rs"
+include = ["Cargo.toml", "NOTICE", "src/**", "fonts/**"]
+
+[dependencies]

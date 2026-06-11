@@ -65,6 +65,16 @@ impl Font {
     }
 
     pub fn new_with_index(name: &str, index: i32) -> Result<Self, Error> {
+        if index == 0 {
+            #[cfg(feature = "bundled-fonts-runtime")]
+            if let Some(font) = crate::bundled_font::find_by_name(name, 0, 0, 0) {
+                let inner = unsafe { crate::bundled_font::load_font(context(), font) };
+                if !inner.is_null() {
+                    return Ok(Self { inner });
+                }
+            }
+        }
+
         let c_name = CString::new(name)?;
         unsafe { ffi_try!(mupdf_new_font(context(), c_name.as_ptr(), index)) }
             .map(|inner| Self { inner })
@@ -201,5 +211,76 @@ mod test {
         let font = Font::new("Courier").expect("new font failed");
         let glyph = font.encode_character(97).unwrap();
         let _path = font.outline_glyph(glyph).unwrap();
+    }
+
+    #[cfg(feature = "bundled-fonts-sil")]
+    #[test]
+    fn test_bundled_mupdf_serif_font() {
+        let font = Font::new("MuPDF Serif").expect("new bundled font failed");
+        let glyph = font.encode_character('A' as i32).unwrap();
+        assert_ne!(glyph, 0);
+    }
+
+    #[cfg(feature = "bundled-fonts-noto")]
+    #[test]
+    fn test_bundled_noto_font() {
+        let font = Font::new("Noto Sans").expect("new bundled Noto font failed");
+        let glyph = font.encode_character('A' as i32).unwrap();
+        assert_ne!(glyph, 0);
+    }
+
+    #[cfg(feature = "bundled-fonts-noto")]
+    #[test]
+    fn test_bundled_noto_special_fallback_fonts() {
+        let font = Font::new("Courier").expect("new font failed");
+
+        assert_fallback_font(&font, 0x1D400, "Noto Sans Math");
+        assert_fallback_font(&font, 0x1D11E, "Noto Music");
+        assert_fallback_font(&font, 0x2300, "Noto Sans Symbols");
+        assert_fallback_font(&font, 0x2600, "Noto Sans Symbols 2");
+        assert_fallback_font(&font, 0x1F600, "Noto Emoji");
+    }
+
+    #[cfg(feature = "bundled-fonts-noto")]
+    fn assert_fallback_font(font: &Font, unicode: i32, expected_name: &str) {
+        use std::ffi::CStr;
+        use std::ptr;
+
+        use mupdf_sys::*;
+
+        let ctx = crate::context();
+        let mut out_font = ptr::null_mut();
+        let glyph = unsafe {
+            fz_encode_character_with_fallback(
+                ctx,
+                font.inner,
+                unicode,
+                UCDN_SCRIPT_COMMON as i32,
+                FZ_LANG_UNSET as i32,
+                &mut out_font,
+            )
+        };
+
+        assert_ne!(glyph, 0, "missing glyph for U+{unicode:04X}");
+        assert!(
+            !out_font.is_null(),
+            "missing fallback font for U+{unicode:04X}"
+        );
+
+        // `fz_encode_character_with_fallback` returns a borrowed pointer from MuPDF's
+        // font caches. MuPDF's own callers do not drop it.
+        let name = unsafe { CStr::from_ptr(fz_font_name(ctx, out_font)) }
+            .to_str()
+            .unwrap();
+        assert_eq!(name, expected_name);
+    }
+
+    #[cfg(feature = "bundled-fonts-droid")]
+    #[test]
+    fn test_bundled_droid_cjk_font() {
+        let font =
+            Font::new_cjk(super::CjkFontOrdering::AdobeJapan).expect("new bundled CJK font failed");
+        let glyph = font.encode_character('日' as i32).unwrap();
+        assert_ne!(glyph, 0);
     }
 }

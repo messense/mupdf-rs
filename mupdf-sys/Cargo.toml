@@ -215,6 +215,8 @@ sys-lib-zxingcpp = []
 # Use system brotli
 sys-lib-brotli = []
 
+# Deprecated no-op. Large non-URW fonts are no longer compiled into mupdf-sys;
+# use mupdf's runtime bundled font features instead.
 all-fonts = []
 
 js = []

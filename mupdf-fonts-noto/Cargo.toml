@@ -1,0 +1,10 @@
+[package]
+name = "mupdf-fonts-noto"
+version.workspace = true
+edition.workspace = true
+description = "Noto bundled fonts for mupdf"
+license = "OFL-1.1"
+repository = "https://github.com/messense/mupdf-rs"
+include = ["Cargo.toml", "COPYING", "src/**", "fonts/**"]
+
+[dependencies]
