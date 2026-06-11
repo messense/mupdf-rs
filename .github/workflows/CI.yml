@@ -58,8 +58,9 @@ jobs:
           cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_font
           cargo test -p mupdf --no-default-features --features bundled-fonts-noto noto_crate_covers_all_mupdf_script_stems
       - name: Test runtime bundled fonts (Noto + Droid)
-        run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid -- bundled_cjk_hook_prefers_explicit_font_name test_bundled_droid_cjk_font
-
+        run: |
+          cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid bundled_cjk_hook_prefers_explicit_font_name
+          cargo test -p mupdf --no-default-features --features bundled-fonts-noto,bundled-fonts-droid test_bundled_droid_cjk_font
       - name: Test runtime bundled Noto special fallbacks
         if: matrix.os == 'ubuntu-latest'
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto test_bundled_noto_special_fallback_fonts
