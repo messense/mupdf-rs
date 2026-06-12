@@ -176,6 +176,36 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
     }
 
     fs::write(&path, source).map_err(|e| format!("Unable to write {}: {e}", path.display()))?;
+
+    // fz_filter_store (used by pdf_empty_store when a document is dropped)
+    // releases the values of removed items by decrementing their refcount
+    // directly instead of going through fz_drop_key_storable. For key storable
+    // values such as fz_image the store therefore never notices that the only
+    // remaining references are store key references, so cached decoded pixmaps
+    // keyed on those images survive document destruction and accumulate
+    // indefinitely in long-running processes
+    // (https://github.com/messense/mupdf-rs/issues/90).
+    // Flag (or run) a reap pass after filtering so such entries are collected.
+    let path = build_dir.join("source/fitz/store.c");
+    let mut source =
+        fs::read_to_string(&path).map_err(|e| format!("Unable to read {}: {e}", path.display()))?;
+    source = source.replace("\r\n", "\n");
+
+    let old = "\tfz_unlock(ctx, FZ_LOCK_ALLOC);\n\n\t/* Now drop the remove chain */\n\tfor (item = remove; item != NULL; item = remove)\n\t{\n\t\tremove = item->next;\n\n\t\t/* Drop a reference to the value (freeing if required) */\n\t\tif (item->prev) /* See above for our abuse of prev here */\n";
+    let new = "\t/* The value refs dropped above bypass fz_drop_key_storable, so key\n\t * storables (e.g. fz_image) whose remaining references are all store\n\t * key references would never be reaped. Flag or run a reap pass so\n\t * the store entries keyed on them get collected. */\n\tif (remove != NULL && store->defer_reap_count > 0)\n\t{\n\t\tstore->needs_reaping = 1;\n\t\tfz_unlock(ctx, FZ_LOCK_ALLOC);\n\t}\n\telse if (remove != NULL)\n\t\tdo_reap(ctx); /* Drops FZ_LOCK_ALLOC */\n\telse\n\t\tfz_unlock(ctx, FZ_LOCK_ALLOC);\n\n\t/* Now drop the remove chain */\n\tfor (item = remove; item != NULL; item = remove)\n\t{\n\t\tremove = item->next;\n\n\t\t/* Drop a reference to the value (freeing if required) */\n\t\tif (item->prev) /* See above for our abuse of prev here */\n";
+    if !source.contains(new) {
+        if source.contains(old) {
+            source = source.replacen(old, new, 1);
+            fs::write(&path, source)
+                .map_err(|e| format!("Unable to write {}: {e}", path.display()))?;
+        } else {
+            println!(
+                "cargo:warning=Unable to patch fz_filter_store reaping in {}; expected MuPDF store snippet was not found",
+                path.display()
+            );
+        }
+    }
+
     Ok(())
 }
 
