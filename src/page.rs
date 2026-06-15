@@ -11,7 +11,7 @@ use crate::Document;
 use crate::{
     array::FzArray, context, link::LinkDestination, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper,
     Buffer, Colorspace, Cookie, Device, DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad,
-    Rect, Separations, TextPage, TextPageFlags,
+    Rect, Separations, TextExtractOptions, TextPage, TextPageFlags, TextWord,
 };
 
 #[derive(Debug)]
@@ -118,6 +118,14 @@ impl Page {
         let inner = unsafe { NonNull::new_unchecked(inner) };
 
         Ok(TextPage { inner })
+    }
+
+    pub fn text(&self, options: TextExtractOptions) -> Result<String, Error> {
+        self.to_text_page(options.flags)?.to_text()
+    }
+
+    pub fn words(&self, options: TextExtractOptions) -> Result<Vec<TextWord>, Error> {
+        Ok(self.to_text_page(options.flags)?.words())
     }
 
     pub fn to_display_list(&self, annotations: bool) -> Result<DisplayList, Error> {
