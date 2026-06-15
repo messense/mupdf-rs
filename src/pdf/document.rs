@@ -472,7 +472,7 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_calculate_form(context(), self.inner)) }
     }
 
-    pub fn bake_document(&mut self, bake_annots: bool, bake_widgets: bool) -> Result<(), Error> {
+    pub fn bake(&mut self, bake_annots: bool, bake_widgets: bool) -> Result<(), Error> {
         unsafe {
             ffi_try!(mupdf_pdf_bake_document(
                 context(),
@@ -847,7 +847,7 @@ mod test {
     #[test]
     fn test_pdf_document_bake_document() {
         let mut doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
-        doc.bake_document(false, false).unwrap();
+        doc.bake(false, false).unwrap();
     }
 
     #[test]
