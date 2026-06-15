@@ -1,10 +1,11 @@
+use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
 use std::io::{self, Write};
 use std::slice;
 
 use mupdf_sys::*;
 
-use crate::{context, Buffer, Colorspace, Error, IRect};
+use crate::{context, Buffer, Colorspace, Error, IRect, Quad};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 #[repr(C)]
@@ -14,6 +15,69 @@ pub enum ImageFormat {
     PAM = 2,
     PSD = 3,
     PS = 4,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Pixel {
+    components: Vec<u8>,
+}
+
+impl Pixel {
+    pub fn new(components: impl Into<Vec<u8>>) -> Self {
+        Self {
+            components: components.into(),
+        }
+    }
+
+    pub fn gray(value: u8) -> Self {
+        Self::new([value])
+    }
+
+    pub fn rgb(red: u8, green: u8, blue: u8) -> Self {
+        Self::new([red, green, blue])
+    }
+
+    pub fn rgba(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
+        Self::new([red, green, blue, alpha])
+    }
+
+    pub fn components(&self) -> &[u8] {
+        &self.components
+    }
+}
+
+impl AsRef<[u8]> for Pixel {
+    fn as_ref(&self) -> &[u8] {
+        self.components()
+    }
+}
+
+impl From<Vec<u8>> for Pixel {
+    fn from(components: Vec<u8>) -> Self {
+        Self::new(components)
+    }
+}
+
+impl<const N: usize> From<[u8; N]> for Pixel {
+    fn from(components: [u8; N]) -> Self {
+        Self::new(components)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct PixmapDigest([u8; 16]);
+
+impl PixmapDigest {
+    pub fn as_bytes(&self) -> &[u8; 16] {
+        &self.0
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColorUsage {
+    pub pixel: Pixel,
+    pub count: usize,
+    pub ratio: f32,
 }
 
 /// Pixmaps (pixel maps) are objects at the heart of MuPDF’s rendering capabilities.
@@ -142,7 +206,13 @@ impl Pixmap {
     }
 
     pub fn samples(&self) -> &[u8] {
-        let len = (self.width() * self.height() * self.n() as u32) as usize;
+        let len = match usize::try_from(self.stride())
+            .ok()
+            .and_then(|stride| stride.checked_mul(self.height() as usize))
+        {
+            Some(len) => len,
+            None => return &[],
+        };
         let ptr = unsafe { (*self.inner).samples };
         if ptr.is_null() {
             &[]
@@ -152,13 +222,137 @@ impl Pixmap {
     }
 
     pub fn samples_mut(&mut self) -> &mut [u8] {
-        let len = (self.width() * self.height() * self.n() as u32) as usize;
+        let len = match usize::try_from(self.stride())
+            .ok()
+            .and_then(|stride| stride.checked_mul(self.height() as usize))
+        {
+            Some(len) => len,
+            None => return &mut [],
+        };
         let ptr = unsafe { (*self.inner).samples };
         if ptr.is_null() {
             &mut []
         } else {
             unsafe { slice::from_raw_parts_mut(ptr, len) }
         }
+    }
+
+    fn pixel_rows(&self) -> impl Iterator<Item = &[u8]> {
+        let n = self.n() as usize;
+        let row_len = (self.width() as usize).saturating_mul(n);
+        self.samples()
+            .chunks(self.stride().max(1) as usize)
+            .map(move |row| &row[..row_len.min(row.len())])
+    }
+
+    fn checked_stride(&self) -> Result<usize, Error> {
+        usize::try_from(self.stride()).map_err(|_| {
+            Error::InvalidArgument("pixmap stride cannot be represented as usize".to_owned())
+        })
+    }
+
+    fn pixel_offset(&self, x: i32, y: i32) -> Result<usize, Error> {
+        let rect = self.rect();
+        if !rect.contains(x, y) {
+            return Err(Error::InvalidArgument(format!(
+                "pixel coordinate ({x}, {y}) is outside pixmap bounds {rect}"
+            )));
+        }
+
+        let n = self.n() as usize;
+        let stride = self.checked_stride()?;
+        let row = usize::try_from(y - rect.y0).unwrap();
+        let column = usize::try_from(x - rect.x0).unwrap();
+        let offset = row
+            .checked_mul(stride)
+            .and_then(|offset| offset.checked_add(column.checked_mul(n)?))
+            .ok_or_else(|| Error::InvalidArgument("pixel offset overflow".to_owned()))?;
+
+        let len = self.samples().len();
+        if offset.checked_add(n).is_none_or(|end| end > len) {
+            return Err(Error::InvalidArgument(
+                "pixel offset exceeds pixmap samples".to_owned(),
+            ));
+        }
+
+        Ok(offset)
+    }
+
+    fn validate_pixel_components(&self, pixel: &Pixel) -> Result<(), Error> {
+        let expected = self.n() as usize;
+        let actual = pixel.components().len();
+        if actual != expected {
+            return Err(Error::InvalidArgument(format!(
+                "pixel has {actual} components but pixmap requires {expected}"
+            )));
+        }
+        Ok(())
+    }
+
+    pub fn pixel(&self, x: i32, y: i32) -> Result<Pixel, Error> {
+        let offset = self.pixel_offset(x, y)?;
+        let n = self.n() as usize;
+        Ok(Pixel::new(self.samples()[offset..offset + n].to_vec()))
+    }
+
+    pub fn set_pixel(&mut self, x: i32, y: i32, pixel: impl Into<Pixel>) -> Result<(), Error> {
+        let pixel = pixel.into();
+        self.validate_pixel_components(&pixel)?;
+        let offset = self.pixel_offset(x, y)?;
+        let n = self.n() as usize;
+        self.samples_mut()[offset..offset + n].copy_from_slice(pixel.components());
+        Ok(())
+    }
+
+    pub fn set_rect(&mut self, rect: IRect, pixel: impl Into<Pixel>) -> Result<(), Error> {
+        if !rect.is_valid() {
+            return Err(Error::InvalidArgument(format!(
+                "pixmap rectangle {rect} is not valid"
+            )));
+        }
+
+        let pixel = pixel.into();
+        self.validate_pixel_components(&pixel)?;
+        let rect = rect.intersect(&self.rect());
+        if rect.is_empty() {
+            return Ok(());
+        }
+
+        let n = self.n() as usize;
+        let stride = self.checked_stride()?;
+        let bounds = self.rect();
+        let row_start = usize::try_from(rect.y0 - bounds.y0).unwrap();
+        let row_end = usize::try_from(rect.y1 - bounds.y0).unwrap();
+        let column_start = usize::try_from(rect.x0 - bounds.x0).unwrap();
+        let column_end = usize::try_from(rect.x1 - bounds.x0).unwrap();
+        let samples = self.samples_mut();
+
+        for row in row_start..row_end {
+            for column in column_start..column_end {
+                let offset = row
+                    .checked_mul(stride)
+                    .and_then(|offset| offset.checked_add(column.checked_mul(n)?))
+                    .ok_or_else(|| Error::InvalidArgument("pixel offset overflow".to_owned()))?;
+                samples[offset..offset + n].copy_from_slice(pixel.components());
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn set_alpha(&mut self, alpha: u8) -> Result<(), Error> {
+        if !self.alpha() {
+            return Err(Error::InvalidArgument(
+                "pixmap does not have an alpha component".to_owned(),
+            ));
+        }
+
+        let n = self.n() as usize;
+        let alpha_index = n - 1;
+        for pixel in self.samples_mut().chunks_exact_mut(n) {
+            pixel[alpha_index] = alpha;
+        }
+        Ok(())
     }
 
     /// Only valid for RGBA or BGRA pixmaps
@@ -196,6 +390,21 @@ impl Pixmap {
         unsafe { ffi_try!(mupdf_clear_pixmap_with_value(context(), self.inner, value)) }
     }
 
+    pub fn clear_rect_with(&mut self, rect: IRect, value: i32) -> Result<(), Error> {
+        let rect = rect.intersect(&self.rect());
+        if rect.is_empty() {
+            return Ok(());
+        }
+        unsafe {
+            ffi_try!(mupdf_clear_pixmap_rect_with_value(
+                context(),
+                self.inner,
+                value,
+                rect.into()
+            ))
+        }
+    }
+
     pub fn save_as(&self, filename: &str, format: ImageFormat) -> Result<(), Error> {
         let c_filename = CString::new(filename)?;
         unsafe {
@@ -210,6 +419,84 @@ impl Pixmap {
 
     pub fn invert(&mut self) -> Result<(), Error> {
         unsafe { ffi_try!(mupdf_invert_pixmap(context(), self.inner)) }
+    }
+
+    pub fn invert_rect(&mut self, rect: IRect) -> Result<(), Error> {
+        let rect = rect.intersect(&self.rect());
+        if rect.is_empty() {
+            return Ok(());
+        }
+        unsafe { ffi_try!(mupdf_invert_pixmap_rect(context(), self.inner, rect.into())) }
+    }
+
+    pub fn digest(&self) -> Result<PixmapDigest, Error> {
+        let mut digest = [0; 16];
+        unsafe { ffi_try!(mupdf_md5_pixmap(context(), self.inner, digest.as_mut_ptr()))? };
+        Ok(PixmapDigest(digest))
+    }
+
+    pub fn color_count(&self) -> usize {
+        let n = self.n() as usize;
+        if n == 0 {
+            return 0;
+        }
+        self.pixel_rows()
+            .flat_map(|row| row.chunks_exact(n))
+            .map(|components| Pixel::new(components.to_vec()))
+            .collect::<HashSet<_>>()
+            .len()
+    }
+
+    pub fn top_color_usage(&self) -> Option<ColorUsage> {
+        let n = self.n() as usize;
+        if n == 0 || self.samples().is_empty() {
+            return None;
+        }
+
+        let mut counts = HashMap::<Pixel, usize>::new();
+        for components in self.pixel_rows().flat_map(|row| row.chunks_exact(n)) {
+            *counts.entry(Pixel::new(components.to_vec())).or_default() += 1;
+        }
+
+        let total = (self.width() as usize).checked_mul(self.height() as usize)?;
+        counts
+            .into_iter()
+            .max_by_key(|(_, count)| *count)
+            .map(|(pixel, count)| ColorUsage {
+                pixel,
+                count,
+                ratio: count as f32 / total as f32,
+            })
+    }
+
+    /// Subsample this pixmap in place by a power-of-two level.
+    ///
+    /// A level of `1` halves the dimensions, `2` quarters them, and so on.
+    pub fn shrink(&mut self, level: i32) -> Result<(), Error> {
+        if level < 1 {
+            return Err(Error::InvalidArgument(
+                "shrink level must be at least 1".to_owned(),
+            ));
+        }
+        unsafe { ffi_try!(mupdf_subsample_pixmap(context(), self.inner, level)) }
+    }
+
+    pub fn warp(&self, points: impl Into<Quad>, width: i32, height: i32) -> Result<Pixmap, Error> {
+        if width <= 0 || height <= 0 {
+            return Err(Error::InvalidArgument(
+                "warp width and height must be positive".to_owned(),
+            ));
+        }
+        unsafe {
+            ffi_try!(mupdf_warp_pixmap(
+                context(),
+                self.inner,
+                points.into().into(),
+                width,
+                height
+            ))
+        }
+        .map(|inner| Self { inner })
     }
 
     /// Apply a gamma factor to a pixmap, i.e. lighten or darken it.
@@ -265,7 +552,9 @@ impl Clone for Pixmap {
 
 #[cfg(test)]
 mod test {
-    use super::{Colorspace, IRect, Pixmap};
+    use crate::Rect;
+
+    use super::{Colorspace, IRect, Pixel, Pixmap};
 
     #[test]
     fn test_pixmap_properties() {
@@ -344,5 +633,56 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 0, 0, false).expect("Pixmap::new_with_w_h");
         assert!(pixmap.samples().is_empty());
         assert!(pixmap.samples_mut().is_empty());
+    }
+
+    #[test]
+    fn test_pixmap_pixel_editing_and_color_usage() {
+        let cs = Colorspace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 3, 3, false).unwrap();
+        pixmap.clear_with(0).unwrap();
+
+        pixmap.set_pixel(1, 1, Pixel::rgb(10, 20, 30)).unwrap();
+        assert_eq!(pixmap.pixel(1, 1).unwrap(), Pixel::rgb(10, 20, 30));
+        assert!(pixmap.set_pixel(3, 1, Pixel::rgb(1, 2, 3)).is_err());
+        assert!(pixmap.set_pixel(1, 1, Pixel::rgba(1, 2, 3, 4)).is_err());
+
+        pixmap
+            .set_rect(IRect::new(0, 0, 2, 2), Pixel::rgb(7, 8, 9))
+            .unwrap();
+        assert_eq!(pixmap.pixel(0, 0).unwrap(), Pixel::rgb(7, 8, 9));
+        assert_eq!(pixmap.pixel(1, 1).unwrap(), Pixel::rgb(7, 8, 9));
+        assert_eq!(pixmap.color_count(), 2);
+
+        let usage = pixmap.top_color_usage().unwrap();
+        assert_eq!(usage.pixel, Pixel::new(vec![0, 0, 0]));
+        assert_eq!(usage.count, 5);
+        assert!((usage.ratio - 5.0 / 9.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_pixmap_alpha_digest_rect_invert_shrink_and_warp() {
+        let cs = Colorspace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 4, 4, true).unwrap();
+        pixmap.clear_with(16).unwrap();
+        pixmap.set_alpha(127).unwrap();
+        assert_eq!(pixmap.pixel(0, 0).unwrap(), Pixel::rgba(16, 16, 16, 127));
+
+        let before = pixmap.digest().unwrap();
+        pixmap.invert_rect(IRect::new(0, 0, 2, 2)).unwrap();
+        let after = pixmap.digest().unwrap();
+        assert_ne!(before, after);
+
+        let warped = pixmap
+            .warp(Rect::new(0.0, 0.0, 4.0, 4.0).quad(), 2, 2)
+            .unwrap();
+        assert_eq!(warped.width(), 2);
+        assert_eq!(warped.height(), 2);
+
+        pixmap.shrink(1).unwrap();
+        assert_eq!(pixmap.width(), 2);
+        assert_eq!(pixmap.height(), 2);
+
+        let mut no_alpha = Pixmap::new_with_w_h(&cs, 1, 1, false).unwrap();
+        assert!(no_alpha.set_alpha(255).is_err());
     }
 }
