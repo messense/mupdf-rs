@@ -113,6 +113,11 @@ void mupdf_pdf_calculate_form(fz_context *ctx, pdf_document *pdf, mupdf_error_t 
     TRY_CATCH_VOID(pdf_calculate_form(ctx, pdf));
 }
 
+void mupdf_pdf_bake_document(fz_context *ctx, pdf_document *pdf, bool bake_annots, bool bake_widgets, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_bake_document(ctx, pdf, bake_annots, bake_widgets));
+}
+
 pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
