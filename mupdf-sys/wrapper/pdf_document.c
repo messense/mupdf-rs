@@ -268,6 +268,52 @@ void mupdf_pdf_delete_page(fz_context *ctx, pdf_document *pdf, int page_no, mupd
     }
 }
 
+void mupdf_pdf_graft_page(fz_context *ctx, pdf_document *dst, int page_to, pdf_document *src, int page_from, mupdf_error_t **errptr)
+{
+    if (page_from < 0 || page_from >= pdf_count_pages(ctx, src))
+    {
+        *errptr = mupdf_new_error_from_str("source page index is not valid");
+        return;
+    }
+    if (page_to < 0 || page_to > pdf_count_pages(ctx, dst))
+    {
+        *errptr = mupdf_new_error_from_str("target page index is not valid");
+        return;
+    }
+    TRY_CATCH_VOID(pdf_graft_page(ctx, dst, page_to, src, page_from));
+}
+
+void mupdf_pdf_delete_page_range(fz_context *ctx, pdf_document *pdf, int start, int end, mupdf_error_t **errptr)
+{
+    int page_count = pdf_count_pages(ctx, pdf);
+    if (start < 0 || end < start || end > page_count)
+    {
+        *errptr = mupdf_new_error_from_str("page range is not valid");
+        return;
+    }
+    TRY_CATCH_VOID(pdf_delete_page_range(ctx, pdf, start, end));
+}
+
+void mupdf_pdf_page_label(fz_context *ctx, pdf_document *pdf, int page_no, char *buf, size_t size, mupdf_error_t **errptr)
+{
+    if (page_no < 0 || page_no >= pdf_count_pages(ctx, pdf))
+    {
+        *errptr = mupdf_new_error_from_str("page_no is not a valid page");
+        return;
+    }
+    TRY_CATCH_VOID(pdf_page_label(ctx, pdf, page_no, buf, size));
+}
+
+void mupdf_pdf_set_page_labels(fz_context *ctx, pdf_document *pdf, int index, pdf_page_label_style style, const char *prefix, int start, mupdf_error_t **errptr)
+{
+    if (index < 0 || index > pdf_count_pages(ctx, pdf))
+    {
+        *errptr = mupdf_new_error_from_str("page label index is not valid");
+        return;
+    }
+    TRY_CATCH_VOID(pdf_set_page_labels(ctx, pdf, index, style, prefix, start));
+}
+
 void mupdf_pdf_begin_operation(fz_context *ctx, pdf_document *doc, const char *operation, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(pdf_begin_operation(ctx, doc, operation));
