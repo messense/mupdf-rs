@@ -6,6 +6,7 @@ pub mod intent;
 pub mod links;
 pub mod object;
 pub mod page;
+pub mod widget;
 
 #[cfg(test)]
 mod tests_annotation;
@@ -16,7 +17,9 @@ pub use annotation::{
     PdfAnnotationType, PdfRedactImageMethod, PdfRedactLineArtMethod, PdfRedactOptions,
     PdfRedactTextMethod,
 };
-pub use document::{Encryption, PdfDocument, PdfWriteOptions, Permission};
+pub use document::{
+    EmbeddedFileInfo, EmbeddedFileOptions, Encryption, PdfDocument, PdfWriteOptions, Permission,
+};
 pub use filter::PdfFilterOptions;
 pub use graft_map::PdfGraftMap;
 pub use intent::Intent;
@@ -25,6 +28,7 @@ pub use links::{
 };
 pub use object::PdfObject;
 pub use page::{FontInfo, InsertFontOptions, PdfPage};
+pub use widget::{FieldFlags, PdfWidget, PdfWidgetIter, WidgetType};
 
 #[must_use]
 pub struct DocOperation<'a> {

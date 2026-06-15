@@ -110,7 +110,10 @@ pub use matrix::Matrix;
 pub use outline::Outline;
 pub use page::Page;
 pub use path::{Path, PathWalker};
-pub use pdf::{FontInfo, InsertFontOptions};
+pub use pdf::{
+    EmbeddedFileInfo, EmbeddedFileOptions, FieldFlags, FontInfo, InsertFontOptions, PdfWidget,
+    PdfWidgetIter, WidgetType,
+};
 pub use pixmap::{ImageFormat, Pixmap};
 pub use point::Point;
 pub use quad::Quad;
