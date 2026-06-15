@@ -10,7 +10,7 @@ use bitflags::bitflags;
 
 use mupdf_sys::*;
 
-use crate::pdf::{DocOperation, FontInfo, PdfGraftMap, PdfObject, PdfPage};
+use crate::pdf::{DocOperation, ExtractedImage, FontInfo, PdfGraftMap, PdfObject, PdfPage};
 use crate::{
     context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
     Image, Outline, SimpleFontEncoding, Size, WriteMode,
@@ -1422,6 +1422,26 @@ impl PdfDocument {
         self.new_indirect(xref, 0)?.read_raw_stream()
     }
 
+    pub fn extract_image(&self, xref: i32) -> Result<ExtractedImage, Error> {
+        self.checked_xref(xref)?;
+        let obj = self.new_indirect(xref, 0)?;
+        let Some(info) = PdfPage::image_info_from_object(String::new(), &obj)? else {
+            return Err(Error::InvalidArgument(format!(
+                "xref {xref} does not refer to an image XObject"
+            )));
+        };
+        let encoded = obj.read_raw_stream()?;
+        Ok(ExtractedImage {
+            xref,
+            width: info.width,
+            height: info.height,
+            bits_per_component: info.bits_per_component,
+            color_space: info.color_space,
+            filter: info.filter,
+            encoded,
+        })
+    }
+
     pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
         let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
         unsafe {
@@ -1857,6 +1877,21 @@ mod test {
 
         assert_eq!(doc.page_label(0).unwrap(), "intro-i");
         assert_eq!(doc.page_label(1).unwrap(), "intro-ii");
+        assert!(doc
+            .set_page_label_rule(PageLabelRule::new(2, PageLabelStyle::Decimal))
+            .is_err());
+        assert!(doc.page_label(2).is_err());
+    }
+
+    #[test]
+    fn test_pdf_document_xref_helpers_reject_missing_xrefs() {
+        let mut doc = PdfDocument::new();
+        doc.new_page(Size::A4).unwrap();
+
+        assert!(doc.xref_object(0).is_err());
+        assert!(doc.xref_object(999).is_err());
+        assert!(doc.xref_stream(999).is_err());
+        assert!(doc.extract_image(999).is_err());
     }
 
     #[test]
