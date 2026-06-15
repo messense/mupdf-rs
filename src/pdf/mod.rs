@@ -29,7 +29,10 @@ pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
 pub use object::PdfObject;
-pub use page::{FontInfo, InsertFontOptions, PdfPage};
+pub use page::{
+    ExtractedImage, FontInfo, ImagePlacement, InsertFontOptions, InsertImageOptions, PageImageInfo,
+    PageImageSource, PdfPage,
+};
 pub use widget::{FieldFlags, PdfWidget, PdfWidgetIter, WidgetType};
 
 #[must_use]

@@ -23,8 +23,8 @@ use crate::pdf::{
     PdfObject, PdfRedactOptions, PdfWidget, PdfWidgetIter,
 };
 use crate::{
-    context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Matrix,
-    Page, Point, Rect, SimpleFontEncoding, WriteMode,
+    context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Image,
+    Matrix, Page, Pixmap, Point, Rect, SimpleFontEncoding, WriteMode,
 };
 
 #[derive(Clone, Debug, PartialEq)]
@@ -66,6 +66,64 @@ impl<'a> InsertFontOptions<'a> {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub enum PageImageSource<'a> {
+    Image(&'a Image),
+    Pixmap(&'a Pixmap),
+    Bytes {
+        data: &'a [u8],
+        format_hint: Option<&'a str>,
+    },
+    ExistingXref(i32),
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct InsertImageOptions {
+    pub overlay: bool,
+    pub opacity: Option<f32>,
+    pub optional_content: Option<i32>,
+}
+
+impl Default for InsertImageOptions {
+    fn default() -> Self {
+        Self {
+            overlay: true,
+            opacity: None,
+            optional_content: None,
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ImagePlacement {
+    pub name: String,
+    pub xref: i32,
+    pub rect: Rect,
+    pub contents_xref: i32,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct PageImageInfo {
+    pub name: String,
+    pub xref: i32,
+    pub width: u32,
+    pub height: u32,
+    pub bits_per_component: Option<i32>,
+    pub color_space: Option<String>,
+    pub filter: Option<String>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct ExtractedImage {
+    pub xref: i32,
+    pub width: u32,
+    pub height: u32,
+    pub bits_per_component: Option<i32>,
+    pub color_space: Option<String>,
+    pub filter: Option<String>,
+    pub encoded: Vec<u8>,
+}
+
 fn canonical_base14_name(name: &str) -> Option<&'static str> {
     match name.trim_start_matches('/').to_ascii_lowercase().as_str() {
         "helv" | "helvetica" => Some("Helvetica"),
@@ -103,6 +161,20 @@ fn cjk_font_name(ordering: CjkFontOrdering) -> &'static str {
         CjkFontOrdering::AdobeJapan => "japan",
         CjkFontOrdering::AdobeKorea => "korea",
     }
+}
+
+fn format_pdf_number(value: f32) -> String {
+    let mut value = format!("{value:.6}");
+    while value.contains('.') && value.ends_with('0') {
+        value.pop();
+    }
+    if value.ends_with('.') {
+        value.pop();
+    }
+    if value == "-0" {
+        value = "0".to_owned();
+    }
+    value
 }
 
 #[derive(Debug)]
@@ -522,6 +594,354 @@ impl PdfPage {
             unsafe { (*self.inner.as_ptr()).doc },
             "PdfPage ownership mismatch: the page is not attached to the provided PdfDocument"
         );
+    }
+
+    fn object_is_image(obj: &PdfObject) -> Result<bool, Error> {
+        let Some(subtype) = obj.get_dict("Subtype")? else {
+            return Ok(false);
+        };
+        Ok(subtype.is_name()? && subtype.as_name()? == b"Image")
+    }
+
+    fn object_to_metadata_string(obj: PdfObject) -> String {
+        obj.to_string()
+    }
+
+    pub(crate) fn image_info_from_object(
+        name: String,
+        obj: &PdfObject,
+    ) -> Result<Option<PageImageInfo>, Error> {
+        let resolved = obj.resolve()?.unwrap_or_else(|| obj.clone());
+        if !Self::object_is_image(&resolved)? {
+            return Ok(None);
+        }
+
+        let xref = obj.as_indirect().unwrap_or(0);
+        let width = resolved
+            .get_dict("Width")?
+            .map(|width| width.as_int())
+            .transpose()?
+            .unwrap_or(0)
+            .max(0) as u32;
+        let height = resolved
+            .get_dict("Height")?
+            .map(|height| height.as_int())
+            .transpose()?
+            .unwrap_or(0)
+            .max(0) as u32;
+        let bits_per_component = resolved
+            .get_dict("BitsPerComponent")?
+            .map(|bpc| bpc.as_int())
+            .transpose()?;
+        let color_space = resolved
+            .get_dict("ColorSpace")?
+            .map(Self::object_to_metadata_string);
+        let filter = resolved
+            .get_dict("Filter")?
+            .map(Self::object_to_metadata_string);
+
+        Ok(Some(PageImageInfo {
+            name,
+            xref,
+            width,
+            height,
+            bits_per_component,
+            color_space,
+            filter,
+        }))
+    }
+
+    fn existing_image_resources(&self) -> Result<Option<PdfObject>, Error> {
+        let page_obj = self.object();
+        let direct_resources = page_obj.get_dict("Resources")?;
+        let resources = match direct_resources {
+            Some(resources) if resources.is_dict()? => Some(resources),
+            Some(_) => None,
+            None => match page_obj.get_dict_inheritable("Resources")? {
+                Some(resources) if resources.is_dict()? => Some(resources),
+                _ => None,
+            },
+        };
+
+        let Some(resources) = resources else {
+            return Ok(None);
+        };
+        match resources.get_dict("XObject")? {
+            Some(xobjects) if xobjects.is_dict()? => Ok(Some(xobjects)),
+            _ => Ok(None),
+        }
+    }
+
+    fn find_image_resource_by_xref(
+        xobjects: &PdfObject,
+        xref: i32,
+    ) -> Result<Option<String>, Error> {
+        for idx in 0..xobjects.dict_len()? {
+            let Some(key) = xobjects.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = xobjects.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if value.is_indirect()? && value.as_indirect()? == xref {
+                return Ok(Some(key_name.to_owned()));
+            }
+        }
+        Ok(None)
+    }
+
+    fn next_image_resource_slot(xobjects: Option<&PdfObject>) -> Result<String, Error> {
+        let mut used = Vec::new();
+
+        if let Some(xobjects) = xobjects {
+            for idx in 0..xobjects.dict_len()? {
+                let Some(key) = xobjects.get_dict_key(idx as i32)? else {
+                    continue;
+                };
+                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                    continue;
+                };
+                let Some(index) = key_name
+                    .strip_prefix("Im")
+                    .filter(|suffix| !suffix.is_empty())
+                    .and_then(|suffix| suffix.parse::<usize>().ok())
+                else {
+                    continue;
+                };
+                used.push(index);
+            }
+        }
+
+        let mut index = 0;
+        while used.contains(&index) {
+            index += 1;
+        }
+        Ok(format!("Im{index}"))
+    }
+
+    fn add_image_resource(
+        &mut self,
+        doc: &mut PdfDocument,
+        image_obj: &PdfObject,
+    ) -> Result<String, Error> {
+        let xref = image_obj.as_indirect()?;
+        let mut resources = self.resources()?;
+        let existing_xobjects = match resources.get_dict("XObject")? {
+            Some(xobjects) if xobjects.is_dict()? => Some(xobjects),
+            _ => None,
+        };
+
+        if let Some(xobjects) = existing_xobjects.as_ref() {
+            if let Some(name) = Self::find_image_resource_by_xref(xobjects, xref)? {
+                return Ok(name);
+            }
+        }
+
+        let slot_name = Self::next_image_resource_slot(existing_xobjects.as_ref())?;
+        let mut xobjects =
+            Self::resource_subdict_for_write(&mut resources, doc, "XObject", existing_xobjects)?;
+        xobjects.dict_put_ref(slot_name.as_str(), image_obj)?;
+
+        Ok(slot_name)
+    }
+
+    fn image_object_from_source(
+        doc: &mut PdfDocument,
+        source: PageImageSource<'_>,
+    ) -> Result<PdfObject, Error> {
+        match source {
+            PageImageSource::Image(image) => doc.add_image(image),
+            PageImageSource::Pixmap(pixmap) => {
+                let image = Image::from_pixmap(pixmap)?;
+                doc.add_image(&image)
+            }
+            PageImageSource::Bytes { data, .. } => {
+                let image = Image::from_bytes(data)?;
+                doc.add_image(&image)
+            }
+            PageImageSource::ExistingXref(xref) => {
+                doc.checked_xref(xref)?;
+                let obj = doc.new_indirect(xref, 0)?;
+                let Some(resolved) = obj.resolve()? else {
+                    return Err(Error::InvalidArgument(format!(
+                        "image xref {xref} does not resolve to an object"
+                    )));
+                };
+                if !Self::object_is_image(&resolved)? {
+                    return Err(Error::InvalidArgument(format!(
+                        "xref {xref} does not refer to an image XObject"
+                    )));
+                }
+                Ok(obj)
+            }
+        }
+    }
+
+    pub fn images(&self) -> Result<Vec<PageImageInfo>, Error> {
+        let Some(xobjects) = self.existing_image_resources()? else {
+            return Ok(Vec::new());
+        };
+
+        let mut images = Vec::new();
+        for idx in 0..xobjects.dict_len()? {
+            let Some(key) = xobjects.get_dict_key(idx as i32)? else {
+                continue;
+            };
+            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                continue;
+            };
+            let Some(value) = xobjects.get_dict_val(idx as i32)? else {
+                continue;
+            };
+            if let Some(info) = Self::image_info_from_object(key_name.to_owned(), &value)? {
+                images.push(info);
+            }
+        }
+        Ok(images)
+    }
+
+    pub fn insert_image(
+        &mut self,
+        doc: &mut PdfDocument,
+        rect: Rect,
+        source: PageImageSource<'_>,
+        options: InsertImageOptions,
+    ) -> Result<ImagePlacement, Error> {
+        self.assert_document_owner(doc);
+        if rect.is_empty() {
+            return Err(Error::InvalidArgument(
+                "image insertion requires a non-empty rectangle".to_owned(),
+            ));
+        }
+        if let Some(opacity) = options.opacity {
+            Self::validate_opacity_value(opacity, "image")?;
+        }
+        if let Some(oc_xref) = options.optional_content {
+            Self::validate_optional_content_xref(doc, oc_xref)?;
+        }
+
+        let operation = DocOperation::begin(doc, "Insert image")?;
+        let image_obj = Self::image_object_from_source(operation.doc, source)?;
+        let xref = image_obj.as_indirect()?;
+        let name = self.add_image_resource(operation.doc, &image_obj)?;
+        let gs = match options.opacity {
+            Some(opacity) => self.register_ext_gstate(operation.doc, None, Some(opacity))?,
+            None => None,
+        };
+        let oc = match options.optional_content {
+            Some(oc_xref) => Some(self.register_optional_content(operation.doc, oc_xref)?),
+            None => None,
+        };
+
+        let mut content = String::new();
+        content.push_str("q\n");
+        if let Some(gs) = &gs {
+            content.push_str(gs);
+            content.push_str(" gs\n");
+        }
+        if let Some(oc) = &oc {
+            content.push_str(oc);
+            content.push_str(" BDC\n");
+        }
+        content.push_str(&format!(
+            "{} 0 0 {} {} {} cm\n/{name} Do\n",
+            format_pdf_number(rect.width()),
+            format_pdf_number(rect.height()),
+            format_pdf_number(rect.x0),
+            format_pdf_number(rect.y0)
+        ));
+        if oc.is_some() {
+            content.push_str("EMC\n");
+        }
+        content.push_str("Q\n");
+
+        let contents_xref =
+            self.insert_contents_in_operation(operation.doc, content.as_bytes(), options.overlay)?;
+        operation.commit()?;
+
+        Ok(ImagePlacement {
+            name,
+            xref,
+            rect,
+            contents_xref,
+        })
+    }
+
+    pub fn replace_image(
+        &mut self,
+        doc: &mut PdfDocument,
+        xref: i32,
+        source: PageImageSource<'_>,
+    ) -> Result<ImagePlacement, Error> {
+        self.assert_document_owner(doc);
+        doc.checked_xref(xref)?;
+        let operation = DocOperation::begin(doc, "Replace image")?;
+        let resources = self.resources()?;
+        let Some(mut xobjects) = resources.get_dict("XObject")? else {
+            return Err(Error::InvalidArgument(
+                "page has no image resources".to_owned(),
+            ));
+        };
+        if !xobjects.is_dict()? {
+            return Err(Error::InvalidArgument(
+                "page XObject resources are not a dictionary".to_owned(),
+            ));
+        }
+        let Some(name) = Self::find_image_resource_by_xref(&xobjects, xref)? else {
+            return Err(Error::InvalidArgument(format!(
+                "page does not reference image xref {xref}"
+            )));
+        };
+        let image_obj = Self::image_object_from_source(operation.doc, source)?;
+        let new_xref = image_obj.as_indirect()?;
+        xobjects.dict_put_ref(name.as_str(), &image_obj)?;
+        operation.commit()?;
+
+        Ok(ImagePlacement {
+            name,
+            xref: new_xref,
+            rect: Rect::new(0.0, 0.0, 0.0, 0.0),
+            contents_xref: 0,
+        })
+    }
+
+    pub fn delete_image(&mut self, doc: &mut PdfDocument, xref: i32) -> Result<bool, Error> {
+        self.assert_document_owner(doc);
+        doc.checked_xref(xref)?;
+        let operation = DocOperation::begin(doc, "Delete image")?;
+        let resources = self.resources()?;
+        let Some(mut xobjects) = resources.get_dict("XObject")? else {
+            operation.commit()?;
+            return Ok(false);
+        };
+        if !xobjects.is_dict()? {
+            return Err(Error::InvalidArgument(
+                "page XObject resources are not a dictionary".to_owned(),
+            ));
+        }
+
+        let mut deleted = false;
+        let keys: Vec<_> = (0..xobjects.dict_len()?)
+            .filter_map(|idx| {
+                let value = xobjects.get_dict_val(idx as i32).ok().flatten()?;
+                if value.is_indirect().ok()? && value.as_indirect().ok()? == xref {
+                    let key = xobjects.get_dict_key(idx as i32).ok().flatten()?;
+                    let key = str::from_utf8(key.as_name().ok()?).ok()?.to_owned();
+                    Some(key)
+                } else {
+                    None
+                }
+            })
+            .collect();
+        for key in keys {
+            xobjects.dict_delete(key.as_str())?;
+            deleted = true;
+        }
+        operation.commit()?;
+        Ok(deleted)
     }
 
     fn resource_subdict_for_write(
@@ -2013,10 +2433,14 @@ impl TryFrom<Page> for PdfPage {
 mod test {
     use crate::document::test_document;
     use crate::pdf::{
-        InsertFontOptions, PdfAnnotation, PdfAnnotationType, PdfDocument, PdfObject, PdfPage,
+        InsertFontOptions, InsertImageOptions, PageImageSource, PdfAnnotation, PdfAnnotationType,
+        PdfDocument, PdfObject, PdfPage,
     };
     use crate::shape::{Shape, TextOptions};
-    use crate::{Buffer, CjkFontOrdering, Error, Matrix, Point, Rect, SimpleFontEncoding, Size};
+    use crate::{
+        Buffer, CjkFontOrdering, Colorspace, Error, ImageFormat, Matrix, Pixel, Pixmap, Point,
+        Rect, SimpleFontEncoding, Size,
+    };
 
     const CUSTOM_FONT_BYTES: &[u8] = include_bytes!("../../tests/files/custom.ttf");
 
@@ -2044,6 +2468,13 @@ mod test {
     fn add_stream(doc: &mut PdfDocument, bytes: &[u8]) -> PdfObject {
         doc.add_stream(&Buffer::from_bytes(bytes).unwrap(), None, false)
             .unwrap()
+    }
+
+    fn test_pixmap(width: i32, height: i32, pixel: Pixel) -> Pixmap {
+        let cs = Colorspace::device_rgb();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, width, height, false).unwrap();
+        pixmap.set_rect(pixmap.rect(), pixel).unwrap();
+        pixmap
     }
 
     fn default_font_options(name: &str) -> InsertFontOptions<'_> {
@@ -2390,6 +2821,111 @@ mod test {
             doc.new_indirect(second, 0).unwrap().read_stream().unwrap(),
             payload
         );
+    }
+
+    #[test]
+    fn test_page_insert_image_lists_and_extracts_resource() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let pixmap = test_pixmap(2, 3, Pixel::rgb(200, 10, 20));
+
+        let placement = page
+            .insert_image(
+                &mut doc,
+                Rect::new(10.0, 20.0, 30.0, 50.0),
+                PageImageSource::Pixmap(&pixmap),
+                InsertImageOptions::default(),
+            )
+            .unwrap();
+
+        assert!(placement.xref > 0);
+        assert_eq!(placement.name, "Im0");
+        assert!(placement.contents_xref > 0);
+
+        let images = page.images().unwrap();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].name, "Im0");
+        assert_eq!(images[0].xref, placement.xref);
+        assert_eq!(images[0].width, 2);
+        assert_eq!(images[0].height, 3);
+
+        let extracted = doc.extract_image(placement.xref).unwrap();
+        assert_eq!(extracted.xref, placement.xref);
+        assert_eq!(extracted.width, 2);
+        assert_eq!(extracted.height, 3);
+        assert!(!extracted.encoded.is_empty());
+    }
+
+    #[test]
+    fn test_page_replace_and_delete_image_resource() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let first = test_pixmap(2, 2, Pixel::rgb(0, 0, 255));
+        let second = test_pixmap(4, 1, Pixel::rgb(0, 255, 0));
+
+        let placement = page
+            .insert_image(
+                &mut doc,
+                Rect::new(0.0, 0.0, 20.0, 20.0),
+                PageImageSource::Pixmap(&first),
+                InsertImageOptions::default(),
+            )
+            .unwrap();
+        let replacement = page
+            .replace_image(&mut doc, placement.xref, PageImageSource::Pixmap(&second))
+            .unwrap();
+
+        assert_eq!(replacement.name, placement.name);
+        assert_ne!(replacement.xref, placement.xref);
+
+        let images = page.images().unwrap();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].xref, replacement.xref);
+        assert_eq!(images[0].width, 4);
+        assert_eq!(images[0].height, 1);
+
+        assert!(page.delete_image(&mut doc, replacement.xref).unwrap());
+        assert!(page.images().unwrap().is_empty());
+        assert!(!page.delete_image(&mut doc, replacement.xref).unwrap());
+        assert!(page
+            .replace_image(&mut doc, 999, PageImageSource::Pixmap(&second))
+            .is_err());
+        assert!(page.delete_image(&mut doc, 999).is_err());
+    }
+
+    #[test]
+    fn test_page_insert_image_from_encoded_bytes() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let pixmap = test_pixmap(2, 2, Pixel::rgb(255, 0, 0));
+        let mut encoded = Vec::new();
+        pixmap.write_to(&mut encoded, ImageFormat::PNG).unwrap();
+
+        let placement = page
+            .insert_image(
+                &mut doc,
+                Rect::new(0.0, 0.0, 10.0, 10.0),
+                PageImageSource::Bytes {
+                    data: &encoded,
+                    format_hint: Some("png"),
+                },
+                InsertImageOptions::default(),
+            )
+            .unwrap();
+
+        let images = page.images().unwrap();
+        assert_eq!(images.len(), 1);
+        assert_eq!(images[0].xref, placement.xref);
+        assert_eq!(images[0].width, 2);
+        assert_eq!(images[0].height, 2);
+        assert!(page
+            .insert_image(
+                &mut doc,
+                Rect::new(0.0, 0.0, 10.0, 10.0),
+                PageImageSource::ExistingXref(999),
+                InsertImageOptions::default(),
+            )
+            .is_err());
     }
 
     fn contents_stream_bytes(page: &PdfPage) -> Vec<Vec<u8>> {
