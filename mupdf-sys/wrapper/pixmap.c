@@ -32,9 +32,39 @@ void mupdf_clear_pixmap_with_value(fz_context *ctx, fz_pixmap *pixmap, int value
     TRY_CATCH_VOID(fz_clear_pixmap_with_value(ctx, pixmap, value));
 }
 
+void mupdf_clear_pixmap_rect_with_value(fz_context *ctx, fz_pixmap *pixmap, int value, fz_irect rect, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_clear_pixmap_rect_with_value(ctx, pixmap, value, rect));
+}
+
 void mupdf_invert_pixmap(fz_context *ctx, fz_pixmap *pixmap, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(fz_invert_pixmap(ctx, pixmap));
+}
+
+void mupdf_invert_pixmap_rect(fz_context *ctx, fz_pixmap *pixmap, fz_irect rect, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_invert_pixmap_rect(ctx, pixmap, rect));
+}
+
+void mupdf_md5_pixmap(fz_context *ctx, fz_pixmap *pixmap, unsigned char digest[16], mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_md5_pixmap(ctx, pixmap, digest));
+}
+
+fz_pixmap *mupdf_warp_pixmap(fz_context *ctx, fz_pixmap *pixmap, fz_quad points, int width, int height, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_pixmap*, NULL, fz_warp_pixmap(ctx, pixmap, points, width, height));
+}
+
+void mupdf_subsample_pixmap(fz_context *ctx, fz_pixmap *pixmap, int factor, mupdf_error_t **errptr)
+{
+    if (factor < 1)
+    {
+        *errptr = mupdf_new_error_from_str("subsample factor must be at least 1");
+        return;
+    }
+    TRY_CATCH_VOID(fz_subsample_pixmap(ctx, pixmap, factor));
 }
 
 void mupdf_gamma_pixmap(fz_context *ctx, fz_pixmap *pixmap, float gamma, mupdf_error_t **errptr)
