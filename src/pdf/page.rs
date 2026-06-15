@@ -18,9 +18,9 @@ use crate::pdf::links::{
     build_link_annotation, parse_external_link, CachedResolver, DestPageResolver,
 };
 use crate::pdf::{
-    AnnotationArea, AnnotationQuadPoints, DocOperation, LinkAction, PdfAction, PdfAnnotation,
-    PdfAnnotationType, PdfDestination, PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot,
-    PdfObject, PdfRedactOptions, PdfWidget, PdfWidgetIter,
+    AnnotationArea, AnnotationQuadPoints, DocOperation, LinkAction, OptionalContentRef, PdfAction,
+    PdfAnnotation, PdfAnnotationType, PdfDestination, PdfDocument, PdfFilterOptions, PdfLink,
+    PdfLinkAnnot, PdfObject, PdfRedactOptions, PdfWidget, PdfWidgetIter,
 };
 use crate::{
     context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Image,
@@ -81,7 +81,7 @@ pub enum PageImageSource<'a> {
 pub struct InsertImageOptions {
     pub overlay: bool,
     pub opacity: Option<f32>,
-    pub optional_content: Option<i32>,
+    pub optional_content: Option<OptionalContentRef>,
 }
 
 impl Default for InsertImageOptions {
@@ -819,8 +819,8 @@ impl PdfPage {
         if let Some(opacity) = options.opacity {
             Self::validate_opacity_value(opacity, "image")?;
         }
-        if let Some(oc_xref) = options.optional_content {
-            Self::validate_optional_content_xref(doc, oc_xref)?;
+        if let Some(oc_ref) = options.optional_content {
+            Self::validate_optional_content_xref(doc, oc_ref.xref())?;
         }
 
         let operation = DocOperation::begin(doc, "Insert image")?;
@@ -832,7 +832,7 @@ impl PdfPage {
             None => None,
         };
         let oc = match options.optional_content {
-            Some(oc_xref) => Some(self.register_optional_content(operation.doc, oc_xref)?),
+            Some(oc_ref) => Some(self.register_optional_content(operation.doc, oc_ref.xref())?),
             None => None,
         };
 
@@ -1439,6 +1439,14 @@ impl PdfPage {
         properties.dict_put_ref(slot_name.as_str(), &oc_ref)?;
 
         Ok(format!("/{slot_name}"))
+    }
+
+    pub fn register_optional_content_ref(
+        &mut self,
+        doc: &mut PdfDocument,
+        reference: OptionalContentRef,
+    ) -> Result<String, Error> {
+        self.register_optional_content(doc, reference.xref())
     }
 
     fn cached_font_matches(info: &FontInfo, name: &str, opts: &InsertFontOptions<'_>) -> bool {

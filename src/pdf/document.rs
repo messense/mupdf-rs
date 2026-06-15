@@ -510,6 +510,41 @@ impl PageLabelRule {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
+pub struct OptionalContentRef {
+    xref: i32,
+}
+
+impl OptionalContentRef {
+    pub fn new(xref: i32) -> Result<Self, Error> {
+        if xref <= 0 {
+            return Err(Error::InvalidArgument(
+                "optional content xref must be positive".to_owned(),
+            ));
+        }
+        Ok(Self { xref })
+    }
+
+    pub fn xref(self) -> i32 {
+        self.xref
+    }
+}
+
+impl TryFrom<i32> for OptionalContentRef {
+    type Error = Error;
+
+    fn try_from(xref: i32) -> Result<Self, Self::Error> {
+        Self::new(xref)
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct OptionalContentGroup {
+    pub reference: OptionalContentRef,
+    pub name: Option<String>,
+    pub enabled: bool,
+}
+
 impl Default for PdfDocument {
     fn default() -> Self {
         let inner = unsafe { pdf_create_document(context()) };
@@ -1442,6 +1477,252 @@ impl PdfDocument {
         })
     }
 
+    fn optional_content_properties(&self) -> Result<Option<PdfObject>, Error> {
+        match self.catalog()?.get_dict("OCProperties")? {
+            Some(properties) if properties.is_dict()? => Ok(Some(properties)),
+            _ => Ok(None),
+        }
+    }
+
+    fn ensure_optional_content_properties(&self) -> Result<PdfObject, Error> {
+        let mut catalog = self.catalog()?;
+        match catalog.get_dict("OCProperties")? {
+            Some(properties) if properties.is_dict()? => Ok(properties),
+            _ => {
+                let properties = self.new_dict()?;
+                catalog.dict_put_ref("OCProperties", &properties)?;
+                Ok(properties)
+            }
+        }
+    }
+
+    fn ensure_optional_content_default_config(
+        &self,
+        properties: &mut PdfObject,
+    ) -> Result<PdfObject, Error> {
+        match properties.get_dict("D")? {
+            Some(config) if config.is_dict()? => Ok(config),
+            _ => {
+                let config = self.new_dict()?;
+                properties.dict_put_ref("D", &config)?;
+                Ok(config)
+            }
+        }
+    }
+
+    fn ensure_indirect_array_entry(
+        &self,
+        array_owner: &mut PdfObject,
+        key: &str,
+        reference: &PdfObject,
+        xref: i32,
+    ) -> Result<(), Error> {
+        let mut array = match array_owner.get_dict(key)? {
+            Some(array) if array.is_array()? => array,
+            _ => {
+                let array = self.new_array()?;
+                array_owner.dict_put_ref(key, &array)?;
+                array
+            }
+        };
+
+        for index in 0..array.len()? {
+            let Some(item) = array.get_array(index as i32)? else {
+                continue;
+            };
+            if item.is_indirect()? && item.as_indirect()? == xref {
+                return Ok(());
+            }
+        }
+
+        array.array_push_ref(reference)
+    }
+
+    fn remove_indirect_array_entry(
+        array_owner: &mut PdfObject,
+        key: &str,
+        xref: i32,
+    ) -> Result<(), Error> {
+        let Some(mut array) = array_owner.get_dict(key)? else {
+            return Ok(());
+        };
+        if !array.is_array()? {
+            return Ok(());
+        }
+
+        for index in (0..array.len()?).rev() {
+            let Some(item) = array.get_array(index as i32)? else {
+                continue;
+            };
+            if item.is_indirect()? && item.as_indirect()? == xref {
+                array.array_delete(index as i32)?;
+            }
+        }
+        Ok(())
+    }
+
+    fn optional_content_array_contains(
+        array_owner: &PdfObject,
+        key: &str,
+        xref: i32,
+    ) -> Result<bool, Error> {
+        let Some(array) = array_owner.get_dict(key)? else {
+            return Ok(false);
+        };
+        if !array.is_array()? {
+            return Ok(false);
+        }
+        for index in 0..array.len()? {
+            let Some(item) = array.get_array(index as i32)? else {
+                continue;
+            };
+            if item.is_indirect()? && item.as_indirect()? == xref {
+                return Ok(true);
+            }
+        }
+        Ok(false)
+    }
+
+    fn register_optional_content_group_object(
+        &self,
+        oc_ref: &PdfObject,
+        xref: i32,
+    ) -> Result<(), Error> {
+        let mut properties = self.ensure_optional_content_properties()?;
+        self.ensure_indirect_array_entry(&mut properties, "OCGs", oc_ref, xref)?;
+        let mut config = self.ensure_optional_content_default_config(&mut properties)?;
+        self.ensure_indirect_array_entry(&mut config, "ON", oc_ref, xref)?;
+        self.ensure_indirect_array_entry(&mut config, "Order", oc_ref, xref)
+    }
+
+    fn validate_optional_content_ref(
+        &self,
+        reference: OptionalContentRef,
+    ) -> Result<PdfObject, Error> {
+        self.checked_xref(reference.xref())?;
+        let oc_ref = self.new_indirect(reference.xref(), 0)?;
+        let Some(oc_obj) = oc_ref.resolve()? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {} does not resolve to an object",
+                reference.xref()
+            )));
+        };
+        if !oc_obj.is_dict()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {} does not refer to a dictionary",
+                reference.xref()
+            )));
+        }
+        let Some(type_obj) = oc_obj.get_dict("Type")? else {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {} is missing /Type",
+                reference.xref()
+            )));
+        };
+        if !type_obj.is_name()? {
+            return Err(Error::InvalidArgument(format!(
+                "optional content xref {} has non-name /Type",
+                reference.xref()
+            )));
+        }
+        match type_obj.as_name()? {
+            b"OCG" | b"OCMD" => Ok(oc_ref),
+            _ => Err(Error::InvalidArgument(format!(
+                "optional content xref {} must have /Type /OCG or /OCMD",
+                reference.xref()
+            ))),
+        }
+    }
+
+    pub fn add_optional_content_group(
+        &mut self,
+        name: impl AsRef<str>,
+    ) -> Result<OptionalContentRef, Error> {
+        let mut ocg = self.new_dict_with_capacity(2)?;
+        ocg.dict_put("Type", PdfObject::new_name("OCG")?)?;
+        ocg.dict_put("Name", PdfObject::new_string(name.as_ref())?)?;
+        let ocg = self.add_object(&ocg)?;
+        let xref = ocg.as_indirect()?;
+        self.register_optional_content_group_object(&ocg, xref)?;
+        OptionalContentRef::new(xref)
+    }
+
+    pub fn optional_content_groups(&self) -> Result<Vec<OptionalContentGroup>, Error> {
+        let Some(properties) = self.optional_content_properties()? else {
+            return Ok(Vec::new());
+        };
+        let Some(ocgs) = properties.get_dict("OCGs")? else {
+            return Ok(Vec::new());
+        };
+        if !ocgs.is_array()? {
+            return Ok(Vec::new());
+        }
+        let default_config = properties.get_dict("D")?;
+
+        let mut groups = Vec::new();
+        for index in 0..ocgs.len()? {
+            let Some(reference) = ocgs.get_array(index as i32)? else {
+                continue;
+            };
+            let Ok(xref) = reference.as_indirect() else {
+                continue;
+            };
+            let Some(group) = reference.resolve()? else {
+                continue;
+            };
+            if !group.is_dict()? {
+                continue;
+            }
+            let name = group
+                .get_dict("Name")?
+                .and_then(|name| name.as_string().ok().map(str::to_owned));
+            let enabled = !matches!(
+                default_config.as_ref(),
+                Some(config) if Self::optional_content_array_contains(config, "OFF", xref)?
+            );
+            groups.push(OptionalContentGroup {
+                reference: OptionalContentRef::new(xref)?,
+                name,
+                enabled,
+            });
+        }
+        Ok(groups)
+    }
+
+    pub fn set_optional_content_enabled(
+        &mut self,
+        reference: OptionalContentRef,
+        enabled: bool,
+    ) -> Result<(), Error> {
+        let oc_ref = self.validate_optional_content_ref(reference)?;
+        let mut properties = self.ensure_optional_content_properties()?;
+        self.ensure_indirect_array_entry(&mut properties, "OCGs", &oc_ref, reference.xref())?;
+        let mut config = self.ensure_optional_content_default_config(&mut properties)?;
+        if enabled {
+            Self::remove_indirect_array_entry(&mut config, "OFF", reference.xref())?;
+            self.ensure_indirect_array_entry(&mut config, "ON", &oc_ref, reference.xref())?;
+        } else {
+            Self::remove_indirect_array_entry(&mut config, "ON", reference.xref())?;
+            self.ensure_indirect_array_entry(&mut config, "OFF", &oc_ref, reference.xref())?;
+        }
+        self.ensure_indirect_array_entry(&mut config, "Order", &oc_ref, reference.xref())
+    }
+
+    pub fn optional_content_enabled(&self, reference: OptionalContentRef) -> Result<bool, Error> {
+        self.validate_optional_content_ref(reference)?;
+        let Some(properties) = self.optional_content_properties()? else {
+            return Ok(true);
+        };
+        let Some(config) = properties.get_dict("D")? else {
+            return Ok(true);
+        };
+        Ok(!Self::optional_content_array_contains(
+            &config,
+            "OFF",
+            reference.xref(),
+        )?)
+    }
+
     pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
         let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
         unsafe {
@@ -1621,8 +1902,8 @@ mod test {
     use crate::{Buffer, Size};
 
     use super::{
-        EmbeddedFileOptions, InsertPdfOptions, InsertPosition, PageLabelRule, PageLabelStyle,
-        PageSelection, PdfDocument, PdfWriteOptions, Permission,
+        EmbeddedFileOptions, InsertPdfOptions, InsertPosition, OptionalContentRef, PageLabelRule,
+        PageLabelStyle, PageSelection, PdfDocument, PdfWriteOptions, Permission,
     };
 
     #[test]
@@ -1892,6 +2173,42 @@ mod test {
         assert!(doc.xref_object(999).is_err());
         assert!(doc.xref_stream(999).is_err());
         assert!(doc.extract_image(999).is_err());
+    }
+
+    #[test]
+    fn test_pdf_document_optional_content_groups() {
+        let mut doc = PdfDocument::new();
+        let oc = doc.add_optional_content_group("Layer 1").unwrap();
+        assert!(oc.xref() > 0);
+
+        let groups = doc.optional_content_groups().unwrap();
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].reference, oc);
+        assert_eq!(groups[0].name.as_deref(), Some("Layer 1"));
+        assert!(groups[0].enabled);
+        assert!(doc.optional_content_enabled(oc).unwrap());
+
+        doc.set_optional_content_enabled(oc, false).unwrap();
+        assert!(!doc.optional_content_enabled(oc).unwrap());
+        assert!(!doc.optional_content_groups().unwrap()[0].enabled);
+
+        doc.set_optional_content_enabled(oc, true).unwrap();
+        assert!(doc.optional_content_enabled(oc).unwrap());
+
+        let mut page = doc.new_page(Size::A4).unwrap();
+        let name = page.register_optional_content_ref(&mut doc, oc).unwrap();
+        assert_eq!(name, "/P0");
+        let properties = page
+            .resources()
+            .unwrap()
+            .get_dict("Properties")
+            .unwrap()
+            .unwrap();
+        assert!(properties.get_dict("P0").unwrap().is_some());
+
+        let missing = OptionalContentRef::new(999).unwrap();
+        assert!(doc.optional_content_enabled(missing).is_err());
+        assert!(doc.set_optional_content_enabled(missing, true).is_err());
     }
 
     #[test]
