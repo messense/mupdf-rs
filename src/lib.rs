@@ -115,6 +115,7 @@ pub use pdf::{
     InsertPdfOptions, InsertPdfResult, InsertPosition, PageLabelRule, PageLabelStyle, PageRange,
     PageSelection, PdfWidget, PdfWidgetIter, WidgetType,
 };
+pub use pdf::{ExtractedImage, ImagePlacement, InsertImageOptions, PageImageInfo, PageImageSource};
 pub use pixmap::{ColorUsage, ImageFormat, Pixel, Pixmap, PixmapDigest};
 pub use point::Point;
 pub use quad::Quad;
