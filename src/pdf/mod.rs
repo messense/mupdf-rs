@@ -18,7 +18,9 @@ pub use annotation::{
     PdfRedactTextMethod,
 };
 pub use document::{
-    EmbeddedFileInfo, EmbeddedFileOptions, Encryption, PdfDocument, PdfWriteOptions, Permission,
+    EmbeddedFileInfo, EmbeddedFileOptions, Encryption, InsertPdfOptions, InsertPdfResult,
+    InsertPosition, PageLabelRule, PageLabelStyle, PageRange, PageSelection, PdfDocument,
+    PdfWriteOptions, Permission,
 };
 pub use filter::PdfFilterOptions;
 pub use graft_map::PdfGraftMap;

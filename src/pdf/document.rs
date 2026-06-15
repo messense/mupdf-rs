@@ -1,16 +1,16 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 use std::convert::TryFrom;
-use std::ffi::{c_int, CStr, CString};
+use std::ffi::{c_char, c_int, CStr, CString};
 use std::io::{self, Read, Write};
-use std::ops::{Deref, DerefMut};
+use std::ops::{Deref, DerefMut, Range, RangeInclusive};
 use std::ptr::{self, NonNull};
 
 use bitflags::bitflags;
 
 use mupdf_sys::*;
 
-use crate::pdf::{FontInfo, PdfGraftMap, PdfObject, PdfPage};
+use crate::pdf::{DocOperation, FontInfo, PdfGraftMap, PdfObject, PdfPage};
 use crate::{
     context, from_enum, Buffer, CjkFontOrdering, Destination, Document, Error, FilePath, Font,
     Image, Outline, SimpleFontEncoding, Size, WriteMode,
@@ -268,6 +268,246 @@ pub struct EmbeddedFileInfo {
     pub size: usize,
     pub created: Option<i64>,
     pub modified: Option<i64>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct PageRange {
+    pub start: usize,
+    pub end: usize,
+}
+
+impl PageRange {
+    pub fn new(start: usize, end: usize) -> Self {
+        Self { start, end }
+    }
+
+    pub fn len(self) -> usize {
+        self.end.saturating_sub(self.start)
+    }
+
+    pub fn is_empty(self) -> bool {
+        self.start >= self.end
+    }
+}
+
+impl From<Range<usize>> for PageRange {
+    fn from(range: Range<usize>) -> Self {
+        Self::new(range.start, range.end)
+    }
+}
+
+impl From<RangeInclusive<usize>> for PageRange {
+    fn from(range: RangeInclusive<usize>) -> Self {
+        let (start, end) = range.into_inner();
+        Self::new(start, end.saturating_add(1))
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub enum PageSelection {
+    #[default]
+    All,
+    Range(PageRange),
+    Pages(Vec<usize>),
+}
+
+impl PageSelection {
+    fn validated_indices(&self, page_count: usize) -> Result<Vec<usize>, Error> {
+        let indices = match self {
+            Self::All => (0..page_count).collect(),
+            Self::Range(range) => {
+                if range.is_empty() {
+                    return Err(Error::InvalidArgument(
+                        "page selection range must not be empty".to_owned(),
+                    ));
+                }
+                if range.end > page_count {
+                    return Err(Error::InvalidArgument(format!(
+                        "page selection range {}..{} exceeds page count {page_count}",
+                        range.start, range.end
+                    )));
+                }
+                (range.start..range.end).collect()
+            }
+            Self::Pages(pages) => {
+                if pages.is_empty() {
+                    return Err(Error::InvalidArgument(
+                        "page selection must not be empty".to_owned(),
+                    ));
+                }
+                for page in pages {
+                    if *page >= page_count {
+                        return Err(Error::InvalidArgument(format!(
+                            "page index {page} exceeds page count {page_count}"
+                        )));
+                    }
+                }
+                pages.clone()
+            }
+        };
+
+        if indices.is_empty() {
+            return Err(Error::InvalidArgument(
+                "page selection must not be empty".to_owned(),
+            ));
+        }
+
+        Ok(indices)
+    }
+
+    fn validated_unique_sorted_indices(&self, page_count: usize) -> Result<Vec<usize>, Error> {
+        let indices = self.validated_indices(page_count)?;
+        let unique: BTreeSet<_> = indices.iter().copied().collect();
+        if unique.len() != indices.len() {
+            return Err(Error::InvalidArgument(
+                "page selection must not contain duplicates".to_owned(),
+            ));
+        }
+        Ok(unique.into_iter().collect())
+    }
+}
+
+impl From<PageRange> for PageSelection {
+    fn from(range: PageRange) -> Self {
+        Self::Range(range)
+    }
+}
+
+impl From<Range<usize>> for PageSelection {
+    fn from(range: Range<usize>) -> Self {
+        Self::Range(range.into())
+    }
+}
+
+impl From<RangeInclusive<usize>> for PageSelection {
+    fn from(range: RangeInclusive<usize>) -> Self {
+        Self::Range(range.into())
+    }
+}
+
+impl From<Vec<usize>> for PageSelection {
+    fn from(pages: Vec<usize>) -> Self {
+        Self::Pages(pages)
+    }
+}
+
+impl From<&[usize]> for PageSelection {
+    fn from(pages: &[usize]) -> Self {
+        Self::Pages(pages.to_vec())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum InsertPosition {
+    #[default]
+    Append,
+    Before(usize),
+    After(usize),
+}
+
+impl InsertPosition {
+    fn resolve(self, page_count: usize) -> Result<usize, Error> {
+        match self {
+            Self::Append => Ok(page_count),
+            Self::Before(index) if index <= page_count => Ok(index),
+            Self::Before(index) => Err(Error::InvalidArgument(format!(
+                "insert position Before({index}) exceeds page count {page_count}"
+            ))),
+            Self::After(index) if index < page_count => Ok(index + 1),
+            Self::After(index) => Err(Error::InvalidArgument(format!(
+                "insert position After({index}) exceeds page count {page_count}"
+            ))),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct InsertPdfOptions {
+    pub source_pages: PageSelection,
+    pub target: InsertPosition,
+    pub rotate: Option<i32>,
+    pub copy_links: bool,
+    pub copy_annotations: bool,
+    pub copy_widgets: bool,
+}
+
+impl Default for InsertPdfOptions {
+    fn default() -> Self {
+        Self {
+            source_pages: PageSelection::All,
+            target: InsertPosition::Append,
+            rotate: None,
+            copy_links: true,
+            copy_annotations: true,
+            copy_widgets: true,
+        }
+    }
+}
+
+impl InsertPdfOptions {
+    fn validate_supported(&self) -> Result<(), Error> {
+        if !self.copy_links || !self.copy_annotations || !self.copy_widgets {
+            return Err(Error::InvalidArgument(
+                "selective link, annotation, and widget copying is not supported yet".to_owned(),
+            ));
+        }
+        if let Some(rotate) = self.rotate {
+            if rotate % 90 != 0 {
+                return Err(Error::InvalidArgument(
+                    "inserted page rotation must be a multiple of 90 degrees".to_owned(),
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct InsertPdfResult {
+    pub inserted_pages: PageRange,
+    pub page_count: usize,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum PageLabelStyle {
+    None,
+    Decimal,
+    UpperRoman,
+    LowerRoman,
+    UpperAlpha,
+    LowerAlpha,
+}
+
+impl PageLabelStyle {
+    fn into_raw(self) -> pdf_page_label_style {
+        match self {
+            Self::None => PDF_PAGE_LABEL_NONE,
+            Self::Decimal => PDF_PAGE_LABEL_DECIMAL,
+            Self::UpperRoman => PDF_PAGE_LABEL_ROMAN_UC,
+            Self::LowerRoman => PDF_PAGE_LABEL_ROMAN_LC,
+            Self::UpperAlpha => PDF_PAGE_LABEL_ALPHA_UC,
+            Self::LowerAlpha => PDF_PAGE_LABEL_ALPHA_LC,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PageLabelRule {
+    pub index: usize,
+    pub style: PageLabelStyle,
+    pub prefix: String,
+    pub start: i32,
+}
+
+impl PageLabelRule {
+    pub fn new(index: usize, style: PageLabelStyle) -> Self {
+        Self {
+            index,
+            style,
+            prefix: String::new(),
+            start: 1,
+        }
+    }
 }
 
 impl Default for PdfDocument {
@@ -888,6 +1128,300 @@ impl PdfDocument {
         Ok(false)
     }
 
+    fn page_count_usize(&self) -> Result<usize, Error> {
+        usize::try_from(self.page_count()?).map_err(|_| {
+            Error::InvalidArgument("document page count cannot be represented as usize".to_owned())
+        })
+    }
+
+    fn checked_page_index(&self, page: usize) -> Result<i32, Error> {
+        let page_count = self.page_count_usize()?;
+        if page >= page_count {
+            return Err(Error::InvalidArgument(format!(
+                "page index {page} exceeds page count {page_count}"
+            )));
+        }
+        i32::try_from(page).map_err(|_| {
+            Error::InvalidArgument(format!("page index {page} cannot be represented as i32"))
+        })
+    }
+
+    fn checked_insert_index(&self, position: InsertPosition) -> Result<usize, Error> {
+        position.resolve(self.page_count_usize()?)
+    }
+
+    pub(crate) fn checked_xref(&self, xref: i32) -> Result<(), Error> {
+        if xref <= 0 {
+            return Err(Error::InvalidArgument(format!(
+                "xref {xref} must be positive"
+            )));
+        }
+        let xref_len = i32::try_from(self.count_objects()?).map_err(|_| {
+            Error::InvalidArgument("xref length cannot be represented as i32".to_owned())
+        })?;
+        if xref >= xref_len {
+            return Err(Error::InvalidArgument(format!(
+                "xref {xref} exceeds xref length {xref_len}"
+            )));
+        }
+        Ok(())
+    }
+
+    fn graft_page_raw(
+        &mut self,
+        src: *mut pdf_document,
+        source_index: usize,
+        target_index: usize,
+    ) -> Result<(), Error> {
+        let source_index = i32::try_from(source_index).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "source page index {source_index} cannot be represented as i32"
+            ))
+        })?;
+        let target_index = i32::try_from(target_index).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "target page index {target_index} cannot be represented as i32"
+            ))
+        })?;
+        unsafe {
+            ffi_try!(mupdf_pdf_graft_page(
+                context(),
+                self.inner,
+                target_index,
+                src,
+                source_index
+            ))
+        }
+    }
+
+    fn delete_page_range_raw(&mut self, range: PageRange) -> Result<(), Error> {
+        let start = i32::try_from(range.start).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "range start {} cannot be represented as i32",
+                range.start
+            ))
+        })?;
+        let end = i32::try_from(range.end).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "range end {} cannot be represented as i32",
+                range.end
+            ))
+        })?;
+        unsafe {
+            ffi_try!(mupdf_pdf_delete_page_range(
+                context(),
+                self.inner,
+                start,
+                end
+            ))
+        }
+    }
+
+    pub fn insert_pdf(
+        &mut self,
+        src: &PdfDocument,
+        options: InsertPdfOptions,
+    ) -> Result<InsertPdfResult, Error> {
+        options.validate_supported()?;
+
+        let source_indices = options
+            .source_pages
+            .validated_indices(src.page_count_usize()?)?;
+        let mut target_index = self.checked_insert_index(options.target)?;
+        let inserted_start = target_index;
+
+        let operation = DocOperation::begin(self, "Insert PDF pages")?;
+        for source_index in source_indices.iter().copied() {
+            operation
+                .doc
+                .graft_page_raw(src.as_raw(), source_index, target_index)?;
+            if let Some(rotate) = options.rotate {
+                operation
+                    .doc
+                    .load_pdf_page(i32::try_from(target_index).map_err(|_| {
+                        Error::InvalidArgument(format!(
+                            "target page index {target_index} cannot be represented as i32"
+                        ))
+                    })?)?
+                    .set_rotation(rotate)?;
+            }
+            target_index += 1;
+        }
+        operation.commit()?;
+
+        Ok(InsertPdfResult {
+            inserted_pages: PageRange::new(inserted_start, target_index),
+            page_count: target_index - inserted_start,
+        })
+    }
+
+    pub fn copy_page(
+        &mut self,
+        source_index: usize,
+        target: InsertPosition,
+    ) -> Result<InsertPdfResult, Error> {
+        self.checked_page_index(source_index)?;
+        let target_index = self.checked_insert_index(target)?;
+
+        let operation = DocOperation::begin(self, "Copy PDF page")?;
+        let src = operation.doc.as_raw();
+        operation
+            .doc
+            .graft_page_raw(src, source_index, target_index)?;
+        operation.commit()?;
+
+        Ok(InsertPdfResult {
+            inserted_pages: PageRange::new(target_index, target_index + 1),
+            page_count: 1,
+        })
+    }
+
+    pub fn duplicate_page(&mut self, source_index: usize) -> Result<InsertPdfResult, Error> {
+        self.copy_page(source_index, InsertPosition::After(source_index))
+    }
+
+    pub fn move_page(&mut self, source_index: usize, target_index: usize) -> Result<(), Error> {
+        let source_index_i32 = self.checked_page_index(source_index)?;
+        let page_count = self.page_count_usize()?;
+        if target_index >= page_count {
+            return Err(Error::InvalidArgument(format!(
+                "target page index {target_index} exceeds page count {page_count}"
+            )));
+        }
+        if source_index == target_index {
+            return Ok(());
+        }
+        let target_index_i32 = i32::try_from(target_index).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "target page index {target_index} cannot be represented as i32"
+            ))
+        })?;
+
+        let operation = DocOperation::begin(self, "Move PDF page")?;
+        let page = operation.doc.find_page(source_index_i32)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_delete_page(
+                context(),
+                operation.doc.inner,
+                source_index_i32
+            ))?;
+            ffi_try!(mupdf_pdf_insert_page(
+                context(),
+                operation.doc.inner,
+                target_index_i32,
+                page.inner
+            ))?;
+        }
+        operation.commit()
+    }
+
+    pub fn delete_pages(&mut self, selection: impl Into<PageSelection>) -> Result<(), Error> {
+        let mut pages = selection
+            .into()
+            .validated_unique_sorted_indices(self.page_count_usize()?)?;
+
+        let operation = DocOperation::begin(self, "Delete PDF pages")?;
+        while let Some(end_page) = pages.pop() {
+            let mut start_page = end_page;
+            while pages
+                .last()
+                .is_some_and(|previous| *previous + 1 == start_page)
+            {
+                start_page = pages.pop().unwrap();
+            }
+            operation
+                .doc
+                .delete_page_range_raw(PageRange::new(start_page, end_page + 1))?;
+        }
+        operation.commit()
+    }
+
+    pub fn select_pages(&mut self, selection: impl Into<PageSelection>) -> Result<(), Error> {
+        let page_count = self.page_count_usize()?;
+        let selected = selection
+            .into()
+            .validated_unique_sorted_indices(page_count)?;
+        let selected: BTreeSet<_> = selected.into_iter().collect();
+        let pages_to_delete: Vec<_> = (0..page_count)
+            .filter(|page| !selected.contains(page))
+            .collect();
+        if pages_to_delete.is_empty() {
+            return Ok(());
+        }
+        self.delete_pages(PageSelection::Pages(pages_to_delete))
+    }
+
+    pub fn reload_page(&self, page_index: usize) -> Result<PdfPage, Error> {
+        self.load_pdf_page(self.checked_page_index(page_index)?)
+    }
+
+    pub fn page_label(&self, page_index: usize) -> Result<String, Error> {
+        let page_index = self.checked_page_index(page_index)?;
+        let mut buf = [0 as c_char; 128];
+        unsafe {
+            ffi_try!(mupdf_pdf_page_label(
+                context(),
+                self.inner,
+                page_index,
+                buf.as_mut_ptr(),
+                buf.len()
+            ))?
+        };
+        let label = unsafe { CStr::from_ptr(buf.as_ptr()) };
+        Ok(label.to_string_lossy().into_owned())
+    }
+
+    pub fn set_page_label_rule(&mut self, rule: PageLabelRule) -> Result<(), Error> {
+        let page_count = self.page_count_usize()?;
+        if rule.index >= page_count {
+            return Err(Error::InvalidArgument(format!(
+                "page label index {} exceeds page count {page_count}",
+                rule.index
+            )));
+        }
+        if rule.start < 1 {
+            return Err(Error::InvalidArgument(
+                "page label start must be at least 1".to_owned(),
+            ));
+        }
+        let index = i32::try_from(rule.index).map_err(|_| {
+            Error::InvalidArgument(format!(
+                "page label index {} cannot be represented as i32",
+                rule.index
+            ))
+        })?;
+        let prefix = CString::new(rule.prefix)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_set_page_labels(
+                context(),
+                self.inner,
+                index,
+                rule.style.into_raw(),
+                prefix.as_ptr(),
+                rule.start
+            ))
+        }
+    }
+
+    pub fn xref_len(&self) -> Result<usize, Error> {
+        self.count_objects().map(|count| count as usize)
+    }
+
+    pub fn xref_object(&self, xref: i32) -> Result<Option<PdfObject>, Error> {
+        self.checked_xref(xref)?;
+        self.new_indirect(xref, 0)?.resolve()
+    }
+
+    pub fn xref_stream(&self, xref: i32) -> Result<Vec<u8>, Error> {
+        self.checked_xref(xref)?;
+        self.new_indirect(xref, 0)?.read_stream()
+    }
+
+    pub fn xref_raw_stream(&self, xref: i32) -> Result<Vec<u8>, Error> {
+        self.checked_xref(xref)?;
+        self.new_indirect(xref, 0)?.read_raw_stream()
+    }
+
     pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
         let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
         unsafe {
@@ -1064,9 +1598,12 @@ impl<'a> IntoIterator for &'a PdfDocument {
 #[cfg(test)]
 mod test {
     use crate::document::test_document;
-    use crate::Buffer;
+    use crate::{Buffer, Size};
 
-    use super::{EmbeddedFileOptions, PdfDocument, PdfWriteOptions, Permission};
+    use super::{
+        EmbeddedFileOptions, InsertPdfOptions, InsertPosition, PageLabelRule, PageLabelStyle,
+        PageSelection, PdfDocument, PdfWriteOptions, Permission,
+    };
 
     #[test]
     fn test_pdf_write_options_passwords() {
@@ -1213,8 +1750,6 @@ mod test {
 
     #[test]
     fn test_pdf_document_new_page() {
-        use crate::Size;
-
         let mut pdf = PdfDocument::new();
         let page = pdf.new_page(Size::A4).unwrap();
         assert!(pdf.has_unsaved_changes());
@@ -1268,6 +1803,69 @@ mod test {
         assert!(doc.delete_embedded_file("payload").unwrap());
         assert!(doc.embedded_files().unwrap().is_empty());
         assert!(doc.load_embedded_file("payload").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_pdf_document_insert_copy_delete_and_select_pages() {
+        let mut src = PdfDocument::new();
+        src.new_page(Size::A4).unwrap();
+        src.new_page(Size::A5).unwrap();
+
+        let mut dst = PdfDocument::new();
+        dst.new_page(Size::A6).unwrap();
+
+        let result = dst
+            .insert_pdf(
+                &src,
+                InsertPdfOptions {
+                    source_pages: PageSelection::from(0..2),
+                    target: InsertPosition::Append,
+                    rotate: Some(90),
+                    ..InsertPdfOptions::default()
+                },
+            )
+            .unwrap();
+        assert_eq!(result.page_count, 2);
+        assert_eq!(result.inserted_pages.start, 1);
+        assert_eq!(result.inserted_pages.end, 3);
+        assert_eq!(dst.page_count().unwrap(), 3);
+        assert_eq!(dst.load_pdf_page(1).unwrap().rotation().unwrap(), 90);
+
+        dst.copy_page(0, InsertPosition::Append).unwrap();
+        assert_eq!(dst.page_count().unwrap(), 4);
+
+        dst.delete_pages(1..3).unwrap();
+        assert_eq!(dst.page_count().unwrap(), 2);
+
+        dst.select_pages(PageSelection::Pages(vec![0])).unwrap();
+        assert_eq!(dst.page_count().unwrap(), 1);
+    }
+
+    #[test]
+    fn test_pdf_document_page_labels() {
+        let mut doc = PdfDocument::new();
+        doc.new_page(Size::A4).unwrap();
+        doc.new_page(Size::A4).unwrap();
+
+        doc.set_page_label_rule(PageLabelRule {
+            index: 0,
+            style: PageLabelStyle::LowerRoman,
+            prefix: "intro-".to_owned(),
+            start: 1,
+        })
+        .unwrap();
+
+        assert_eq!(doc.page_label(0).unwrap(), "intro-i");
+        assert_eq!(doc.page_label(1).unwrap(), "intro-ii");
+    }
+
+    #[test]
+    fn test_pdf_document_rejects_invalid_page_selection() {
+        let mut doc = PdfDocument::new();
+        doc.new_page(Size::A4).unwrap();
+
+        assert!(doc.delete_pages(PageSelection::Pages(vec![0, 0])).is_err());
+        assert!(doc.delete_pages(1..2).is_err());
     }
 
     #[test]
