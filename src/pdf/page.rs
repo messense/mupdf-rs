@@ -3,7 +3,7 @@ use std::hash::{Hash, Hasher};
 use std::marker::PhantomData;
 use std::str;
 use std::{
-    ffi::CStr,
+    ffi::{CStr, CString},
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     ptr::NonNull,
@@ -20,7 +20,7 @@ use crate::pdf::links::{
 use crate::pdf::{
     AnnotationArea, AnnotationQuadPoints, DocOperation, LinkAction, PdfAction, PdfAnnotation,
     PdfAnnotationType, PdfDestination, PdfDocument, PdfFilterOptions, PdfLink, PdfLinkAnnot,
-    PdfObject, PdfRedactOptions,
+    PdfObject, PdfRedactOptions, PdfWidget, PdfWidgetIter,
 };
 use crate::{
     context, unsafe_impl_ffi_wrapper, Buffer, CjkFontOrdering, Error, FFIWrapper, Font, Matrix,
@@ -397,6 +397,39 @@ impl PdfPage {
             next: NonNull::new(next),
             marker: PhantomData,
         }
+    }
+
+    pub fn widgets(&self) -> PdfWidgetIter<'_> {
+        let next = unsafe { pdf_first_widget(context(), self.as_ptr().cast_mut()) };
+        PdfWidgetIter {
+            next: NonNull::new(next),
+            marker: PhantomData,
+        }
+    }
+
+    pub fn load_widget(&self, xref: i32) -> Result<Option<PdfWidget>, Error> {
+        for widget in self.widgets() {
+            if widget.xref()? == xref {
+                return Ok(Some(widget));
+            }
+        }
+        Ok(None)
+    }
+
+    pub fn delete_widget(&mut self, widget: PdfWidget) -> Result<(), Error> {
+        self.delete_annotation(widget.into_annotation())
+    }
+
+    pub fn add_signature_widget(&mut self, name: &str) -> Result<PdfWidget, Error> {
+        let name = CString::new(name)?;
+        unsafe {
+            ffi_try!(mupdf_pdf_create_signature_widget(
+                context(),
+                self.as_mut_ptr(),
+                name.as_ptr()
+            ))
+        }
+        .map(|widget| unsafe { PdfWidget::from_raw(widget) })
     }
 
     pub fn update(&mut self) -> Result<bool, Error> {
@@ -2114,6 +2147,26 @@ mod test {
         assert_eq!(annots.len(), 1);
         assert_eq!(annots[0].r#type().unwrap(), PdfAnnotationType::Text);
         assert_eq!(annots[0].rect().unwrap(), expected);
+    }
+
+    #[test]
+    fn test_page_widgets_empty_and_signature_widget() {
+        let mut doc = PdfDocument::new();
+        let mut page = doc.new_page(Size::A4).unwrap();
+        assert_eq!(page.widgets().count(), 0);
+
+        let widget = page.add_signature_widget("Sig1").unwrap();
+        assert_eq!(widget.r#type().unwrap(), crate::WidgetType::Signature);
+        assert_eq!(widget.name().unwrap().as_deref(), Some("Sig1"));
+        assert!(!widget.is_signed().unwrap());
+
+        let xref = widget.xref().unwrap();
+        drop(widget);
+
+        let widgets: Vec<_> = page.widgets().collect();
+        assert_eq!(widgets.len(), 1);
+        assert_eq!(widgets[0].xref().unwrap(), xref);
+        assert!(page.load_widget(xref).unwrap().is_some());
     }
 
     #[test]

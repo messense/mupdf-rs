@@ -15,6 +15,112 @@ int mupdf_pdf_update_annot(fz_context *ctx, pdf_annot *annot, mupdf_error_t **er
     TRY_CATCH(int, 0, pdf_update_annot(ctx, annot));
 }
 
+pdf_annot *mupdf_pdf_first_widget(fz_context *ctx, pdf_page *page, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_annot*, NULL, pdf_first_widget(ctx, page));
+}
+
+pdf_annot *mupdf_pdf_next_widget(fz_context *ctx, pdf_annot *previous, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_annot*, NULL, pdf_next_widget(ctx, previous));
+}
+
+pdf_annot *mupdf_pdf_create_signature_widget(fz_context *ctx, pdf_page *page, const char *name, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_annot*, NULL, pdf_create_signature_widget(ctx, page, (char *)name));
+}
+
+int mupdf_pdf_update_widget(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_update_widget(ctx, widget));
+}
+
+enum pdf_widget_type mupdf_pdf_widget_type(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(enum pdf_widget_type, PDF_WIDGET_TYPE_UNKNOWN, pdf_widget_type(ctx, widget));
+}
+
+int mupdf_pdf_widget_is_signed(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_widget_is_signed(ctx, widget));
+}
+
+int mupdf_pdf_widget_is_readonly(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_widget_is_readonly(ctx, widget));
+}
+
+char *mupdf_pdf_load_widget_field_name(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(char*, NULL, pdf_load_field_name(ctx, pdf_annot_obj(ctx, widget)));
+}
+
+const char *mupdf_pdf_widget_field_type_string(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(const char*, NULL, pdf_field_type_string(ctx, pdf_annot_obj(ctx, widget)));
+}
+
+int mupdf_pdf_widget_field_flags(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_field_flags(ctx, pdf_annot_obj(ctx, widget)));
+}
+
+const char *mupdf_pdf_widget_field_value(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(const char*, NULL, pdf_field_value(ctx, pdf_annot_obj(ctx, widget)));
+}
+
+const char *mupdf_pdf_widget_field_label(fz_context *ctx, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH(const char*, NULL, pdf_field_label(ctx, pdf_annot_obj(ctx, widget)));
+}
+
+int mupdf_pdf_set_widget_field_value(fz_context *ctx, pdf_document *doc, pdf_annot *widget, const char *value, int ignore_trigger_events, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_set_field_value(ctx, doc, pdf_annot_obj(ctx, widget), value, ignore_trigger_events));
+}
+
+void mupdf_pdf_reset_widget_field(fz_context *ctx, pdf_document *doc, pdf_annot *widget, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_field_reset(ctx, doc, pdf_annot_obj(ctx, widget)));
+}
+
+pdf_obj *mupdf_pdf_add_embedded_file(fz_context *ctx, pdf_document *doc, const char *filename, const char *mimetype, fz_buffer *contents, int64_t created, int64_t modified, int add_checksum, mupdf_error_t **errptr)
+{
+    TRY_CATCH(pdf_obj*, NULL, pdf_add_embedded_file(ctx, doc, filename, mimetype, contents, created, modified, add_checksum));
+}
+
+int mupdf_pdf_is_embedded_file(fz_context *ctx, pdf_obj *fs, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_is_embedded_file(ctx, fs));
+}
+
+pdf_filespec_params mupdf_pdf_get_filespec_params(fz_context *ctx, pdf_obj *fs, mupdf_error_t **errptr)
+{
+    pdf_filespec_params params = {0};
+    params.created = -1;
+    params.modified = -1;
+    fz_try(ctx)
+    {
+        pdf_get_filespec_params(ctx, fs, &params);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+    }
+    return params;
+}
+
+fz_buffer *mupdf_pdf_load_embedded_file_contents(fz_context *ctx, pdf_obj *fs, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_buffer*, NULL, pdf_load_embedded_file_contents(ctx, fs));
+}
+
+int mupdf_pdf_verify_embedded_file_checksum(fz_context *ctx, pdf_obj *fs, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_verify_embedded_file_checksum(ctx, fs));
+}
+
 bool mupdf_pdf_apply_redaction(fz_context *ctx, pdf_annot *annot, pdf_redact_options *opts, mupdf_error_t **errptr)
 {
     TRY_CATCH(bool, false, pdf_apply_redaction(ctx, annot, opts));

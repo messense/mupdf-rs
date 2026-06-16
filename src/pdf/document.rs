@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::convert::TryFrom;
 use std::ffi::{c_int, CStr, CString};
-use std::io::{self, Write};
+use std::io::{self, Read, Write};
 use std::ops::{Deref, DerefMut};
 use std::ptr::{self, NonNull};
 
@@ -236,6 +236,38 @@ pub struct PdfDocument {
     inner: *mut pdf_document,
     doc: Document,
     pub(crate) font_info_cache: RefCell<HashMap<i32, FontInfo>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct EmbeddedFileOptions<'a> {
+    pub filename: &'a str,
+    pub mime_type: Option<&'a str>,
+    pub created: Option<i64>,
+    pub modified: Option<i64>,
+    pub add_checksum: bool,
+}
+
+impl<'a> EmbeddedFileOptions<'a> {
+    pub fn new(filename: &'a str) -> Self {
+        Self {
+            filename,
+            mime_type: None,
+            created: None,
+            modified: None,
+            add_checksum: true,
+        }
+    }
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmbeddedFileInfo {
+    pub name: String,
+    pub xref: i32,
+    pub filename: Option<String>,
+    pub mime_type: Option<String>,
+    pub size: usize,
+    pub created: Option<i64>,
+    pub modified: Option<i64>,
 }
 
 impl Default for PdfDocument {
@@ -617,6 +649,245 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_delete_page(context(), self.inner, page_no)) }
     }
 
+    fn ensure_embedded_files_array(&self) -> Result<PdfObject, Error> {
+        let mut catalog = self.catalog()?;
+        let mut names = match catalog.get_dict("Names")? {
+            Some(names) if names.is_dict()? => names,
+            _ => {
+                let names = self.new_dict()?;
+                catalog.dict_put_ref("Names", &names)?;
+                names
+            }
+        };
+        let mut embedded_files = match names.get_dict("EmbeddedFiles")? {
+            Some(embedded_files) if embedded_files.is_dict()? => embedded_files,
+            _ => {
+                let embedded_files = self.new_dict()?;
+                names.dict_put_ref("EmbeddedFiles", &embedded_files)?;
+                embedded_files
+            }
+        };
+        match embedded_files.get_dict("Names")? {
+            Some(array) if array.is_array()? => Ok(array),
+            _ => {
+                let array = self.new_array()?;
+                embedded_files.dict_put_ref("Names", &array)?;
+                Ok(array)
+            }
+        }
+    }
+
+    fn embedded_files_array(&self) -> Result<Option<PdfObject>, Error> {
+        let Some(names) = self.catalog()?.get_dict("Names")? else {
+            return Ok(None);
+        };
+        if !names.is_dict()? {
+            return Ok(None);
+        }
+        let Some(embedded_files) = names.get_dict("EmbeddedFiles")? else {
+            return Ok(None);
+        };
+        if !embedded_files.is_dict()? {
+            return Ok(None);
+        }
+        match embedded_files.get_dict("Names")? {
+            Some(array) if array.is_array()? => Ok(Some(array)),
+            _ => Ok(None),
+        }
+    }
+
+    fn named_embedded_file_object(&self, name: &str) -> Result<Option<PdfObject>, Error> {
+        let Some(array) = self.embedded_files_array()? else {
+            return Ok(None);
+        };
+        let len = array.len()?;
+        let mut index = 0;
+        while index + 1 < len {
+            let key_matches = array
+                .get_array(index as i32)?
+                .and_then(|key| key.as_string().ok().map(|key| key == name))
+                .unwrap_or(false);
+            if key_matches {
+                return array.get_array((index + 1) as i32);
+            }
+            index += 2;
+        }
+        Ok(None)
+    }
+
+    fn filespec_info(&self, name: String, fs: PdfObject) -> Result<EmbeddedFileInfo, Error> {
+        let is_embedded =
+            unsafe { ffi_try!(mupdf_pdf_is_embedded_file(context(), fs.inner))? != 0 };
+        if !is_embedded {
+            return Err(Error::InvalidArgument(format!(
+                "named file {name} is not an embedded file"
+            )));
+        }
+
+        let params = unsafe { ffi_try!(mupdf_pdf_get_filespec_params(context(), fs.inner))? };
+        let filename = if params.filename.is_null() {
+            None
+        } else {
+            Some(
+                unsafe { CStr::from_ptr(params.filename) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        };
+        let mime_type = if params.mimetype.is_null() {
+            None
+        } else {
+            Some(
+                unsafe { CStr::from_ptr(params.mimetype) }
+                    .to_string_lossy()
+                    .into_owned(),
+            )
+        };
+
+        Ok(EmbeddedFileInfo {
+            name,
+            xref: fs.as_indirect().unwrap_or(0),
+            filename,
+            mime_type,
+            size: params.size.max(0) as usize,
+            created: (params.created >= 0).then_some(params.created),
+            modified: (params.modified >= 0).then_some(params.modified),
+        })
+    }
+
+    fn put_named_embedded_file(&self, name: &str, filespec: &PdfObject) -> Result<(), Error> {
+        let mut array = self.ensure_embedded_files_array()?;
+        let len = array.len()?;
+        let mut index = 0;
+        while index + 1 < len {
+            let key_matches = array
+                .get_array(index as i32)?
+                .and_then(|key| key.as_string().ok().map(|key| key == name))
+                .unwrap_or(false);
+            if key_matches {
+                array.array_put((index + 1) as i32, filespec.clone())?;
+                return Ok(());
+            }
+            index += 2;
+        }
+        array.array_push(PdfObject::new_string(name)?)?;
+        array.array_push_ref(filespec)
+    }
+
+    pub fn add_embedded_file(
+        &mut self,
+        name: &str,
+        contents: &[u8],
+        options: EmbeddedFileOptions<'_>,
+    ) -> Result<EmbeddedFileInfo, Error> {
+        let filename = CString::new(options.filename)?;
+        let mime_type = options.mime_type.map(CString::new).transpose()?;
+        let contents = Buffer::from_bytes(contents)?;
+        let fs = unsafe {
+            ffi_try!(mupdf_pdf_add_embedded_file(
+                context(),
+                self.inner,
+                filename.as_ptr(),
+                mime_type
+                    .as_ref()
+                    .map_or(ptr::null(), |mime_type| mime_type.as_ptr()),
+                contents.inner,
+                options.created.unwrap_or(-1),
+                options.modified.unwrap_or(-1),
+                i32::from(options.add_checksum)
+            ))
+        }
+        .map(|inner| unsafe { PdfObject::from_raw(inner) })?;
+        let fs = if fs.is_indirect()? {
+            fs
+        } else {
+            self.add_object(&fs)?
+        };
+        self.put_named_embedded_file(name, &fs)?;
+        self.filespec_info(name.to_owned(), fs)
+    }
+
+    pub fn embedded_files(&self) -> Result<Vec<EmbeddedFileInfo>, Error> {
+        let Some(array) = self.embedded_files_array()? else {
+            return Ok(Vec::new());
+        };
+
+        let mut files = Vec::new();
+        let len = array.len()?;
+        let mut index = 0;
+        while index + 1 < len {
+            let Some(name) = array
+                .get_array(index as i32)?
+                .and_then(|name| name.as_string().ok().map(str::to_owned))
+            else {
+                index += 2;
+                continue;
+            };
+            if let Some(filespec) = array.get_array((index + 1) as i32)? {
+                files.push(self.filespec_info(name, filespec)?);
+            }
+            index += 2;
+        }
+        Ok(files)
+    }
+
+    pub fn embedded_file(&self, name: &str) -> Result<Option<EmbeddedFileInfo>, Error> {
+        let Some(filespec) = self.named_embedded_file_object(name)? else {
+            return Ok(None);
+        };
+        self.filespec_info(name.to_owned(), filespec).map(Some)
+    }
+
+    pub fn load_embedded_file(&self, name: &str) -> Result<Option<Vec<u8>>, Error> {
+        let Some(filespec) = self.named_embedded_file_object(name)? else {
+            return Ok(None);
+        };
+        let buffer = unsafe {
+            ffi_try!(mupdf_pdf_load_embedded_file_contents(
+                context(),
+                filespec.inner
+            ))
+        }?;
+        let mut buffer = unsafe { Buffer::from_raw(buffer) };
+        let mut contents = Vec::with_capacity(buffer.len());
+        buffer.read_to_end(&mut contents)?;
+        Ok(Some(contents))
+    }
+
+    pub fn verify_embedded_file_checksum(&self, name: &str) -> Result<Option<bool>, Error> {
+        let Some(filespec) = self.named_embedded_file_object(name)? else {
+            return Ok(None);
+        };
+        unsafe {
+            ffi_try!(mupdf_pdf_verify_embedded_file_checksum(
+                context(),
+                filespec.inner
+            ))
+        }
+        .map(|valid| Some(valid != 0))
+    }
+
+    pub fn delete_embedded_file(&mut self, name: &str) -> Result<bool, Error> {
+        let Some(mut array) = self.embedded_files_array()? else {
+            return Ok(false);
+        };
+        let len = array.len()?;
+        let mut index = 0;
+        while index + 1 < len {
+            let key_matches = array
+                .get_array(index as i32)?
+                .and_then(|key| key.as_string().ok().map(|key| key == name))
+                .unwrap_or(false);
+            if key_matches {
+                array.array_delete((index + 1) as i32)?;
+                array.array_delete(index as i32)?;
+                return Ok(true);
+            }
+            index += 2;
+        }
+        Ok(false)
+    }
+
     pub fn begin_operation(&self, op: &str) -> Result<(), Error> {
         let c_op = CString::new(op).map_err(|_| Error::InvalidUtf8)?;
         unsafe {
@@ -795,7 +1066,7 @@ mod test {
     use crate::document::test_document;
     use crate::Buffer;
 
-    use super::{PdfDocument, PdfWriteOptions, Permission};
+    use super::{EmbeddedFileOptions, PdfDocument, PdfWriteOptions, Permission};
 
     #[test]
     fn test_pdf_write_options_passwords() {
@@ -960,6 +1231,43 @@ mod test {
     fn test_pdf_document_find_page() {
         let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
         let _page = doc.find_page(0).unwrap();
+    }
+
+    #[test]
+    fn test_pdf_document_named_embedded_files() {
+        let mut doc = PdfDocument::new();
+        let info = doc
+            .add_embedded_file(
+                "payload",
+                b"hello embedded",
+                EmbeddedFileOptions {
+                    mime_type: Some("text/plain"),
+                    ..EmbeddedFileOptions::new("payload.txt")
+                },
+            )
+            .unwrap();
+
+        assert_eq!(info.name, "payload");
+        assert_eq!(info.filename.as_deref(), Some("payload.txt"));
+        assert_eq!(info.mime_type.as_deref(), Some("text/plain"));
+        assert_eq!(info.size, b"hello embedded".len());
+
+        let files = doc.embedded_files().unwrap();
+        assert_eq!(files.len(), 1);
+        assert_eq!(files[0].name, "payload");
+        assert_eq!(
+            doc.load_embedded_file("payload").unwrap().unwrap(),
+            b"hello embedded"
+        );
+        assert_eq!(
+            doc.verify_embedded_file_checksum("payload").unwrap(),
+            Some(true)
+        );
+        assert!(doc.embedded_file("payload").unwrap().is_some());
+
+        assert!(doc.delete_embedded_file("payload").unwrap());
+        assert!(doc.embedded_files().unwrap().is_empty());
+        assert!(doc.load_embedded_file("payload").unwrap().is_none());
     }
 
     #[test]
