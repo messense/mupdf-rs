@@ -18,6 +18,7 @@ use crate::{output::Output, FFIAnalogue};
 
 bitflags! {
     /// Per-char flags reported by the structured-text extractor.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct TextCharFlags: u16 {
         const STRIKEOUT = FZ_STEXT_STRIKEOUT as _;
         const UNDERLINE = FZ_STEXT_UNDERLINE as _;
@@ -35,6 +36,7 @@ bitflags! {
 
 bitflags! {
     /// Options for creating a pixmap and draw device.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
     pub struct TextPageFlags: u32 {
         const PRESERVE_LIGATURES = FZ_STEXT_PRESERVE_LIGATURES as _;
         const PRESERVE_WHITESPACE = FZ_STEXT_PRESERVE_WHITESPACE as _;
@@ -56,6 +58,69 @@ bitflags! {
         const ACCURATE_ASCENDERS = FZ_STEXT_ACCURATE_ASCENDERS as _;
         const ACCURATE_SIDE_BEARINGS = FZ_STEXT_ACCURATE_SIDE_BEARINGS as _;
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TextExtractOptions {
+    pub flags: TextPageFlags,
+}
+
+impl Default for TextExtractOptions {
+    fn default() -> Self {
+        Self {
+            flags: TextPageFlags::empty(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct TextWord {
+    pub text: String,
+    pub bounds: Rect,
+    pub block: usize,
+    pub line: usize,
+    pub word: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructuredTextChar {
+    pub ch: char,
+    pub origin: Point,
+    pub quad: Quad,
+    pub size: f32,
+    pub argb: u32,
+    pub flags: TextCharFlags,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructuredTextLine {
+    pub bounds: Rect,
+    pub wmode: WriteMode,
+    pub text: String,
+    pub chars: Vec<StructuredTextChar>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TextBlockContent {
+    Text { lines: Vec<StructuredTextLine> },
+    Image { transform: Option<Matrix> },
+    Other,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructuredTextBlock {
+    pub bounds: Rect,
+    pub content: TextBlockContent,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct StructuredText {
+    pub blocks: Vec<StructuredTextBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct RawStructuredText {
+    pub blocks: Vec<StructuredTextBlock>,
 }
 
 /// A text page is a list of blocks, together with an overall bounding box
@@ -189,6 +254,115 @@ impl TextPage {
         TextBlockIter {
             next: unsafe { (*self.as_ptr().cast_mut()).first_block },
             _marker: PhantomData,
+        }
+    }
+
+    pub fn words(&self) -> Vec<TextWord> {
+        let mut words = Vec::new();
+
+        for (block_index, block) in self.blocks().enumerate() {
+            if block.r#type() != TextBlockType::Text {
+                continue;
+            }
+            for (line_index, line) in block.lines().enumerate() {
+                let mut current = String::new();
+                let mut bounds: Option<Rect> = None;
+                let mut word_index = 0;
+
+                for ch in line.chars() {
+                    let Some(value) = ch.char() else {
+                        continue;
+                    };
+                    if value.is_whitespace() {
+                        if !current.is_empty() {
+                            words.push(TextWord {
+                                text: std::mem::take(&mut current),
+                                bounds: bounds.take().unwrap(),
+                                block: block_index,
+                                line: line_index,
+                                word: word_index,
+                            });
+                            word_index += 1;
+                        }
+                        continue;
+                    }
+
+                    let char_bounds = Rect::from(ch.quad());
+                    bounds = Some(match bounds {
+                        Some(bounds) => bounds.r#union(&char_bounds),
+                        None => char_bounds,
+                    });
+                    current.push(value);
+                }
+
+                if !current.is_empty() {
+                    words.push(TextWord {
+                        text: current,
+                        bounds: bounds.unwrap(),
+                        block: block_index,
+                        line: line_index,
+                        word: word_index,
+                    });
+                }
+            }
+        }
+
+        words
+    }
+
+    pub fn structured(&self) -> StructuredText {
+        let mut blocks = Vec::new();
+
+        for block in self.blocks() {
+            let content = match block.r#type() {
+                TextBlockType::Text => {
+                    let lines = block
+                        .lines()
+                        .map(|line| {
+                            let mut text = String::new();
+                            let chars = line
+                                .chars()
+                                .filter_map(|ch| {
+                                    let value = ch.char()?;
+                                    text.push(value);
+                                    Some(StructuredTextChar {
+                                        ch: value,
+                                        origin: ch.origin(),
+                                        quad: ch.quad(),
+                                        size: ch.size(),
+                                        argb: ch.argb(),
+                                        flags: ch.flags(),
+                                    })
+                                })
+                                .collect();
+                            StructuredTextLine {
+                                bounds: line.bounds(),
+                                wmode: line.wmode(),
+                                text,
+                                chars,
+                            }
+                        })
+                        .collect();
+                    TextBlockContent::Text { lines }
+                }
+                TextBlockType::Image => TextBlockContent::Image {
+                    transform: block.ctm(),
+                },
+                _ => TextBlockContent::Other,
+            };
+
+            blocks.push(StructuredTextBlock {
+                bounds: block.bounds(),
+                content,
+            });
+        }
+
+        StructuredText { blocks }
+    }
+
+    pub fn raw_structured(&self) -> RawStructuredText {
+        RawStructuredText {
+            blocks: self.structured().blocks,
         }
     }
 
@@ -560,6 +734,56 @@ mod test {
         let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
         let text = text_page.to_text().unwrap();
         assert_eq!(text, "Dummy PDF file\n\n");
+    }
+
+    #[test]
+    fn test_text_page_words_and_structured_extractors() {
+        use crate::TextBlockContent;
+
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+
+        let words = text_page.words();
+        assert_eq!(
+            words
+                .iter()
+                .map(|word| word.text.as_str())
+                .collect::<Vec<_>>(),
+            vec!["Dummy", "PDF", "file"]
+        );
+        assert_eq!(words[0].block, 0);
+        assert_eq!(words[0].line, 0);
+        assert_eq!(words[0].word, 0);
+        assert!(!words[0].bounds.is_empty());
+
+        let structured = text_page.structured();
+        assert_eq!(structured.blocks.len(), 1);
+        let TextBlockContent::Text { lines } = &structured.blocks[0].content else {
+            panic!("expected text block");
+        };
+        assert_eq!(lines.len(), 1);
+        assert_eq!(lines[0].text, "Dummy PDF file");
+        assert_eq!(lines[0].chars.len(), "Dummy PDF file".chars().count());
+        assert_eq!(lines[0].chars[0].ch, 'D');
+
+        let raw = text_page.raw_structured();
+        assert_eq!(raw.blocks, structured.blocks);
+
+        let json = text_page.to_json(1.0).unwrap();
+        assert!(json.contains("Dummy PDF file"));
+    }
+
+    #[test]
+    fn test_page_text_convenience_extractors() {
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let options = crate::TextExtractOptions::default();
+
+        assert_eq!(page0.text(options).unwrap(), "Dummy PDF file\n\n");
+        let words = page0.words(options).unwrap();
+        assert_eq!(words.len(), 3);
+        assert_eq!(words[1].text, "PDF");
     }
 
     #[test]
