@@ -3,10 +3,13 @@ use std::ops::Mul;
 
 use mupdf_sys::*;
 
-use crate::Point;
+use crate::{impl_ffi_traits, Point};
 
 /// A row-major 3x3 matrix used for representing transformations of coordinates
-#[derive(Debug, Clone, PartialEq)]
+#[derive(
+    Debug, Clone, PartialEq, zerocopy::FromBytes, zerocopy::IntoBytes, zerocopy::Immutable,
+)]
+#[repr(C)]
 pub struct Matrix {
     pub a: f32,
     pub b: f32,
@@ -253,23 +256,11 @@ impl Mul<Point> for &Matrix {
     }
 }
 
-impl From<fz_matrix> for Matrix {
-    fn from(m: fz_matrix) -> Self {
-        let fz_matrix { a, b, c, d, e, f } = m;
-        Self { a, b, c, d, e, f }
-    }
-}
+impl_ffi_traits!(Matrix, fz_matrix);
 
 impl From<&Matrix> for fz_matrix {
     fn from(val: &Matrix) -> Self {
         let Matrix { a, b, c, d, e, f } = *val;
-        fz_matrix { a, b, c, d, e, f }
-    }
-}
-
-impl From<Matrix> for fz_matrix {
-    fn from(val: Matrix) -> Self {
-        let Matrix { a, b, c, d, e, f } = val;
         fz_matrix { a, b, c, d, e, f }
     }
 }
