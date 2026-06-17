@@ -32,6 +32,7 @@ impl Image {
     }
 
     pub fn from_display_list(list: &DisplayList, width: f32, height: f32) -> Result<Self, Error> {
+        let _guard = list.read_guard()?;
         unsafe {
             ffi_try!(mupdf_new_image_from_display_list(
                 context(),

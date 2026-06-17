@@ -1,4 +1,12 @@
-use std::{ffi::CString, io::Read, ptr::NonNull};
+use std::{
+    ffi::CString,
+    io::Read,
+    ptr::NonNull,
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    },
+};
 
 use mupdf_sys::*;
 
@@ -7,9 +15,38 @@ use crate::{
     Error, Image, Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
 };
 
+const DISPLAY_LIST_RECORDING: usize = 1 << (usize::BITS - 1);
+
+fn display_list_recording_error() -> Error {
+    Error::InvalidArgument("display list is currently being recorded".into())
+}
+
+#[derive(Debug)]
+pub(crate) struct DisplayListReadGuard {
+    access: Arc<AtomicUsize>,
+}
+
+impl Drop for DisplayListReadGuard {
+    fn drop(&mut self) {
+        self.access.fetch_sub(1, Ordering::Release);
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct DisplayListRecordingGuard {
+    access: Arc<AtomicUsize>,
+}
+
+impl Drop for DisplayListRecordingGuard {
+    fn drop(&mut self) {
+        self.access.store(0, Ordering::Release);
+    }
+}
+
 #[derive(Debug)]
 pub struct DisplayList {
     pub(crate) inner: NonNull<fz_display_list>,
+    access: Arc<AtomicUsize>,
 }
 
 impl DisplayList {
@@ -20,11 +57,54 @@ impl DisplayList {
     pub(crate) unsafe fn from_raw(ptr: *mut fz_display_list) -> Result<Self, Error> {
         Ok(Self {
             inner: non_null(ptr)?,
+            access: Arc::new(AtomicUsize::new(0)),
         })
     }
 
     pub(crate) fn as_ptr(&self) -> *mut fz_display_list {
         self.inner.as_ptr()
+    }
+
+    pub(crate) fn read_guard(&self) -> Result<DisplayListReadGuard, Error> {
+        loop {
+            let state = self.access.load(Ordering::Acquire);
+            if state & DISPLAY_LIST_RECORDING != 0 {
+                return Err(display_list_recording_error());
+            }
+            if state == DISPLAY_LIST_RECORDING - 1 {
+                return Err(Error::InvalidArgument(
+                    "too many concurrent display list readers".into(),
+                ));
+            }
+            if self
+                .access
+                .compare_exchange_weak(state, state + 1, Ordering::Acquire, Ordering::Relaxed)
+                .is_ok()
+            {
+                return Ok(DisplayListReadGuard {
+                    access: Arc::clone(&self.access),
+                });
+            }
+        }
+    }
+
+    pub(crate) fn recording_guard(&self) -> Result<DisplayListRecordingGuard, Error> {
+        self.access
+            .compare_exchange(
+                0,
+                DISPLAY_LIST_RECORDING,
+                Ordering::AcqRel,
+                Ordering::Relaxed,
+            )
+            .map(|_| DisplayListRecordingGuard {
+                access: Arc::clone(&self.access),
+            })
+            .map_err(|_| display_list_recording_error())
+    }
+
+    fn read_guard_or_panic(&self) -> DisplayListReadGuard {
+        self.read_guard()
+            .expect("display list is currently being recorded")
     }
 
     pub fn new(media_box: Rect) -> Result<Self, Error> {
@@ -33,11 +113,13 @@ impl DisplayList {
     }
 
     pub fn bounds(&self) -> Rect {
+        let _guard = self.read_guard_or_panic();
         let rect = unsafe { fz_bound_display_list(context(), self.as_ptr()) };
         rect.into()
     }
 
     pub fn to_pixmap(&self, ctm: &Matrix, cs: &Colorspace, alpha: bool) -> Result<Pixmap, Error> {
+        let _guard = self.read_guard()?;
         unsafe {
             ffi_try!(mupdf_display_list_to_pixmap(
                 context(),
@@ -51,6 +133,7 @@ impl DisplayList {
     }
 
     pub fn to_svg(&self, ctm: &Matrix) -> Result<String, Error> {
+        let _guard = self.read_guard()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
@@ -66,6 +149,7 @@ impl DisplayList {
     }
 
     pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &Cookie) -> Result<String, Error> {
+        let _guard = self.read_guard()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
@@ -81,6 +165,7 @@ impl DisplayList {
     }
 
     pub fn to_text_page(&self, opts: TextPageFlags) -> Result<TextPage, Error> {
+        let _guard = self.read_guard()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_text_page(
                 context(),
@@ -99,6 +184,7 @@ impl DisplayList {
     }
 
     pub fn run(&self, device: &Device, ctm: &Matrix, area: Rect) -> Result<(), Error> {
+        let _guard = self.read_guard()?;
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
@@ -118,6 +204,7 @@ impl DisplayList {
         area: Rect,
         cookie: &Cookie,
     ) -> Result<(), Error> {
+        let _guard = self.read_guard()?;
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
@@ -131,10 +218,12 @@ impl DisplayList {
     }
 
     pub fn is_empty(&self) -> bool {
+        let _guard = self.read_guard_or_panic();
         unsafe { fz_display_list_is_empty(context(), self.as_ptr()) > 0 }
     }
 
     pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
+        let _guard = self.read_guard()?;
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let mut hit_count = 0;
@@ -159,14 +248,12 @@ impl Drop for DisplayList {
     }
 }
 
-// SAFETY: MuPDF display lists may be run/searched from multiple threads once recording has
-// completed. This relies on callers not recording through `Device::from_display_list` concurrently
-// with readers. FIXME(#109): make the recording API require exclusive access or split mutable
-// in-progress display lists from immutable finalized display lists.
+// SAFETY: `DisplayList` coordinates access with an atomic reader/recording state. Read-only MuPDF
+// operations may run concurrently, while `Device::from_display_list` holds an exclusive recording
+// guard until that device is dropped.
 unsafe impl Send for DisplayList {}
 
-// SAFETY: See the `Send` impl. The current safe API cannot fully express the "recording complete"
-// precondition because `Device::from_display_list` takes `&DisplayList`.
+// SAFETY: See the `Send` impl.
 unsafe impl Sync for DisplayList {}
 
 #[cfg(test)]
