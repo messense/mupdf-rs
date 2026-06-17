@@ -494,7 +494,7 @@ struct ZerocopyDeriveCallbacks;
 #[cfg(feature = "zerocopy")]
 impl bindgen::callbacks::ParseCallbacks for ZerocopyDeriveCallbacks {
     fn add_derives(&self, info: &bindgen::callbacks::DeriveInfo<'_>) -> Vec<String> {
-        const TYPES: [&str; 2] = ["fz_point", "fz_quad"];
+        const TYPES: [&str; 5] = ["fz_irect", "fz_matrix", "fz_point", "fz_quad", "fz_rect"];
 
         if TYPES.contains(&info.name) {
             vec![

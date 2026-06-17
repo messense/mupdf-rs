@@ -3,13 +3,23 @@ use std::fmt;
 use mupdf_sys::*;
 
 use crate::pdf::PdfObject;
-use crate::{context, Error, Matrix, Point, Quad, Size, StrokeState};
+use crate::{context, impl_ffi_traits, Error, Matrix, Point, Quad, Size, StrokeState};
 
 const FZ_MIN_INF_RECT: i32 = 0x80000000u32 as i32;
 const FZ_MAX_INF_RECT: i32 = 0x7fffff80u32 as i32;
 
 /// A rectangle using integers instead of floats
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Default,
+    zerocopy::FromBytes,
+    zerocopy::IntoBytes,
+    zerocopy::Immutable,
+)]
+#[repr(C)]
 pub struct IRect {
     pub x0: i32,
     pub y0: i32,
@@ -99,19 +109,7 @@ impl fmt::Display for IRect {
     }
 }
 
-impl From<fz_irect> for IRect {
-    fn from(r: fz_irect) -> IRect {
-        let fz_irect { x0, y0, x1, y1 } = r;
-        IRect { x0, y0, x1, y1 }
-    }
-}
-
-impl From<IRect> for fz_irect {
-    fn from(val: IRect) -> Self {
-        let IRect { x0, y0, x1, y1 } = val;
-        fz_irect { x0, y0, x1, y1 }
-    }
-}
+impl_ffi_traits!(IRect, fz_irect);
 
 impl From<Rect> for IRect {
     fn from(rect: Rect) -> Self {
@@ -120,7 +118,17 @@ impl From<Rect> for IRect {
 }
 
 /// A rectangle represented by two diagonally opposite corners at arbitrary coordinates
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Default,
+    zerocopy::FromBytes,
+    zerocopy::IntoBytes,
+    zerocopy::Immutable,
+)]
+#[repr(C)]
 pub struct Rect {
     pub x0: f32,
     pub y0: f32,
@@ -279,19 +287,7 @@ impl From<Quad> for Rect {
     }
 }
 
-impl From<fz_rect> for Rect {
-    fn from(r: fz_rect) -> Rect {
-        let fz_rect { x0, y0, x1, y1 } = r;
-        Rect { x0, y0, x1, y1 }
-    }
-}
-
-impl From<Rect> for fz_rect {
-    fn from(val: Rect) -> Self {
-        let Rect { x0, y0, x1, y1 } = val;
-        fz_rect { x0, y0, x1, y1 }
-    }
-}
+impl_ffi_traits!(Rect, fz_rect);
 
 #[cfg(test)]
 mod tests {
