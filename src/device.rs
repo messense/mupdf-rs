@@ -1,6 +1,8 @@
 use std::{
     ffi::{c_int, CString},
+    marker::PhantomData,
     num::NonZero,
+    ops::Deref,
     ptr,
 };
 
@@ -9,9 +11,8 @@ use bitflags::bitflags;
 use mupdf_sys::*;
 
 use crate::{
-    context, display_list::DisplayListRecordingGuard, from_enum, ColorParams, Colorspace,
-    DisplayList, Error, FFIWrapper, IRect, Image, Matrix, Path, Pixmap, Rect, Shade, StrokeState,
-    Text, TextPage, TextPageFlags,
+    context, from_enum, ColorParams, Colorspace, DisplayList, Error, FFIWrapper, IRect, Image,
+    Matrix, Path, Pixmap, Rect, Shade, StrokeState, Text, TextPage, TextPageFlags,
 };
 
 mod native;
@@ -182,16 +183,29 @@ impl Drop for Function {
 pub struct Device {
     pub(crate) dev: *mut fz_device,
     pub(crate) list: *mut fz_display_list,
-    display_list_recording: Option<DisplayListRecordingGuard>,
+}
+
+/// A device that records drawing commands into a display list.
+///
+/// This wrapper carries the mutable borrow of the display list for as long as the recording device
+/// is alive, preventing safe Rust code from reading or recording the same list concurrently.
+#[derive(Debug)]
+pub struct DisplayListDevice<'a> {
+    device: Device,
+    _list: PhantomData<&'a mut DisplayList>,
+}
+
+impl Deref for DisplayListDevice<'_> {
+    type Target = Device;
+
+    fn deref(&self) -> &Self::Target {
+        &self.device
+    }
 }
 
 impl Device {
     pub(crate) unsafe fn from_raw(dev: *mut fz_device, list: *mut fz_display_list) -> Self {
-        Self {
-            dev,
-            list,
-            display_list_recording: None,
-        }
+        Self { dev, list }
     }
 
     pub fn from_native<D: NativeDevice>(device: D) -> Result<Self, Error> {
@@ -203,7 +217,6 @@ impl Device {
             |dev| Self {
                 dev,
                 list: ptr::null_mut(),
-                display_list_recording: None,
             },
         )
     }
@@ -212,13 +225,22 @@ impl Device {
         Self::from_pixmap_with_clip(pixmap, IRect::INF)
     }
 
-    pub fn from_display_list(list: &DisplayList) -> Result<Self, Error> {
-        let display_list_recording = list.recording_guard()?;
+    /// Creates a device that records drawing commands into `list`.
+    ///
+    /// The returned device keeps `list` mutably borrowed until it is dropped, so safe Rust code
+    /// cannot read from or create another recording device for the same display list concurrently.
+    pub fn from_display_list<'a>(
+        list: &'a mut DisplayList,
+    ) -> Result<DisplayListDevice<'a>, Error> {
         let list_ptr = list.as_ptr();
-        unsafe { ffi_try!(mupdf_new_display_list_device(context(), list_ptr)) }.map(|dev| Self {
-            dev,
-            list: list_ptr,
-            display_list_recording: Some(display_list_recording),
+        unsafe { ffi_try!(mupdf_new_display_list_device(context(), list_ptr)) }.map(|dev| {
+            DisplayListDevice {
+                device: Self {
+                    dev,
+                    list: list_ptr,
+                },
+                _list: PhantomData,
+            }
         })
     }
 
@@ -233,7 +255,6 @@ impl Device {
         .map(|dev| Self {
             dev,
             list: ptr::null_mut(),
-            display_list_recording: None,
         })
     }
 
@@ -630,7 +651,6 @@ impl Drop for Device {
                 fz_drop_display_list(context(), self.list);
             }
         }
-        self.display_list_recording.take();
     }
 }
 
@@ -648,21 +668,17 @@ mod test {
 
     #[test]
     fn test_new_device_from_display_list() {
-        let list = DisplayList::new(Rect::new(0.0, 0.0, 100.0, 100.0)).unwrap();
-        let _device = Device::from_display_list(&list).unwrap();
+        let mut list = DisplayList::new(Rect::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+        let _device = Device::from_display_list(&mut list).unwrap();
     }
 
     #[test]
-    fn test_display_list_recording_is_exclusive() {
-        let list = DisplayList::new(Rect::new(0.0, 0.0, 100.0, 100.0)).unwrap();
-        let device = Device::from_display_list(&list).unwrap();
-
-        assert!(Device::from_display_list(&list).is_err());
-        assert!(list.search("anything", 1).is_err());
-
+    fn test_display_list_can_be_used_after_recording_device_is_dropped() {
+        let mut list = DisplayList::new(Rect::new(0.0, 0.0, 100.0, 100.0)).unwrap();
+        let device = Device::from_display_list(&mut list).unwrap();
         drop(device);
 
         assert!(list.search("anything", 1).is_ok());
-        let _device = Device::from_display_list(&list).unwrap();
+        let _device = Device::from_display_list(&mut list).unwrap();
     }
 }

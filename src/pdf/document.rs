@@ -695,7 +695,7 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_delete_object(context(), self.inner, num)) }
     }
 
-    pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
+    pub fn add_image<T>(&mut self, obj: &Image<T>) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }
