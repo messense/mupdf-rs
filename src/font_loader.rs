@@ -80,7 +80,11 @@ pub fn set_font_loader(loader: impl FontLoader) {
 const BUILT_IN_LOADERS: &[&dyn FontLoader] = &[
     #[cfg(feature = "bundled-fonts-runtime")]
     &crate::bundled_font::BundledFontLoader,
-    #[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+    #[cfg(all(
+        feature = "system-fonts",
+        not(target_arch = "wasm32"),
+        not(target_os = "android")
+    ))]
     &crate::system_font::SystemFontLoader,
 ];
 
