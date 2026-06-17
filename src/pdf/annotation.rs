@@ -633,6 +633,72 @@ impl PdfAnnotation {
         }
     }
 
+    /* Name convention note regarding quads:
+    I found confusing how quad-related functions were named in MuPDF,
+    since there exists `pdf_anot_quad_point_count()`, which is not about
+    counting the number of points but about counting the number
+    of 4-point / 8-integer quads in a PDF quad array.
+
+    The mupdf wrapper functions for quads are faithful to mupdf's naming
+    convention, while on the Rust side `has_quads()` is favoured over
+    `has_quad_points()`, likewise with `quad_count()` over `quad_point_count()`.
+    This seems in line with the nomenclature in `quad.rs`
+    */
+
+    pub fn has_quads(&self) -> Result<bool, Error> {
+      let result = unsafe {
+            ffi_try!(
+                mupdf_pdf_annot_has_quad_points(context(), self.inner.as_ptr())
+            )
+        }?;
+
+        Ok(result != 0)
+    }
+
+    pub fn quad_count(&self) -> Result<u32, Error> {
+        if !self.has_quads()? {
+            // We could alternatively choose to error this. That was my first
+            // instinct, but did not get to figuring it out yet.
+            return Ok(0);
+        }
+
+        let count = unsafe {
+            ffi_try!(mupdf_pdf_annot_quad_point_count(
+                context(),
+                self.inner.as_ptr()
+            ))
+        }?;
+
+        Ok(count as u32)
+    }
+
+    // Deliberate choice to not make this one public (in favour of just
+    // relying on `quads()`. Debatable.
+    fn quad(&self, quad_index: u32) -> Result<Quad, Error> {
+        unsafe {
+            ffi_try!(
+                mupdf_pdf_annot_quad_point(
+                    context(),
+                    self.inner.as_ptr(),
+                    quad_index as c_int
+                )
+            )
+        }
+        .map(Into::into)
+    }
+
+    pub fn quads(&self) -> Result<Vec<Quad>, Error> {
+        let quad_count = self.quad_count()?;
+
+        let mut quad_vec = Vec::with_capacity(quad_count as usize);
+
+        for i in 0..quad_count {
+            quads_vec.push(self.quad(i)?);
+        }
+
+        Ok(quads_vec)
+    }
+
     pub fn author(&self) -> Result<Option<&str>, Error> {
         self.ensure_attached()?;
         let ptr = unsafe { ffi_try!(mupdf_pdf_annot_author(context(), self.inner.as_ptr())) }?;
