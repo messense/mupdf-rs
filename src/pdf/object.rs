@@ -7,6 +7,7 @@ use std::str::FromStr;
 
 use mupdf_sys::*;
 
+use crate::pdf::PdfAnnotation;
 use crate::pdf::PdfDocument;
 use crate::{context, Buffer, Error, Matrix};
 
@@ -458,5 +459,14 @@ impl TryFrom<String> for PdfObject {
 
     fn try_from(s: String) -> Result<PdfObject, Self::Error> {
         PdfObject::new_string(&s)
+    }
+}
+
+impl TryFrom<&PdfAnnotation> for PdfObject {
+    type Error = Error;
+
+    fn try_from(annot: &PdfAnnotation) -> Result<PdfObject, Self::Error> {
+        unsafe { ffi_try!(mupdf_pdf_annot_obj(context(), annot.inner.as_ptr())) }
+            .map(|inner| unsafe { PdfObject::from_raw_keep_ref(inner) })
     }
 }

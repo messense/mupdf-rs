@@ -126,6 +126,11 @@ bool mupdf_pdf_apply_redaction(fz_context *ctx, pdf_annot *annot, pdf_redact_opt
     TRY_CATCH(bool, false, pdf_apply_redaction(ctx, annot, opts));
 }
 
+pdf_obj *mupdf_pdf_annot_obj(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+  TRY_CATCH(pdf_obj *, NULL, pdf_annot_obj(ctx, annot));
+}
+
 const char *mupdf_pdf_annot_author(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
 {
     TRY_CATCH(const char *, NULL, pdf_annot_author(ctx, annot));
