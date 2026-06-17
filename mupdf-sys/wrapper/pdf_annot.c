@@ -239,6 +239,11 @@ int mupdf_pdf_annot_quadding(fz_context *ctx, pdf_annot *annot, mupdf_error_t **
     TRY_CATCH(int, 0, pdf_annot_quadding(ctx, annot));
 }
 
+int mupdf_pdf_annot_has_quad_points(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_annot_has_quad_points(ctx, annot));
+}
+
 int mupdf_pdf_annot_quad_point_count(fz_context *ctx, pdf_annot *annot, mupdf_error_t **errptr)
 {
     TRY_CATCH(int, 0, pdf_annot_quad_point_count(ctx, annot));
