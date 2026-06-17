@@ -56,7 +56,7 @@ impl DisplayList {
                 context(),
                 self.as_ptr(),
                 ctm.into(),
-                ptr::null_mut()
+                std::ptr::null_mut()
             ))
         }?;
         let mut buf = unsafe { Buffer::from_raw(inner) };
@@ -106,7 +106,7 @@ impl DisplayList {
                 device.dev,
                 ctm.into(),
                 area.into(),
-                ptr::null_mut()
+                std::ptr::null_mut()
             ))
         }
     }
