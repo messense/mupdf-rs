@@ -230,7 +230,7 @@ impl Document {
         Ok(Some(unsafe { Colorspace::from_raw(inner) }))
     }
 
-    unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Vec<Outline> {
+    unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Result<Vec<Outline>, Error> {
         unsafe {
             let mut outlines = Vec::new();
             let mut next = outline;
@@ -239,14 +239,14 @@ impl Document {
 
                 let (uri, dest) = if !(*next).uri.is_null() {
                     let uri = CStr::from_ptr((*next).uri);
-                    let dest = LinkDestination::from_uri(self, uri).unwrap();
+                    let dest = LinkDestination::from_uri(self, uri)?;
                     (Some(uri.to_string_lossy().into_owned()), dest)
                 } else {
                     (None, None)
                 };
 
                 let down = if !(*next).down.is_null() {
-                    self.walk_outlines((*next).down)
+                    self.walk_outlines((*next).down)?
                 } else {
                     Vec::new()
                 };
@@ -259,7 +259,7 @@ impl Document {
                 });
                 next = (*next).next;
             }
-            outlines
+            Ok(outlines)
         }
     }
 
@@ -271,7 +271,7 @@ impl Document {
         unsafe {
             let toc = self.walk_outlines(outline);
             fz_drop_outline(context(), outline);
-            Ok(toc)
+            toc
         }
     }
 }
