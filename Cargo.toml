@@ -125,10 +125,10 @@ broken_intra_doc_links = "deny"
 [lints.rust]
 unsafe_op_in_unsafe_fn = "deny"
 
-# FIXME(#109): keep these Clippy lints disabled until the existing unsafe FFI
-# wrappers are cleaned up module-by-module. CI runs clippy with `-D warnings`,
-# so raising these before the cleanup is complete would make the current crate
-# fail CI.
+# These Clippy lints are registered for issue #109 but intentionally allowed while
+# the existing unsafe FFI wrappers are cleaned up module-by-module. CI runs clippy
+# with `-D warnings`, so raising these before the cleanup is complete would make
+# the current crate fail CI.
 [lints.clippy]
 multiple_unsafe_ops_per_block = "allow"
 undocumented_unsafe_blocks = "allow"
