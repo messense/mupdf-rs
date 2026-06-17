@@ -57,7 +57,7 @@ sys-lib-brotli = ["mupdf-sys/sys-lib-brotli"]
 # plain PDFs render without text unless replacement fonts are provided at
 # runtime, e.g. via a `FontLoader`.
 base14-fonts = ["mupdf-sys/base14-fonts"]
-system-fonts = ["font-kit"]
+system-fonts = ["dep:font-kit"]
 
 # Runtime bundled font providers. These load fonts through MuPDF's system font
 # hooks in the safe crate instead of compiling them into mupdf-sys.
@@ -103,7 +103,7 @@ mupdf-fonts-droid = { version = "0.8.0", path = "mupdf-fonts-droid", optional = 
 mupdf-fonts-noto = { version = "0.8.0", path = "mupdf-fonts-noto", optional = true }
 mupdf-fonts-sil = { version = "0.8.0", path = "mupdf-fonts-sil", optional = true }
 
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
 font-kit = { version = "0.14.1", optional = true }
 
 [workspace]

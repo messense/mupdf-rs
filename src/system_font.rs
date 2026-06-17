@@ -2,8 +2,9 @@
 //!
 //! Each shim translates MuPDF's raw callback arguments into safe types and
 //! dispatches to the [`FontLoader`](crate::FontLoader) chain (the registered
-//! user loader first, then the built-in loaders). `SystemFontLoader` is the
-//! built-in loader backed by `font-kit` for fonts installed on the system.
+//! user loader first, then the built-in loaders). On non-Android, non-wasm
+//! targets, `SystemFontLoader` is the built-in loader backed by `font-kit` for
+//! fonts installed on the system.
 
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int};
@@ -102,11 +103,19 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
 }
 
 /// Looks up fonts installed on the system via `font-kit`.
-// `font-kit` is only a dependency on non-wasm targets.
-#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+// `font-kit` is only a dependency on non-Android, non-wasm targets.
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
 pub(crate) struct SystemFontLoader;
 
-#[cfg(all(feature = "system-fonts", not(target_arch = "wasm32")))]
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
 impl font_loader::FontLoader for SystemFontLoader {
     fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
         use font_kit::family_name::FamilyName;
