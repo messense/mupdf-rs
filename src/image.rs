@@ -35,7 +35,7 @@ impl Image {
         unsafe {
             ffi_try!(mupdf_new_image_from_display_list(
                 context(),
-                list.inner,
+                list.as_ptr(),
                 width,
                 height
             ))

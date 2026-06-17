@@ -9,9 +9,10 @@ use mupdf_sys::*;
 use crate::drawing::{Drawing, DrawingDevice};
 use crate::Document;
 use crate::{
-    array::FzArray, context, link::LinkDestination, rust_vec_from_ffi_ptr, unsafe_impl_ffi_wrapper,
-    Buffer, Colorspace, Cookie, Device, DisplayList, Error, FFIWrapper, Link, Matrix, Pixmap, Quad,
-    Rect, Separations, TextExtractOptions, TextPage, TextPageFlags, TextWord,
+    array::FzArray, context, link::LinkDestination, non_null, rust_vec_from_ffi_ptr,
+    unsafe_impl_ffi_wrapper, Buffer, Colorspace, Cookie, Device, DisplayList, Error, FFIWrapper,
+    Link, Matrix, Pixmap, Quad, Rect, Separations, TextExtractOptions, TextPage, TextPageFlags,
+    TextWord,
 };
 
 #[derive(Debug)]
@@ -115,7 +116,7 @@ impl Page {
             ))?
         };
 
-        let inner = unsafe { NonNull::new_unchecked(inner) };
+        let inner = non_null(inner)?;
 
         Ok(TextPage { inner })
     }
@@ -136,7 +137,7 @@ impl Page {
                 annotations
             ))
         }
-        .map(|inner| unsafe { DisplayList::from_raw(inner) })
+        .and_then(|inner| unsafe { DisplayList::from_raw(inner) })
     }
 
     pub fn run(&self, device: &Device, ctm: &Matrix) -> Result<(), Error> {

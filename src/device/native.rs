@@ -656,24 +656,37 @@ struct CDevice<D> {
     rust_device: D,
 }
 
+// MuPDF invokes these callbacks with pointers borrowed for the duration of each callback. The
+// temporary Rust wrappers created here must not take ownership of those pointers, so callbacks use
+// `ManuallyDrop` to prevent Drop impls from releasing borrowed MuPDF objects. Color slices are
+// formed from `color` with the component count reported by the corresponding MuPDF colorspace.
 unsafe fn with_rust_device<D: NativeDevice, T>(
     dev: *mut fz_device,
     f: impl FnOnce(&mut D) -> T,
 ) -> T {
-    let c_device: *mut CDevice<D> = dev.cast();
-    let rust_device = &mut (*c_device).rust_device;
-    f(rust_device)
+    // SAFETY: `dev` is the `base` field of a `CDevice<D>` allocated by `create`. MuPDF calls these
+    // callbacks only while that device is alive, and `drop_device` drops the embedded Rust value
+    // exactly once.
+    unsafe {
+        let c_device: *mut CDevice<D> = dev.cast();
+        let rust_device = &mut (*c_device).rust_device;
+        f(rust_device)
+    }
 }
 
 unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| dev.close_device());
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| dev.close_device());
+    }
 }
 
 unsafe extern "C" fn drop_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    let c_device: *mut CDevice<D> = dev.cast();
-    let rust_device = &raw mut (*c_device).rust_device;
+    unsafe {
+        let c_device: *mut CDevice<D> = dev.cast();
+        let rust_device = &raw mut (*c_device).rust_device;
 
-    ptr::drop_in_place(rust_device);
+        ptr::drop_in_place(rust_device);
+    }
 }
 
 unsafe extern "C" fn fill_path<D: NativeDevice>(
@@ -687,22 +700,24 @@ unsafe extern "C" fn fill_path<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+            let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
 
-        dev.fill_path(
-            &path,
-            even_odd != 0,
-            cmt.into(),
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            alpha,
-            color_params.into(),
-        );
-    });
+            dev.fill_path(
+                &path,
+                even_odd != 0,
+                cmt.into(),
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                alpha,
+                color_params.into(),
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn stroke_path<D: NativeDevice>(
@@ -716,25 +731,27 @@ unsafe extern "C" fn stroke_path<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
-        let stroke_state = ManuallyDrop::new(StrokeState {
-            inner: stroke_state.cast_mut(),
+            let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+            let stroke_state = ManuallyDrop::new(StrokeState {
+                inner: stroke_state.cast_mut(),
+            });
+
+            dev.stroke_path(
+                &path,
+                &stroke_state,
+                cmt.into(),
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                alpha,
+                color_params.into(),
+            );
         });
-
-        dev.stroke_path(
-            &path,
-            &stroke_state,
-            cmt.into(),
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            alpha,
-            color_params.into(),
-        );
-    });
+    }
 }
 
 unsafe extern "C" fn clip_path<D: NativeDevice>(
@@ -745,11 +762,13 @@ unsafe extern "C" fn clip_path<D: NativeDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
 
-        dev.clip_path(&path, even_odd != 0, cmt.into(), scissor.into());
-    });
+            dev.clip_path(&path, even_odd != 0, cmt.into(), scissor.into());
+        });
+    }
 }
 
 unsafe extern "C" fn clip_stroke_path<D: NativeDevice>(
@@ -760,14 +779,16 @@ unsafe extern "C" fn clip_stroke_path<D: NativeDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
-        let stroke_state = ManuallyDrop::new(StrokeState {
-            inner: stroke_state.cast_mut(),
-        });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let path = ManuallyDrop::new(Path::from_raw(path.cast_mut()));
+            let stroke_state = ManuallyDrop::new(StrokeState {
+                inner: stroke_state.cast_mut(),
+            });
 
-        dev.clip_stroke_path(&path, &stroke_state, cmt.into(), scissor.into());
-    });
+            dev.clip_stroke_path(&path, &stroke_state, cmt.into(), scissor.into());
+        });
+    }
 }
 
 unsafe extern "C" fn fill_text<D: NativeDevice>(
@@ -780,23 +801,25 @@ unsafe extern "C" fn fill_text<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        let text = ManuallyDrop::new(Text {
-            inner: text.cast_mut(),
+            let text = ManuallyDrop::new(Text {
+                inner: text.cast_mut(),
+            });
+
+            dev.fill_text(
+                &text,
+                cmt.into(),
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                alpha,
+                color_params.into(),
+            );
         });
-
-        dev.fill_text(
-            &text,
-            cmt.into(),
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            alpha,
-            color_params.into(),
-        );
-    });
+    }
 }
 
 unsafe extern "C" fn stroke_text<D: NativeDevice>(
@@ -810,27 +833,29 @@ unsafe extern "C" fn stroke_text<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        let text = ManuallyDrop::new(Text {
-            inner: text.cast_mut(),
-        });
-        let stroke_state = ManuallyDrop::new(StrokeState {
-            inner: stroke_state.cast_mut(),
-        });
+            let text = ManuallyDrop::new(Text {
+                inner: text.cast_mut(),
+            });
+            let stroke_state = ManuallyDrop::new(StrokeState {
+                inner: stroke_state.cast_mut(),
+            });
 
-        dev.stroke_text(
-            &text,
-            &stroke_state,
-            cmt.into(),
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            alpha,
-            color_params.into(),
-        );
-    });
+            dev.stroke_text(
+                &text,
+                &stroke_state,
+                cmt.into(),
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                alpha,
+                color_params.into(),
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn clip_text<D: NativeDevice>(
@@ -840,13 +865,15 @@ unsafe extern "C" fn clip_text<D: NativeDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let text = ManuallyDrop::new(Text {
-            inner: text.cast_mut(),
-        });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let text = ManuallyDrop::new(Text {
+                inner: text.cast_mut(),
+            });
 
-        dev.clip_text(&text, cmt.into(), scissor.into());
-    });
+            dev.clip_text(&text, cmt.into(), scissor.into());
+        });
+    }
 }
 
 unsafe extern "C" fn clip_stroke_text<D: NativeDevice>(
@@ -857,16 +884,18 @@ unsafe extern "C" fn clip_stroke_text<D: NativeDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let text = ManuallyDrop::new(Text {
-            inner: text.cast_mut(),
-        });
-        let stroke_state = ManuallyDrop::new(StrokeState {
-            inner: stroke_state.cast_mut(),
-        });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let text = ManuallyDrop::new(Text {
+                inner: text.cast_mut(),
+            });
+            let stroke_state = ManuallyDrop::new(StrokeState {
+                inner: stroke_state.cast_mut(),
+            });
 
-        dev.clip_stroke_text(&text, &stroke_state, cmt.into(), scissor.into());
-    });
+            dev.clip_stroke_text(&text, &stroke_state, cmt.into(), scissor.into());
+        });
+    }
 }
 
 unsafe extern "C" fn ignore_text<D: NativeDevice>(
@@ -875,13 +904,15 @@ unsafe extern "C" fn ignore_text<D: NativeDevice>(
     text: *const fz_text,
     cmt: fz_matrix,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let text = ManuallyDrop::new(Text {
-            inner: text.cast_mut(),
-        });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let text = ManuallyDrop::new(Text {
+                inner: text.cast_mut(),
+            });
 
-        dev.ignore_text(&text, cmt.into());
-    });
+            dev.ignore_text(&text, cmt.into());
+        });
+    }
 }
 
 unsafe extern "C" fn fill_shade<D: NativeDevice>(
@@ -892,11 +923,13 @@ unsafe extern "C" fn fill_shade<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let shade = ManuallyDrop::new(Shade { inner: shd });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let shade = ManuallyDrop::new(Shade { inner: shd });
 
-        dev.fill_shade(&shade, ctm.into(), alpha, color_params.into());
-    });
+            dev.fill_shade(&shade, ctm.into(), alpha, color_params.into());
+        });
+    }
 }
 
 unsafe extern "C" fn fill_image<D: NativeDevice>(
@@ -907,11 +940,13 @@ unsafe extern "C" fn fill_image<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let img = ManuallyDrop::new(Image::from_raw(img));
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let img = ManuallyDrop::new(Image::from_raw(img));
 
-        dev.fill_image(&img, ctm.into(), alpha, color_params.into());
-    });
+            dev.fill_image(&img, ctm.into(), alpha, color_params.into());
+        });
+    }
 }
 
 unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
@@ -924,21 +959,23 @@ unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
     alpha: f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        let img = ManuallyDrop::new(Image::from_raw(img));
+            let img = ManuallyDrop::new(Image::from_raw(img));
 
-        dev.fill_image_mask(
-            &img,
-            ctm.into(),
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            alpha,
-            color_params.into(),
-        );
-    });
+            dev.fill_image_mask(
+                &img,
+                ctm.into(),
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                alpha,
+                color_params.into(),
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn clip_image_mask<D: NativeDevice>(
@@ -948,17 +985,21 @@ unsafe extern "C" fn clip_image_mask<D: NativeDevice>(
     cmt: fz_matrix,
     scissor: fz_rect,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let img = ManuallyDrop::new(Image::from_raw(img));
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let img = ManuallyDrop::new(Image::from_raw(img));
 
-        dev.clip_image_mask(&img, cmt.into(), scissor.into());
-    });
+            dev.clip_image_mask(&img, cmt.into(), scissor.into());
+        });
+    }
 }
 
 unsafe extern "C" fn pop_clip<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.pop_clip();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.pop_clip();
+        });
+    }
 }
 
 unsafe extern "C" fn begin_mask<D: NativeDevice>(
@@ -970,18 +1011,20 @@ unsafe extern "C" fn begin_mask<D: NativeDevice>(
     color: *const f32,
     color_params: fz_color_params,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
-        let cs_n = cs.n() as usize;
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+            let cs_n = cs.n() as usize;
 
-        dev.begin_mask(
-            area.into(),
-            luminosity != 0,
-            &cs,
-            slice::from_raw_parts(color, cs_n),
-            color_params.into(),
-        );
-    });
+            dev.begin_mask(
+                area.into(),
+                luminosity != 0,
+                &cs,
+                slice::from_raw_parts(color, cs_n),
+                color_params.into(),
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn end_mask<D: NativeDevice>(
@@ -989,11 +1032,13 @@ unsafe extern "C" fn end_mask<D: NativeDevice>(
     dev: *mut fz_device,
     f: *mut fz_function,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let f = ManuallyDrop::new(Function { inner: f });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let f = ManuallyDrop::new(Function { inner: f });
 
-        dev.end_mask(&f);
-    });
+            dev.end_mask(&f);
+        });
+    }
 }
 
 unsafe extern "C" fn begin_group<D: NativeDevice>(
@@ -1006,24 +1051,28 @@ unsafe extern "C" fn begin_group<D: NativeDevice>(
     blendmode: c_int,
     alpha: f32,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
 
-        dev.begin_group(
-            area.into(),
-            &cs,
-            isolated != 0,
-            knockout != 0,
-            blendmode.try_into().unwrap(),
-            alpha,
-        );
-    });
+            dev.begin_group(
+                area.into(),
+                &cs,
+                isolated != 0,
+                knockout != 0,
+                blendmode.try_into().unwrap(),
+                alpha,
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn end_group<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.end_group();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.end_group();
+        });
+    }
 }
 
 unsafe extern "C" fn begin_tile<D: NativeDevice>(
@@ -1037,24 +1086,28 @@ unsafe extern "C" fn begin_tile<D: NativeDevice>(
     id: c_int,
     doc_id: c_int,
 ) -> c_int {
-    let i = with_rust_device::<D, _>(dev, |dev| {
-        dev.begin_tile(
-            area.into(),
-            view.into(),
-            xstep,
-            ystep,
-            ctm.into(),
-            NonZero::new(id as i32),
-            NonZero::new(doc_id as i32),
-        )
-    });
-    i.map_or(0, NonZero::get) as c_int
+    unsafe {
+        let i = with_rust_device::<D, _>(dev, |dev| {
+            dev.begin_tile(
+                area.into(),
+                view.into(),
+                xstep,
+                ystep,
+                ctm.into(),
+                NonZero::new(id as i32),
+                NonZero::new(doc_id as i32),
+            )
+        });
+        i.map_or(0, NonZero::get) as c_int
+    }
 }
 
 unsafe extern "C" fn end_tile<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.end_tile();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.end_tile();
+        });
+    }
 }
 
 unsafe extern "C" fn render_flags<D: NativeDevice>(
@@ -1063,12 +1116,14 @@ unsafe extern "C" fn render_flags<D: NativeDevice>(
     set: c_int,
     clear: c_int,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.render_flags(
-            DeviceFlag::from_bits(set as u32).unwrap(),
-            DeviceFlag::from_bits(clear as u32).unwrap(),
-        );
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.render_flags(
+                DeviceFlag::from_bits(set as u32).unwrap(),
+                DeviceFlag::from_bits(clear as u32).unwrap(),
+            );
+        });
+    }
 }
 
 unsafe extern "C" fn set_default_colorspaces<D: NativeDevice>(
@@ -1076,11 +1131,13 @@ unsafe extern "C" fn set_default_colorspaces<D: NativeDevice>(
     dev: *mut fz_device,
     dcs: *mut fz_default_colorspaces,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let dcs = ManuallyDrop::new(DefaultColorspaces { inner: dcs });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let dcs = ManuallyDrop::new(DefaultColorspaces { inner: dcs });
 
-        dev.set_default_colorspaces(&dcs);
-    });
+            dev.set_default_colorspaces(&dcs);
+        });
+    }
 }
 
 unsafe extern "C" fn begin_layer<D: NativeDevice>(
@@ -1088,17 +1145,21 @@ unsafe extern "C" fn begin_layer<D: NativeDevice>(
     dev: *mut fz_device,
     layer_name: *const c_char,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let name = unsafe { CStr::from_ptr(layer_name) }.to_str().unwrap();
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let name = CStr::from_ptr(layer_name).to_str().unwrap();
 
-        dev.begin_layer(name);
-    });
+            dev.begin_layer(name);
+        });
+    }
 }
 
 unsafe extern "C" fn end_layer<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.end_layer();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.end_layer();
+        });
+    }
 }
 
 unsafe extern "C" fn begin_structure<D: NativeDevice>(
@@ -1108,18 +1169,22 @@ unsafe extern "C" fn begin_structure<D: NativeDevice>(
     raw: *const c_char,
     idx: c_int,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let standard = Structure::try_from(standard as i32).unwrap();
-        let raw = unsafe { CStr::from_ptr(raw) }.to_str().unwrap();
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let standard = Structure::try_from(standard as i32).unwrap();
+            let raw = CStr::from_ptr(raw).to_str().unwrap();
 
-        dev.begin_structure(standard, raw, idx as i32);
-    });
+            dev.begin_structure(standard, raw, idx as i32);
+        });
+    }
 }
 
 unsafe extern "C" fn end_structure<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.end_structure();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.end_structure();
+        });
+    }
 }
 
 unsafe extern "C" fn begin_metatext<D: NativeDevice>(
@@ -1128,18 +1193,22 @@ unsafe extern "C" fn begin_metatext<D: NativeDevice>(
     meta: fz_metatext,
     text: *const c_char,
 ) {
-    with_rust_device::<D, _>(dev, |dev| {
-        let meta = Metatext::try_from(meta).unwrap();
-        let text = unsafe { CStr::from_ptr(text) }.to_str().unwrap();
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            let meta = Metatext::try_from(meta).unwrap();
+            let text = CStr::from_ptr(text).to_str().unwrap();
 
-        dev.begin_metatext(meta, text);
-    });
+            dev.begin_metatext(meta, text);
+        });
+    }
 }
 
 unsafe extern "C" fn end_metatext<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    with_rust_device::<D, _>(dev, |dev| {
-        dev.end_metatext();
-    });
+    unsafe {
+        with_rust_device::<D, _>(dev, |dev| {
+            dev.end_metatext();
+        });
+    }
 }
 
 #[cfg(test)]

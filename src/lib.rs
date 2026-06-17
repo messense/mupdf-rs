@@ -160,21 +160,23 @@ macro_rules! unsafe_impl_ffi_wrapper {
         impl $crate::FFIWrapper for $struct {
             type FFIType = $ffi_type;
             fn as_ref(&self) -> &Self::FFIType {
-                // SAFETY: Guaranteed by caller
+                // SAFETY: Implementing wrapper types store a `NonNull` pointer to a valid MuPDF
+                // object and maintain that validity for the lifetime of `self`.
                 unsafe { self.inner.as_ref() }
             }
             fn as_ptr(&self) -> *const Self::FFIType {
                 self.inner.as_ptr()
             }
             fn as_mut_ptr(&mut self) -> *mut Self::FFIType {
-                unsafe { self.inner.as_mut() }
+                self.inner.as_ptr()
             }
         }
 
         impl Drop for $struct {
             fn drop(&mut self) {
                 let ptr = <Self as $crate::FFIWrapper>::as_ptr(&*self).cast_mut();
-                // SAFETY: Guaranteed by caller
+                // SAFETY: `ptr` is the owned MuPDF object pointer for this wrapper and must be
+                // released exactly once when the Rust wrapper is dropped.
                 unsafe { $ffi_drop_fn($crate::context(), ptr) }
             }
         }
@@ -204,6 +206,14 @@ macro_rules! impl_ffi_traits {
 
 pub(crate) use impl_ffi_traits;
 pub(crate) use unsafe_impl_ffi_wrapper;
+
+/// Converts a raw pointer to [`NonNull`], returning [`Error::UnexpectedNullPtr`] for null.
+///
+/// This only checks for nullness; callers remain responsible for validity, alignment, ownership,
+/// provenance, initialization, and lifetime invariants before dereferencing the pointer.
+pub(crate) fn non_null<T>(ptr: *mut T) -> Result<NonNull<T>, Error> {
+    NonNull::new(ptr).ok_or(Error::UnexpectedNullPtr)
+}
 
 /// # Safety
 ///

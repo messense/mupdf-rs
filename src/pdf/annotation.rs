@@ -274,11 +274,13 @@ impl PdfAnnotation {
     ///   and must not drop it afterwards — this wrapper assumes ownership.
     /// * The parent page must be alive at the time of this call.
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_annot) -> Self {
-        let page = pdf_annot_page(context(), ptr);
-        pdf_keep_page(context(), page);
-        Self {
-            inner: NonNull::new_unchecked(ptr),
-            page: NonNull::new_unchecked(page),
+        unsafe {
+            let page = pdf_annot_page(context(), ptr);
+            pdf_keep_page(context(), page);
+            Self {
+                inner: NonNull::new_unchecked(ptr),
+                page: NonNull::new_unchecked(page),
+            }
         }
     }
 
@@ -291,8 +293,10 @@ impl PdfAnnotation {
     /// * `ptr` must be non-null and point to a valid `pdf_annot`.
     /// * The parent page must be alive at the time of this call.
     pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_annot) -> Self {
-        pdf_keep_annot(context(), ptr);
-        Self::from_raw(ptr)
+        unsafe {
+            pdf_keep_annot(context(), ptr);
+            Self::from_raw(ptr)
+        }
     }
 
     fn is_attached(&self) -> bool {

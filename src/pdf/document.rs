@@ -559,11 +559,13 @@ impl Default for PdfDocument {
 
 impl PdfDocument {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_document) -> Self {
-        let doc = Document::from_raw(&mut (*ptr).super_);
-        Self {
-            inner: ptr,
-            doc,
-            font_info_cache: RefCell::new(HashMap::new()),
+        unsafe {
+            let doc = Document::from_raw(&mut (*ptr).super_);
+            Self {
+                inner: ptr,
+                doc,
+                font_info_cache: RefCell::new(HashMap::new()),
+            }
         }
     }
 

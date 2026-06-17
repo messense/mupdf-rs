@@ -206,9 +206,10 @@ impl Device {
     }
 
     pub fn from_display_list(list: &DisplayList) -> Result<Self, Error> {
-        unsafe { ffi_try!(mupdf_new_display_list_device(context(), list.inner)) }.map(|dev| Self {
+        let list_ptr = list.as_ptr();
+        unsafe { ffi_try!(mupdf_new_display_list_device(context(), list_ptr)) }.map(|dev| Self {
             dev,
-            list: list.inner,
+            list: list_ptr,
         })
     }
 

@@ -231,34 +231,36 @@ impl Document {
     }
 
     unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Vec<Outline> {
-        let mut outlines = Vec::new();
-        let mut next = outline;
-        while !next.is_null() {
-            let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
+        unsafe {
+            let mut outlines = Vec::new();
+            let mut next = outline;
+            while !next.is_null() {
+                let title = CStr::from_ptr((*next).title).to_string_lossy().into_owned();
 
-            let (uri, dest) = if !(*next).uri.is_null() {
-                let uri = CStr::from_ptr((*next).uri);
-                let dest = LinkDestination::from_uri(self, uri).unwrap();
-                (Some(uri.to_string_lossy().into_owned()), dest)
-            } else {
-                (None, None)
-            };
+                let (uri, dest) = if !(*next).uri.is_null() {
+                    let uri = CStr::from_ptr((*next).uri);
+                    let dest = LinkDestination::from_uri(self, uri).unwrap();
+                    (Some(uri.to_string_lossy().into_owned()), dest)
+                } else {
+                    (None, None)
+                };
 
-            let down = if !(*next).down.is_null() {
-                self.walk_outlines((*next).down)
-            } else {
-                Vec::new()
-            };
+                let down = if !(*next).down.is_null() {
+                    self.walk_outlines((*next).down)
+                } else {
+                    Vec::new()
+                };
 
-            outlines.push(Outline {
-                title,
-                uri,
-                dest,
-                down,
-            });
-            next = (*next).next;
+                outlines.push(Outline {
+                    title,
+                    uri,
+                    dest,
+                    down,
+                });
+                next = (*next).next;
+            }
+            outlines
         }
-        outlines
     }
 
     pub fn outlines(&self) -> Result<Vec<Outline>, Error> {

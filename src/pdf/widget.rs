@@ -53,14 +53,18 @@ pub struct PdfWidget {
 
 impl PdfWidget {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_annot) -> Self {
-        Self {
-            annot: PdfAnnotation::from_raw(ptr),
+        unsafe {
+            Self {
+                annot: PdfAnnotation::from_raw(ptr),
+            }
         }
     }
 
     pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_annot) -> Self {
-        Self {
-            annot: PdfAnnotation::from_raw_keep_ref(ptr),
+        unsafe {
+            Self {
+                annot: PdfAnnotation::from_raw_keep_ref(ptr),
+            }
         }
     }
 
