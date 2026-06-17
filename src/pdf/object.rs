@@ -43,8 +43,10 @@ impl PdfObject {
     }
 
     pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_obj) -> Self {
-        pdf_keep_obj(context(), ptr);
-        Self { inner: ptr }
+        unsafe {
+            pdf_keep_obj(context(), ptr);
+            Self { inner: ptr }
+        }
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {

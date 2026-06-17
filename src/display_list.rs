@@ -3,27 +3,37 @@ use std::{ffi::CString, io::Read, ptr::NonNull};
 use mupdf_sys::*;
 
 use crate::{
-    array::FzArray, context, rust_vec_from_ffi_ptr, Buffer, Colorspace, Cookie, Device, Error,
-    Image, Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
+    array::FzArray, context, non_null, rust_vec_from_ffi_ptr, Buffer, Colorspace, Cookie, Device,
+    DisplayListImage, Error, Image, Matrix, Pixmap, Quad, Rect, TextPage, TextPageFlags,
 };
 
 #[derive(Debug)]
 pub struct DisplayList {
-    pub(crate) inner: *mut fz_display_list,
+    pub(crate) inner: NonNull<fz_display_list>,
 }
 
 impl DisplayList {
-    pub(crate) unsafe fn from_raw(ptr: *mut fz_display_list) -> Self {
-        Self { inner: ptr }
+    /// # Safety
+    ///
+    /// `ptr` may be null, in which case this returns [`Error::UnexpectedNullPtr`]. If non-null, it
+    /// must be a valid, well-aligned [`fz_display_list`] pointer owned by the returned wrapper.
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_display_list) -> Result<Self, Error> {
+        Ok(Self {
+            inner: non_null(ptr)?,
+        })
+    }
+
+    pub(crate) fn as_ptr(&self) -> *mut fz_display_list {
+        self.inner.as_ptr()
     }
 
     pub fn new(media_box: Rect) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_new_display_list(context(), media_box.into())) }
-            .map(|inner| Self { inner })
+            .and_then(|inner| unsafe { Self::from_raw(inner) })
     }
 
     pub fn bounds(&self) -> Rect {
-        let rect = unsafe { fz_bound_display_list(context(), self.inner) };
+        let rect = unsafe { fz_bound_display_list(context(), self.as_ptr()) };
         rect.into()
     }
 
@@ -31,7 +41,7 @@ impl DisplayList {
         unsafe {
             ffi_try!(mupdf_display_list_to_pixmap(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 ctm.into(),
                 cs.inner,
                 alpha
@@ -44,9 +54,9 @@ impl DisplayList {
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 ctm.into(),
-                ptr::null_mut()
+                std::ptr::null_mut()
             ))
         }?;
         let mut buf = unsafe { Buffer::from_raw(inner) };
@@ -59,7 +69,7 @@ impl DisplayList {
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 ctm.into(),
                 cookie.inner
             ))
@@ -74,17 +84,17 @@ impl DisplayList {
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_text_page(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 opts.bits() as _
             ))?
         };
 
-        let inner = unsafe { NonNull::new_unchecked(inner) };
+        let inner = non_null(inner)?;
 
         Ok(TextPage { inner })
     }
 
-    pub fn to_image(&self, width: f32, height: f32) -> Result<Image, Error> {
+    pub fn to_image(&self, width: f32, height: f32) -> Result<DisplayListImage<'_>, Error> {
         Image::from_display_list(self, width, height)
     }
 
@@ -92,11 +102,11 @@ impl DisplayList {
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 device.dev,
                 ctm.into(),
                 area.into(),
-                ptr::null_mut()
+                std::ptr::null_mut()
             ))
         }
     }
@@ -111,7 +121,7 @@ impl DisplayList {
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 device.dev,
                 ctm.into(),
                 area.into(),
@@ -121,7 +131,7 @@ impl DisplayList {
     }
 
     pub fn is_empty(&self) -> bool {
-        unsafe { fz_display_list_is_empty(context(), self.inner) > 0 }
+        unsafe { fz_display_list_is_empty(context(), self.as_ptr()) > 0 }
     }
 
     pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
@@ -131,7 +141,7 @@ impl DisplayList {
         unsafe {
             ffi_try!(mupdf_search_display_list(
                 context(),
-                self.inner,
+                self.as_ptr(),
                 c_needle.as_ptr(),
                 hit_max as i32,
                 &mut hit_count
@@ -143,16 +153,19 @@ impl DisplayList {
 
 impl Drop for DisplayList {
     fn drop(&mut self) {
-        if !self.inner.is_null() {
-            unsafe {
-                fz_drop_display_list(context(), self.inner);
-            }
-        }
+        // SAFETY: `self.inner` is the owned display-list pointer for this wrapper and must be
+        // released exactly once when the Rust wrapper is dropped.
+        unsafe { fz_drop_display_list(context(), self.as_ptr()) };
     }
 }
 
-// `DisplayList`s may be used by multiple threads simultaneously
+// SAFETY: MuPDF display lists may be used by multiple threads once recording has completed. Safe
+// APIs that keep a display-list pointer alive carry Rust borrows for the retained access:
+// `Device::from_display_list` returns a recording device with a mutable borrow, and
+// `Image::from_display_list` returns an image with a shared borrow.
 unsafe impl Send for DisplayList {}
+
+// SAFETY: See the `Send` impl.
 unsafe impl Sync for DisplayList {}
 
 #[cfg(test)]

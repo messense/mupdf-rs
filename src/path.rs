@@ -56,7 +56,9 @@ unsafe extern "C" fn path_walk_move_to<W: PathWalker>(
     x: f32,
     y: f32,
 ) {
-    with_path_walker::<W>(arg, |walker| walker.move_to(x, y));
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.move_to(x, y));
+    }
 }
 
 unsafe extern "C" fn path_walk_line_to<W: PathWalker>(
@@ -65,7 +67,9 @@ unsafe extern "C" fn path_walk_line_to<W: PathWalker>(
     x: f32,
     y: f32,
 ) {
-    with_path_walker::<W>(arg, |walker| walker.line_to(x, y));
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.line_to(x, y));
+    }
 }
 
 unsafe extern "C" fn path_walk_curve_to<W: PathWalker>(
@@ -78,11 +82,15 @@ unsafe extern "C" fn path_walk_curve_to<W: PathWalker>(
     ex: f32,
     ey: f32,
 ) {
-    with_path_walker::<W>(arg, |walker| walker.curve_to(cx1, cy1, cx2, cy2, ex, ey));
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.curve_to(cx1, cy1, cx2, cy2, ex, ey));
+    }
 }
 
 unsafe extern "C" fn path_walk_close<W: PathWalker>(_ctx: *mut fz_context, arg: *mut c_void) {
-    with_path_walker::<W>(arg, |walker| walker.close());
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.close());
+    }
 }
 
 unsafe extern "C" fn path_walk_curve_to_y<W: PathWalker>(
@@ -93,7 +101,9 @@ unsafe extern "C" fn path_walk_curve_to_y<W: PathWalker>(
     ex: f32,
     ey: f32,
 ) {
-    with_path_walker::<W>(arg, |walker| walker.curve_to_y(cx, cy, ex, ey));
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.curve_to_y(cx, cy, ex, ey));
+    }
 }
 
 unsafe extern "C" fn path_walk_rect<W: PathWalker>(
@@ -104,7 +114,9 @@ unsafe extern "C" fn path_walk_rect<W: PathWalker>(
     x2: f32,
     y2: f32,
 ) {
-    with_path_walker::<W>(arg, |walker| walker.rect(x1, y1, x2, y2));
+    unsafe {
+        with_path_walker::<W>(arg, |walker| walker.rect(x1, y1, x2, y2));
+    }
 }
 
 #[derive(Debug)]

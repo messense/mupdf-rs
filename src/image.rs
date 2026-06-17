@@ -1,46 +1,27 @@
-use std::ffi::CString;
+use std::{ffi::CString, marker::PhantomData};
 
 use mupdf_sys::*;
 
 use crate::{context, Buffer, Colorspace, DisplayList, Error, Pixmap};
 
 #[derive(Debug)]
-pub struct Image {
+pub struct Image<T = ()> {
     pub(crate) inner: *mut fz_image,
+    _marker: PhantomData<T>,
 }
 
-impl Image {
+/// An image backed by a display list.
+///
+/// MuPDF renders this kind of image lazily from the display list it was created from, so the image
+/// carries a shared borrow of that list for as long as the image is alive.
+pub type DisplayListImage<'a> = Image<&'a DisplayList>;
+
+impl<T> Image<T> {
     pub(crate) unsafe fn from_raw(image: *mut fz_image) -> Self {
-        Self { inner: image }
-    }
-
-    pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
-        unsafe { ffi_try!(mupdf_new_image_from_pixmap(context(), pixmap.inner)) }
-            .map(|inner| Self { inner })
-    }
-
-    pub fn from_file(filename: &str) -> Result<Self, Error> {
-        let c_filename = CString::new(filename)?;
-        unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) }
-            .map(|inner| Self { inner })
-    }
-
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let buffer = Buffer::from_bytes(bytes)?;
-        unsafe { ffi_try!(mupdf_new_image_from_buffer(context(), buffer.inner)) }
-            .map(|inner| Self { inner })
-    }
-
-    pub fn from_display_list(list: &DisplayList, width: f32, height: f32) -> Result<Self, Error> {
-        unsafe {
-            ffi_try!(mupdf_new_image_from_display_list(
-                context(),
-                list.inner,
-                width,
-                height
-            ))
+        Self {
+            inner: image,
+            _marker: PhantomData,
         }
-        .map(|inner| Self { inner })
     }
 
     pub fn width(&self) -> u32 {
@@ -73,10 +54,11 @@ impl Image {
 
     pub fn mask(&self) -> Option<Self> {
         unsafe {
-            if (*self.inner).mask.is_null() {
+            let mask = (*self.inner).mask;
+            if mask.is_null() {
                 return None;
             }
-            Some(Self::from_raw((*self.inner).mask))
+            Some(Self::from_raw(fz_keep_image(context(), mask)))
         }
     }
 
@@ -106,7 +88,45 @@ impl Image {
     }
 }
 
-impl Drop for Image {
+impl Image {
+    pub fn from_pixmap(pixmap: &Pixmap) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_new_image_from_pixmap(context(), pixmap.inner)) }
+            .map(|inner| unsafe { Self::from_raw(inner) })
+    }
+
+    pub fn from_file(filename: &str) -> Result<Self, Error> {
+        let c_filename = CString::new(filename)?;
+        unsafe { ffi_try!(mupdf_new_image_from_file(context(), c_filename.as_ptr())) }
+            .map(|inner| unsafe { Self::from_raw(inner) })
+    }
+
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let buffer = Buffer::from_bytes(bytes)?;
+        unsafe { ffi_try!(mupdf_new_image_from_buffer(context(), buffer.inner)) }
+            .map(|inner| unsafe { Self::from_raw(inner) })
+    }
+
+    /// Creates a lazily rendered image backed by `list`.
+    ///
+    /// The returned image keeps `list` immutably borrowed until the image is dropped.
+    pub fn from_display_list<'a>(
+        list: &'a DisplayList,
+        width: f32,
+        height: f32,
+    ) -> Result<DisplayListImage<'a>, Error> {
+        unsafe {
+            ffi_try!(mupdf_new_image_from_display_list(
+                context(),
+                list.as_ptr(),
+                width,
+                height
+            ))
+        }
+        .map(|inner| unsafe { DisplayListImage::from_raw(inner) })
+    }
+}
+
+impl<T> Drop for Image<T> {
     fn drop(&mut self) {
         if !self.inner.is_null() {
             unsafe {
@@ -116,8 +136,8 @@ impl Drop for Image {
     }
 }
 
-impl Clone for Image {
+impl<T> Clone for Image<T> {
     fn clone(&self) -> Self {
-        unsafe { Image::from_raw(fz_keep_image(context(), self.inner)) }
+        unsafe { Self::from_raw(fz_keep_image(context(), self.inner)) }
     }
 }

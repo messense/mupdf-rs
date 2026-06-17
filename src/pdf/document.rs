@@ -559,11 +559,13 @@ impl Default for PdfDocument {
 
 impl PdfDocument {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_document) -> Self {
-        let doc = Document::from_raw(&mut (*ptr).super_);
-        Self {
-            inner: ptr,
-            doc,
-            font_info_cache: RefCell::new(HashMap::new()),
+        unsafe {
+            let doc = Document::from_raw(&mut (*ptr).super_);
+            Self {
+                inner: ptr,
+                doc,
+                font_info_cache: RefCell::new(HashMap::new()),
+            }
         }
     }
 
@@ -693,7 +695,7 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_delete_object(context(), self.inner, num)) }
     }
 
-    pub fn add_image(&mut self, obj: &Image) -> Result<PdfObject, Error> {
+    pub fn add_image<T>(&mut self, obj: &Image<T>) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner)) }
             .map(|inner| unsafe { PdfObject::from_raw(inner) })
     }

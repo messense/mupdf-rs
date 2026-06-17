@@ -55,8 +55,8 @@ impl<T> Deref for FzArray<T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         match self.ptr {
-            // SAFETY: `self.ptr.as_ptr()` is not non-null (as it's a NonNull) and the creator has
-            // promised us that it does point to a valid slice. Also, if it does point to a
+            // SAFETY: Constructors require `ptr` to point to at least `self.len` initialized
+            // contiguous `T` values for the lifetime of `self`.
             Some(ptr) => unsafe { slice::from_raw_parts(ptr.as_ptr(), self.len) },
             None => &[],
         }
@@ -67,8 +67,9 @@ impl<T> DerefMut for FzArray<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         match self.ptr.as_mut() {
             Some(ptr) => {
-                let ptr = unsafe { ptr.as_mut() };
-                unsafe { slice::from_raw_parts_mut(ptr, self.len) }
+                // SAFETY: Constructors require `ptr` to point to at least `self.len` initialized
+                // contiguous `T` values, and `&mut self` guarantees unique access.
+                unsafe { slice::from_raw_parts_mut(ptr.as_ptr(), self.len) }
             }
             None => &mut [],
         }
@@ -91,7 +92,7 @@ impl<T> IntoIterator for FzArray<T> {
         let next_item_and_end = self.ptr.map(|p| {
             // Would be nice to use `.addr()` but it seems CI doesn't have 1.84 yet, and that's
             // what stabilized the strict provenance APIs
-            let end = unsafe { p.add(self.len) }.as_ptr() as usize;
+            let end = p.as_ptr().wrapping_add(self.len) as usize;
             (p, end)
         });
         FzIter {
@@ -116,13 +117,20 @@ impl<T> Iterator for FzIter<T> {
             return None;
         }
 
+        // SAFETY: `next_item` points at the next not-yet-yielded element and is before `end_addr`.
         let ret = unsafe { ptr::read(next_item.as_ptr()) };
+
+        // SAFETY: We have not reached `end_addr`, so advancing by one stays within or one-past the
+        // allocation tracked by `_kept_to_be_dropped`.
         *next_item = unsafe { next_item.add(1) };
         Some(ret)
     }
 }
 
-// SAFETY: This is esentially just a `Box<[T], fz_calloc>`. If that's safe to impl, then this is as
-// well. It's only not automatically derived to make us think for a second, not inherently unsafe.
+// SAFETY: `FzArray<T>` has ownership semantics equivalent to `Box<[T]>` backed by MuPDF's
+// allocator. Moving it to another thread is safe when `T: Send`.
 unsafe impl<T> Send for FzArray<T> where T: Send {}
+
+// SAFETY: Shared access to `FzArray<T>` only exposes shared access to its elements, so sharing
+// references is safe when `T: Sync`.
 unsafe impl<T> Sync for FzArray<T> where T: Sync {}
