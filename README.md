@@ -4,9 +4,88 @@
 [![Crates.io](https://img.shields.io/crates/v/mupdf.svg)](https://crates.io/crates/mupdf)
 [![docs.rs](https://docs.rs/mupdf/badge.svg)](https://docs.rs/mupdf/)
 
-Rust binding to [mupdf](https://github.com/ArtifexSoftware/mupdf)
+Safe Rust bindings to [MuPDF](https://github.com/ArtifexSoftware/mupdf) for reading,
+rendering, extracting, creating, and editing documents.
 
-**Working in progress**
+The `mupdf` crate provides the high-level safe API, while `mupdf-sys` builds MuPDF and
+exposes the low-level FFI layer.
+
+## What you can do with it
+
+- Open documents from files or bytes, authenticate encrypted files, inspect metadata,
+  outlines, permissions, output intents, and page counts.
+- Render pages to pixmaps, SVG, display lists, or custom MuPDF devices.
+- Extract plain text, words with bounding boxes, structured text, images, and vector
+  drawings from pages.
+- Create and edit PDFs: add pages, insert or delete content streams, insert images and
+  fonts, merge/copy/reorder/select pages, save with MuPDF PDF write options, and write
+  documents to any `Write` target.
+- Work with PDF-specific features such as annotations, widgets/forms, link annotations,
+  redactions, page labels, embedded files, optional content groups, outlines, objects, and
+  xref streams.
+- Draw vector primitives and text on PDF pages with the safe `shape` API.
+- Use system fonts or optional bundled Droid/Noto/SIL runtime font providers for fallback
+  font resolution.
+
+## Installation
+
+```toml
+[dependencies]
+mupdf = "0.8"
+```
+
+The default feature set builds PDF support along with JavaScript, XPS, SVG, CBZ,
+image, HTML, EPUB, system-fonts, Tesseract OCR, Brotli, DOCX output, and Base14 font
+support. Optional feature flags include:
+
+- `serde` for `Serialize`/`Deserialize` support on selected types.
+- `bundled-fonts-noto`, `bundled-fonts-droid`, `bundled-fonts-sil`, or `bundled-fonts`
+  for runtime bundled font providers.
+- `zxingcpp` and `libarchive` for the corresponding MuPDF integrations.
+- `sys-lib` and `sys-lib-*` flags to use system copies of supported third-party C/C++
+  libraries instead of MuPDF's vendored versions.
+
+For smaller builds, disable default features and opt back into only what you need:
+
+```toml
+[dependencies]
+mupdf = { version = "0.8", default-features = false, features = ["base14-fonts"] }
+```
+
+## Quick start
+
+Open a document, extract text from the first page, and render it to PNG:
+
+```rust,no_run
+use mupdf::{Colorspace, Document, ImageFormat, Matrix, TextExtractOptions};
+
+fn main() -> Result<(), mupdf::Error> {
+    let document = Document::open("input.pdf")?;
+    println!("pages: {}", document.page_count()?);
+
+    let page = document.load_page(0)?;
+    println!("{}", page.text(TextExtractOptions::default())?);
+
+    let pixmap = page.to_pixmap(
+        &Matrix::new_scale(2.0, 2.0),
+        &Colorspace::device_rgb(),
+        false,
+        true,
+    )?;
+    pixmap.save_as("page.png", ImageFormat::PNG)?;
+
+    Ok(())
+}
+```
+
+Useful examples:
+
+```console
+cargo run --example extract_text -- path/to/document.pdf
+cargo run --example extract_images -- path/to/document.pdf
+cargo run --example list_annotations -- path/to/document.pdf
+cargo run --example shape_demo -- target/shape_demo
+```
 
 ## Shape: Drawing & Text on PDF Pages
 
@@ -63,6 +142,18 @@ Published font crates contain regular font files. In this source repository, the
 font crate payloads are symlinked to the MuPDF submodule resources to avoid
 duplicating the files in git, so source checkouts need initialized submodules and
 symlink-capable Git checkout settings.
+
+## Building from source
+
+Source checkouts need the MuPDF submodule:
+
+```console
+git submodule update --init --recursive
+```
+
+Building `mupdf-sys` requires a C/C++ toolchain and libclang for bindgen. With the default
+`system-fonts` feature enabled on Linux, install the Fontconfig development package as well
+(for example, `libfontconfig1-dev` on Debian/Ubuntu).
 
 ## References
 
