@@ -829,7 +829,9 @@ impl PdfDocument {
         if let Some(root) = trailer.get_dict("Root")? {
             if let Some(form) = root.get_dict("AcroForm")? {
                 if let Some(xfa) = form.get_dict("XFA")? {
-                    return xfa.is_null();
+                    // Present and non-null means an XFA form (explicit `XFA: null`
+                    // resolves to MuPDF's null object and correctly reports false).
+                    return Ok(!xfa.is_null()?);
                 }
             }
         }
@@ -1905,7 +1907,7 @@ mod test {
 
     use super::{
         EmbeddedFileOptions, InsertPdfOptions, InsertPosition, OptionalContentRef, PageLabelRule,
-        PageLabelStyle, PageSelection, PdfDocument, PdfWriteOptions, Permission,
+        PageLabelStyle, PageSelection, PdfDocument, PdfObject, PdfWriteOptions, Permission,
     };
 
     #[test]
@@ -1946,6 +1948,33 @@ mod test {
 
         let catalog = doc.catalog().unwrap();
         assert!(!catalog.is_null().unwrap());
+    }
+
+    #[test]
+    fn test_has_xfa_form_detects_present_xfa() {
+        let doc = doc_with_acroform(true);
+        assert!(doc.has_xfa_form().unwrap());
+    }
+
+    #[test]
+    fn test_has_xfa_form_absent_when_acroform_has_no_xfa() {
+        let doc = doc_with_acroform(false);
+        assert!(!doc.has_xfa_form().unwrap());
+    }
+
+    /// Opens dummy.pdf (which has no AcroForm) and installs one by aliasing its
+    /// `Pages` dict as `Root/AcroForm`, optionally with an `XFA` entry.
+    fn doc_with_acroform(add_xfa: bool) -> PdfDocument {
+        let doc = test_document!("../..", "files/dummy.pdf" as PdfDocument).unwrap();
+        let mut catalog = doc.catalog().unwrap();
+        let mut acro_form = catalog.get_dict("Pages").unwrap().unwrap();
+        if add_xfa {
+            acro_form
+                .dict_put("XFA", PdfObject::new_name("xfa").unwrap())
+                .unwrap();
+        }
+        catalog.dict_put("AcroForm", acro_form).unwrap();
+        doc
     }
 
     #[test]

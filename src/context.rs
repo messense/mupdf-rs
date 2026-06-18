@@ -144,13 +144,19 @@ impl Context {
         }
     }
 
-    pub fn user_css(&self) -> Option<&str> {
+    /// The user CSS string currently set on the context, if any.
+    ///
+    /// Returns an owned `String` because the underlying C string lives in
+    /// context-owned storage that a sibling `Context` handle can free at any
+    /// time via `set_user_css` (all `Context::get()` handles alias the same
+    /// thread-local `fz_context`). Returning a borrow would be a use-after-free.
+    pub fn user_css(&self) -> Option<String> {
         let css = unsafe { fz_user_css(self.inner) };
         if css.is_null() {
             return None;
         }
         let c_css = unsafe { CStr::from_ptr(css) };
-        c_css.to_str().ok()
+        c_css.to_str().ok().map(str::to_owned)
     }
 
     pub fn set_user_css(&mut self, css: &str) -> Result<(), Error> {
@@ -174,7 +180,14 @@ pub(crate) fn context() -> *mut fz_context {
 
 #[cfg(test)]
 mod test {
+    use std::sync::Mutex;
+
     use super::Context;
+    use mupdf_sys::fz_set_user_css;
+
+    // `user_css` lives in the shared `fz_style_context`, so a `set_user_css` on
+    // any handle is visible process-wide. Serialize the tests that touch it.
+    static USER_CSS_LOCK: Mutex<()> = Mutex::new(());
 
     #[test]
     fn test_context() {
@@ -184,6 +197,24 @@ mod test {
         assert_eq!(ctx.graphics_aa_level(), 8);
         assert_eq!(ctx.graphics_min_line_width(), 0.0);
         assert!(ctx.use_document_css());
+        let _guard = USER_CSS_LOCK.lock().unwrap();
         assert!(ctx.user_css().is_none());
+    }
+
+    /// `user_css()` returns an owned `String` (not a borrow) because a sibling
+    /// `Context::get()` handle can free the underlying C string via
+    /// `set_user_css`. The owned copy must outlive such a call.
+    #[test]
+    fn user_css_owned_survives_set() {
+        let _guard = USER_CSS_LOCK.lock().unwrap();
+        let mut c = Context::get();
+        c.set_user_css("body { color: red; }").unwrap();
+        let owned = c.user_css().unwrap();
+        Context::get()
+            .set_user_css("body { color: blue; }")
+            .unwrap();
+        assert_eq!(owned, "body { color: red; }");
+        // Restore the shared style to its default (no user CSS) for other tests.
+        unsafe { fz_set_user_css(super::context(), std::ptr::null()) };
     }
 }
