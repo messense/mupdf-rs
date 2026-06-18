@@ -206,10 +206,7 @@ impl Pixmap {
     }
 
     pub fn samples(&self) -> &[u8] {
-        let len = match usize::try_from(self.stride())
-            .ok()
-            .and_then(|stride| stride.checked_mul(self.height() as usize))
-        {
+        let len = match crate::samples_len(self.stride(), self.height()) {
             Some(len) => len,
             None => return &[],
         };
@@ -222,10 +219,7 @@ impl Pixmap {
     }
 
     pub fn samples_mut(&mut self) -> &mut [u8] {
-        let len = match usize::try_from(self.stride())
-            .ok()
-            .and_then(|stride| stride.checked_mul(self.height() as usize))
-        {
+        let len = match crate::samples_len(self.stride(), self.height()) {
             Some(len) => len,
             None => return &mut [],
         };

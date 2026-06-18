@@ -47,13 +47,29 @@ impl Bitmap {
     }
 
     pub fn samples(&self) -> &[u8] {
-        let len = (self.width() * self.height()) as usize;
-        unsafe { slice::from_raw_parts((*self.inner).samples, len) }
+        let len = match crate::samples_len(self.stride(), self.height()) {
+            Some(len) => len,
+            None => return &[],
+        };
+        let ptr = unsafe { (*self.inner).samples };
+        if ptr.is_null() {
+            &[]
+        } else {
+            unsafe { slice::from_raw_parts(ptr, len) }
+        }
     }
 
     pub fn samples_mut(&mut self) -> &mut [u8] {
-        let len = (self.width() * self.height()) as usize;
-        unsafe { slice::from_raw_parts_mut((*self.inner).samples, len) }
+        let len = match crate::samples_len(self.stride(), self.height()) {
+            Some(len) => len,
+            None => return &mut [],
+        };
+        let ptr = unsafe { (*self.inner).samples };
+        if ptr.is_null() {
+            &mut []
+        } else {
+            unsafe { slice::from_raw_parts_mut(ptr, len) }
+        }
     }
 }
 
@@ -95,5 +111,20 @@ mod test {
         let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
         pixmap.clear().unwrap();
         assert!(Bitmap::from_pixmap(&pixmap).is_err());
+    }
+
+    #[test]
+    fn test_bitmap_samples_len_is_stride_times_height() {
+        // Bitmaps pack 1 bit per pixel, row-aligned to 32 bits, so the sample
+        // buffer is `stride * height` bytes -- NOT `width * height`, which would
+        // read ~8x past the allocation (see fz_new_bitmap in MuPDF's bitmap.c).
+        let cs = Colorspace::device_gray();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 100, 100, false).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        let mut bitmap = Bitmap::from_pixmap(&pixmap).expect("Bitmap::from_pixmap");
+        assert_eq!(bitmap.n(), 1);
+        let expected = (bitmap.stride() as usize) * (bitmap.height() as usize);
+        assert_eq!(bitmap.samples().len(), expected);
+        assert_eq!(bitmap.samples_mut().len(), expected);
     }
 }

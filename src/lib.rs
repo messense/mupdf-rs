@@ -215,6 +215,18 @@ pub(crate) fn non_null<T>(ptr: *mut T) -> Result<NonNull<T>, Error> {
     NonNull::new(ptr).ok_or(Error::UnexpectedNullPtr)
 }
 
+/// Byte length of a row-strided sample buffer (`stride * height`), or `None`
+/// when `stride` is negative or the product overflows `usize`.
+///
+/// Shared by `Bitmap::samples`/`samples_mut` and `Pixmap::samples`/`samples_mut`
+/// so the OOB-safe length calculation lives in one place.
+pub(crate) fn samples_len(stride: impl TryInto<usize>, height: u32) -> Option<usize> {
+    stride
+        .try_into()
+        .ok()
+        .and_then(|s| s.checked_mul(height as usize))
+}
+
 /// # Safety
 ///
 /// * `ptr` can be null (this function will simply return an error if that is the case), but if it

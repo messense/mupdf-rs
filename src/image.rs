@@ -40,8 +40,17 @@ impl<T> Image<T> {
         unsafe { (*self.inner).bpc }
     }
 
-    pub fn color_space(&self) -> Colorspace {
-        unsafe { Colorspace::from_raw((*self.inner).colorspace) }
+    /// The colorspace of the image.
+    ///
+    /// This is `None` for image masks, which have no colorspace (they are 1-bit
+    /// stencils painted with a fill color).
+    pub fn color_space(&self) -> Option<Colorspace> {
+        let ptr = unsafe { (*self.inner).colorspace };
+        if ptr.is_null() {
+            None
+        } else {
+            Some(unsafe { Colorspace::from_raw(ptr) })
+        }
     }
 
     pub fn resolution(&self) -> (i32, i32) {
@@ -139,5 +148,55 @@ impl<T> Drop for Image<T> {
 impl<T> Clone for Image<T> {
     fn clone(&self) -> Self {
         unsafe { Self::from_raw(fz_keep_image(context(), self.inner)) }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod test {
+    use std::cell::RefCell;
+    use std::rc::Rc;
+
+    use crate::{ColorParams, Colorspace, Device, Document, Image, Matrix, NativeDevice};
+
+    /// An image mask has no colorspace. `Image::color_space()` must report
+    /// `None` for it rather than handing back a `Colorspace` that wraps a NULL
+    /// pointer (any later colorspace query on such a handle would dereference
+    /// NULL). We render a page that paints an image mask through a
+    /// `NativeDevice` and inspect the image delivered to `fill_image_mask`.
+    #[test]
+    fn test_image_mask_color_space_is_none() {
+        struct MaskCapturer {
+            image: Option<Image>,
+        }
+        impl NativeDevice for MaskCapturer {
+            fn fill_image_mask(
+                &mut self,
+                img: &Image,
+                _ctm: Matrix,
+                _cs: &Colorspace,
+                _color: &[f32],
+                _alpha: f32,
+                _cp: ColorParams,
+            ) {
+                self.image = Some(img.clone());
+            }
+        }
+
+        let doc = Document::open("tests/files/image-mask.pdf").expect("open fixture");
+        let page = doc.load_page(0).expect("load page");
+        let state = Rc::new(RefCell::new(MaskCapturer { image: None }));
+        let dev = Device::from_native(state.clone()).expect("build device");
+        page.run(&dev, &Matrix::new(1.0, 0.0, 0.0, 1.0, 0.0, 0.0))
+            .expect("run page");
+
+        let captured = state
+            .borrow_mut()
+            .image
+            .take()
+            .expect("fill_image_mask was not called; fixture did not render a mask");
+        assert!(
+            captured.color_space().is_none(),
+            "image mask must report no colorspace"
+        );
     }
 }

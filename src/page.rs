@@ -423,6 +423,23 @@ pub struct StextPage {
 mod test {
     use crate::{document::test_document, Document, Matrix};
 
+    /// Regression guard: a `Page` stays usable after its `Document` is dropped.
+    ///
+    /// MuPDF keeps the document alive for the page's lifetime — `fz_new_page_of_size`
+    /// does `page->doc = fz_keep_document(ctx, doc)` and `fz_drop_page` releases it
+    /// — so dropping the Rust `Document` wrapper only decrements the refcount.
+    #[test]
+    fn page_survives_document_drop() {
+        let page = {
+            let doc = test_document!("..", "files/dummy.pdf").unwrap();
+            doc.load_page(0).unwrap()
+        };
+        assert!(
+            page.bounds().is_ok(),
+            "page must remain usable after document drop"
+        );
+    }
+
     #[test]
     #[cfg(feature = "serde")]
     fn test_get_stext_page_as_json() {
