@@ -680,14 +680,14 @@ impl PdfPage {
             let Some(key) = xobjects.get_dict_key(idx as i32)? else {
                 continue;
             };
-            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+            let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                 continue;
             };
             let Some(value) = xobjects.get_dict_val(idx as i32)? else {
                 continue;
             };
             if value.is_indirect()? && value.as_indirect()? == xref {
-                return Ok(Some(key_name.to_owned()));
+                return Ok(Some(key_name));
             }
         }
         Ok(None)
@@ -701,7 +701,7 @@ impl PdfPage {
                 let Some(key) = xobjects.get_dict_key(idx as i32)? else {
                     continue;
                 };
-                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                     continue;
                 };
                 let Some(index) = key_name
@@ -790,13 +790,13 @@ impl PdfPage {
             let Some(key) = xobjects.get_dict_key(idx as i32)? else {
                 continue;
             };
-            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+            let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                 continue;
             };
             let Some(value) = xobjects.get_dict_val(idx as i32)? else {
                 continue;
             };
-            if let Some(info) = Self::image_info_from_object(key_name.to_owned(), &value)? {
+            if let Some(info) = Self::image_info_from_object(key_name, &value)? {
                 images.push(info);
             }
         }
@@ -929,7 +929,7 @@ impl PdfPage {
                 let value = xobjects.get_dict_val(idx as i32).ok().flatten()?;
                 if value.is_indirect().ok()? && value.as_indirect().ok()? == xref {
                     let key = xobjects.get_dict_key(idx as i32).ok().flatten()?;
-                    let key = str::from_utf8(key.as_name().ok()?).ok()?.to_owned();
+                    let key = String::from_utf8(key.as_name().ok()?).ok()?;
                     Some(key)
                 } else {
                     None
@@ -1114,7 +1114,7 @@ impl PdfPage {
             let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
                 continue;
             };
-            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+            let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                 continue;
             };
             let Some(value) = ext_gstates.get_dict_val(idx as i32)? else {
@@ -1136,7 +1136,7 @@ impl PdfPage {
                 let Some(key) = ext_gstates.get_dict_key(idx as i32)? else {
                     continue;
                 };
-                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                     continue;
                 };
                 let Some(index) = key_name
@@ -1184,7 +1184,7 @@ impl PdfPage {
             )));
         }
 
-        match type_obj.as_name()? {
+        match type_obj.as_name()?.as_slice() {
             b"OCG" | b"OCMD" => Ok(()),
             _ => Err(Error::InvalidArgument(format!(
                 "optional content xref {oc_xref} must have /Type /OCG or /OCMD"
@@ -1302,7 +1302,7 @@ impl PdfPage {
             let Some(key) = properties.get_dict_key(idx as i32)? else {
                 continue;
             };
-            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+            let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                 continue;
             };
             let Some(value) = properties.get_dict_val(idx as i32)? else {
@@ -1326,7 +1326,7 @@ impl PdfPage {
                 let Some(key) = properties.get_dict_key(idx as i32)? else {
                     continue;
                 };
-                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                     continue;
                 };
                 let Some(index) = key_name
@@ -1491,7 +1491,7 @@ impl PdfPage {
 
     fn resource_font_base_name(font_obj: &PdfObject) -> Result<Option<String>, Error> {
         if let Some(base_font) = font_obj.get_dict("BaseFont")? {
-            let base_font = str::from_utf8(base_font.as_name()?)
+            let base_font = str::from_utf8(&base_font.as_name()?)
                 .map(Self::normalized_base_font_name)
                 .map(str::to_owned)
                 .ok();
@@ -1510,7 +1510,7 @@ impl PdfPage {
             return Ok(None);
         };
 
-        Ok(str::from_utf8(base_font.as_name()?)
+        Ok(str::from_utf8(&base_font.as_name()?)
             .map(Self::normalized_base_font_name)
             .map(str::to_owned)
             .ok())
@@ -1527,7 +1527,7 @@ impl PdfPage {
             let Ok(encoding_name) = encoding.as_name() else {
                 return Ok(None);
             };
-            let Ok(encoding_name) = str::from_utf8(encoding_name) else {
+            let Ok(encoding_name) = str::from_utf8(&encoding_name) else {
                 return Ok(None);
             };
             return match encoding_name {
@@ -1547,7 +1547,7 @@ impl PdfPage {
             let Ok(name) = item.as_name() else {
                 continue;
             };
-            let Ok(name) = str::from_utf8(name) else {
+            let Ok(name) = str::from_utf8(&name) else {
                 continue;
             };
             if name.contains("cyrillic") || name.starts_with("afii10") {
@@ -1621,7 +1621,7 @@ impl PdfPage {
             let Some(key) = font_dict.get_dict_key(idx as i32)? else {
                 continue;
             };
-            let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+            let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                 continue;
             };
             let Some(value) = font_dict.get_dict_val(idx as i32)? else {
@@ -1671,7 +1671,7 @@ impl PdfPage {
                 let Some(key) = font_dict.get_dict_key(idx as i32)? else {
                     continue;
                 };
-                let Ok(key_name) = str::from_utf8(key.as_name()?) else {
+                let Ok(key_name) = String::from_utf8(key.as_name()?) else {
                     continue;
                 };
                 let Some(index) = key_name

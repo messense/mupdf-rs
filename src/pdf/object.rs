@@ -150,22 +150,33 @@ impl PdfObject {
         unsafe { ffi_try!(mupdf_pdf_to_indirect(context(), self.inner)) }
     }
 
-    pub fn as_name(&self) -> Result<&[u8], Error> {
+    pub fn as_name(&self) -> Result<Vec<u8>, Error> {
         let name_ptr = unsafe { ffi_try!(mupdf_pdf_to_name(context(), self.inner)) }?;
-        let c_name = unsafe { CStr::from_ptr(name_ptr) };
-        Ok(c_name.to_bytes())
+        if name_ptr.is_null() {
+            return Err(Error::UnexpectedNullPtr);
+        }
+        Ok(unsafe { CStr::from_ptr(name_ptr) }.to_bytes().to_vec())
     }
 
-    pub fn as_string(&self) -> Result<&str, Error> {
+    pub fn as_string(&self) -> Result<String, Error> {
         let str_ptr = unsafe { ffi_try!(mupdf_pdf_to_string(context(), self.inner)) }?;
+        if str_ptr.is_null() {
+            return Err(Error::UnexpectedNullPtr);
+        }
         let c_str = unsafe { CStr::from_ptr(str_ptr) };
-        c_str.to_str().map_err(|_| Error::InvalidUtf8)
+        c_str
+            .to_str()
+            .map(ToOwned::to_owned)
+            .map_err(|_| Error::InvalidUtf8)
     }
 
-    pub fn as_bytes(&self) -> Result<&[u8], Error> {
+    pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut len = 0;
         let ptr = unsafe { ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len)) }?;
-        Ok(unsafe { slice::from_raw_parts(ptr, len) })
+        if ptr.is_null() {
+            return Err(Error::UnexpectedNullPtr);
+        }
+        Ok(unsafe { slice::from_raw_parts(ptr, len) }.to_vec())
     }
 
     pub fn resolve(&self) -> Result<Option<Self>, Error> {

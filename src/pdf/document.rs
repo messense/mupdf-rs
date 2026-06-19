@@ -1097,7 +1097,7 @@ impl PdfDocument {
         while index + 1 < len {
             let Some(name) = array
                 .get_array(index as i32)?
-                .and_then(|name| name.as_string().ok().map(str::to_owned))
+                .and_then(|name| name.as_string().ok())
             else {
                 index += 2;
                 continue;
@@ -1629,7 +1629,7 @@ impl PdfDocument {
                 reference.xref()
             )));
         }
-        match type_obj.as_name()? {
+        match type_obj.as_name()?.as_slice() {
             b"OCG" | b"OCMD" => Ok(oc_ref),
             _ => Err(Error::InvalidArgument(format!(
                 "optional content xref {} must have /Type /OCG or /OCMD",
@@ -1679,7 +1679,7 @@ impl PdfDocument {
             }
             let name = group
                 .get_dict("Name")?
-                .and_then(|name| name.as_string().ok().map(str::to_owned));
+                .and_then(|name| name.as_string().ok());
             let enabled = !matches!(
                 default_config.as_ref(),
                 Some(config) if Self::optional_content_array_contains(config, "OFF", xref)?
