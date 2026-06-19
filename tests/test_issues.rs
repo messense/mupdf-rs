@@ -1,4 +1,4 @@
-use mupdf::pdf::PdfDocument;
+use mupdf::pdf::{PdfDocument, PdfObject};
 use mupdf::{Error, TextPageFlags};
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -119,4 +119,65 @@ fn test_issue_no_json() {
     let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
     let json = text_page.to_json(1.0);
     assert!(json.is_err());
+}
+
+// Regression tests for issue #207: `as_string`/`as_name`/`as_bytes` returned
+// references into MuPDF's resolved (xref-backed) object, which `delete_object`
+// can free. The returned values must therefore be *owned* copies that survive
+// deletion of the backing object.
+//
+// Written with `.as_bytes()`/`.as_slice()` so they compile against both the old
+// borrowed API and the new owned API.
+
+#[test]
+fn test_as_string_indirect_delete() {
+    let mut pdf = PdfDocument::new();
+    let original = "A".repeat(1000);
+
+    let string_obj = PdfObject::new_string(&original).unwrap();
+    let indirect = pdf.add_object(&string_obj).unwrap();
+    let obj_num = indirect.as_indirect().unwrap();
+    let s = indirect.as_string().unwrap();
+    drop(string_obj);
+    pdf.delete_object(obj_num).unwrap();
+    // Reclaim the freed buffer so a dangling read observes garbage, not the
+    // original bytes (makes the unsoundness surface deterministically).
+    for _ in 0..32 {
+        let _ = PdfObject::new_string(&"B".repeat(1000));
+    }
+    assert_eq!(s.as_bytes(), original.as_bytes());
+}
+
+#[test]
+fn test_as_name_indirect_delete() {
+    let mut pdf = PdfDocument::new();
+    let original = "A".repeat(100);
+
+    let name_obj = PdfObject::new_name(&original).unwrap();
+    let indirect = pdf.add_object(&name_obj).unwrap();
+    let obj_num = indirect.as_indirect().unwrap();
+    let name = indirect.as_name().unwrap();
+    drop(name_obj);
+    pdf.delete_object(obj_num).unwrap();
+    for _ in 0..32 {
+        let _ = PdfObject::new_name(&"B".repeat(100));
+    }
+    assert_eq!(&name[..], original.as_bytes());
+}
+
+#[test]
+fn test_as_bytes_owned_indirect_delete() {
+    let mut pdf = PdfDocument::new();
+    let original = "A".repeat(1000);
+
+    let string_obj = PdfObject::new_string(&original).unwrap();
+    let indirect = pdf.add_object(&string_obj).unwrap();
+    let obj_num = indirect.as_indirect().unwrap();
+    let bytes = indirect.as_bytes().unwrap();
+    drop(string_obj);
+    pdf.delete_object(obj_num).unwrap();
+    for _ in 0..32 {
+        let _ = PdfObject::new_string(&"B".repeat(1000));
+    }
+    assert_eq!(&bytes[..], original.as_bytes());
 }

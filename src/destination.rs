@@ -395,7 +395,7 @@ impl DestinationKind {
                 .as_float()
         }
 
-        let destination_kind = match kind_name {
+        let destination_kind = match kind_name.as_slice() {
             b"Fit" => DestinationKind::Fit,
             b"FitB" => DestinationKind::FitB,
             b"FitH" => DestinationKind::FitH {
