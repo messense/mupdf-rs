@@ -28,7 +28,7 @@ pub use intent::Intent;
 pub use links::{
     DestPageResolver, FileSpec, LinkAction, PdfAction, PdfDestination, PdfLink, PdfLinkAnnot,
 };
-pub use object::PdfObject;
+pub use object::{PdfArrayIter, PdfDictIter, PdfObject};
 pub use page::{
     ExtractedImage, FontInfo, ImagePlacement, InsertFontOptions, InsertImageOptions, PageImageInfo,
     PageImageSource, PdfPage,
