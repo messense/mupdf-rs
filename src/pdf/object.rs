@@ -373,6 +373,58 @@ impl PdfObject {
         unsafe { ffi_try!(mupdf_pdf_dict_delete(context(), self.inner, key_obj.inner)) }
     }
 
+    /// Returns an iterator over the elements of this array.
+    ///
+    /// Each yielded [`PdfObject`] is independently reference-counted, so it stays
+    /// valid even after the source object is dropped. The items are `Result`s so
+    /// errors surface per-element rather than aborting the whole iteration.
+    ///
+    /// This is the ergonomic replacement for looping with
+    /// [`get_array`](Self::get_array):
+    ///
+    /// ```text
+    /// for item in arr.array_iter()? {
+    ///     let item = item?;
+    ///     // ...
+    /// }
+    /// ```
+    ///
+    /// Returns an error if `self` is not an array.
+    pub fn array_iter(&self) -> Result<PdfArrayIter<'_>, Error> {
+        if !self.is_array()? {
+            return Err(Error::InvalidArgument(
+                "PdfObject is not an array".to_string(),
+            ));
+        }
+        Ok(PdfArrayIter {
+            obj: self,
+            index: 0,
+            len: i32::try_from(self.len()?)?,
+        })
+    }
+
+    /// Returns an iterator over the `(key, value)` pairs of this dictionary.
+    ///
+    /// Both halves of each pair are independently reference-counted [`PdfObject`]s
+    /// that stay valid after the source object is dropped. Keys are PDF name
+    /// objects; read them with [`as_name`](Self::as_name).
+    ///
+    /// This is the ergonomic replacement for looping with
+    /// [`get_dict_key`](Self::get_dict_key) and [`get_dict_val`](Self::get_dict_val).
+    /// Returns an error if `self` is not a dictionary.
+    pub fn dict_iter(&self) -> Result<PdfDictIter<'_>, Error> {
+        if !self.is_dict()? {
+            return Err(Error::InvalidArgument(
+                "PdfObject is not a dictionary".to_string(),
+            ));
+        }
+        Ok(PdfDictIter {
+            obj: self,
+            index: 0,
+            len: i32::try_from(self.dict_len()?)?,
+        })
+    }
+
     fn print(&self, tight: bool, ascii: bool) -> Result<String, Error> {
         let ptr =
             unsafe { ffi_try!(mupdf_pdf_obj_to_string(context(), self.inner, tight, ascii)) }?;
@@ -394,6 +446,95 @@ impl PdfObject {
 
     pub fn page_ctm(&self) -> Result<Matrix, Error> {
         unsafe { ffi_try!(mupdf_pdf_page_obj_transform(context(), self.inner)) }.map(Into::into)
+    }
+}
+
+/// Iterator over the elements of a PDF array.
+///
+/// Created by [`PdfObject::array_iter`]. Each item is a `Result<PdfObject, Error>`;
+/// unwrap it with `?` inside the loop body.
+#[derive(Debug)]
+pub struct PdfArrayIter<'a> {
+    obj: &'a PdfObject,
+    index: i32,
+    len: i32,
+}
+
+impl Iterator for PdfArrayIter<'_> {
+    type Item = Result<PdfObject, Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.len {
+            return None;
+        }
+        let idx = self.index;
+        self.index += 1;
+        match self.obj.get_array(idx) {
+            Ok(Some(obj)) => Some(Ok(obj)),
+            // Within bounds an element always exists. A null return means the
+            // underlying object changed (e.g. mutated through another handle)
+            // since we measured its length; surface that as an error rather than
+            // silently truncating iteration and breaking ExactSizeIterator.
+            Ok(None) => Some(Err(Error::UnexpectedNullPtr)),
+            Err(err) => Some(Err(err)),
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.len - self.index) as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for PdfArrayIter<'_> {
+    fn len(&self) -> usize {
+        (self.len - self.index) as usize
+    }
+}
+
+/// Iterator over the `(key, value)` pairs of a PDF dictionary.
+///
+/// Created by [`PdfObject::dict_iter`].
+#[derive(Debug)]
+pub struct PdfDictIter<'a> {
+    obj: &'a PdfObject,
+    index: i32,
+    len: i32,
+}
+
+impl Iterator for PdfDictIter<'_> {
+    type Item = Result<(PdfObject, PdfObject), Error>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index >= self.len {
+            return None;
+        }
+        let idx = self.index;
+        self.index += 1;
+        let key = match self.obj.get_dict_key(idx) {
+            Ok(Some(key)) => key,
+            // A null return within bounds means the dict changed under us; treat
+            // it as an error instead of silently ending iteration.
+            Ok(None) => return Some(Err(Error::UnexpectedNullPtr)),
+            Err(err) => return Some(Err(err)),
+        };
+        let val = match self.obj.get_dict_val(idx) {
+            Ok(Some(val)) => val,
+            Ok(None) => return Some(Err(Error::UnexpectedNullPtr)),
+            Err(err) => return Some(Err(err)),
+        };
+        Some(Ok((key, val)))
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let remaining = (self.len - self.index) as usize;
+        (remaining, Some(remaining))
+    }
+}
+
+impl ExactSizeIterator for PdfDictIter<'_> {
+    fn len(&self) -> usize {
+        (self.len - self.index) as usize
     }
 }
 
