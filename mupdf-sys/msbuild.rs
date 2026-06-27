@@ -50,11 +50,144 @@ impl Msbuild {
         Ok(())
     }
 
+    /// Honor the Cargo feature set on the MSBuild path.
+    ///
+    /// MuPDF's generated `libmupdf.vcxproj` (the `Release`/`Debug` config we build)
+    /// hard-codes OCR ON (`HAVE_TESSERACT;HAVE_LEPTONICA`) and unconditionally
+    /// `ProjectReference`s the barcode (`libmubarcode` → libzxing/libzint) and
+    /// `extract`/docx (`libextract`) projects. mupdf-sys's matching features only
+    /// reach the GNU Make path (`make_bool`), never MSBuild — so on Windows those
+    /// optional libraries are built regardless of features. That wastes build time
+    /// for everyone. Strip each *disabled* feature's macros and project references
+    /// so MSBuild builds only what the features select; an *enabled* feature is left
+    /// in place (the vcxproj already references it, and the crate vendors the
+    /// source).
+    ///
+    /// Notes:
+    /// - OCR is gated on `defined()` in config.h
+    ///   (`#if !defined(HAVE_LEPTONICA) || !defined(HAVE_TESSERACT)` → `OCR_DISABLED`),
+    ///   so its macros must be *removed*, not set to 0; that also stubs out
+    ///   `ocr-device.c` so no Tesseract symbols are referenced. The barcode/docx
+    ///   compile units are gated by `FZ_ENABLE_BARCODE`/`FZ_ENABLE_DOCX_OUTPUT`
+    ///   (set from build.rs via `fz_enable`), so only their project references
+    ///   need removing here.
+    /// - OpenSSL/`HAVE_LIBCRYPTO` and libarchive live only in MuPDF's separate
+    ///   `*Extra` configurations, not the `Release`/`Debug` ones we build, so they
+    ///   need no handling (`pkcs7-openssl.c` compiles its built-in "No OpenSSL
+    ///   support" stub when `HAVE_LIBCRYPTO` is undefined).
+    /// - Enabling `tesseract` *with* the ClangCL toolset is a known gap: clang can't
+    ///   compile MuPDF's `libtesseract.vcxproj` (its STL-heavy TUs pull clang's
+    ///   `<mmintrin.h>` via `<intrin.h>` and fail). OCR-on therefore needs a real
+    ///   MSVC toolset for now.
+    fn exclude_disabled_features(&self, build_dir: &str) -> Result<()> {
+        let mut drop_defines: Vec<&str> = Vec::new();
+        let mut drop_refs: Vec<&str> = Vec::new();
+
+        if !cfg!(feature = "tesseract") {
+            drop_defines.extend(["HAVE_TESSERACT", "HAVE_LEPTONICA"]);
+            drop_refs.push("libtesseract.vcxproj");
+        }
+        if !cfg!(feature = "zxingcpp") {
+            // libmubarcode pulls libzxing (and libzint) transitively.
+            drop_refs.push("libmubarcode.vcxproj");
+        }
+        if !cfg!(feature = "docx-output") {
+            drop_refs.push("libextract.vcxproj");
+        }
+
+        // Everything selected → leave the project untouched.
+        if drop_defines.is_empty() && drop_refs.is_empty() {
+            return Ok(());
+        }
+
+        let vcxproj = Path::new(build_dir).join("platform/win32/libmupdf.vcxproj");
+        Self::prune_vcxproj(&vcxproj, &drop_defines, &drop_refs)
+    }
+
+    /// Remove the named `;`-delimited macros from every `<PreprocessorDefinitions>`
+    /// element and delete whole `<ProjectReference>` blocks whose `Include` matches
+    /// `drop_refs`. Macros are matched by name (ignoring any `=value`), not by
+    /// substring, so this is robust to ordering and to `FOO=1`-style values.
+    fn prune_vcxproj(path: &Path, drop_defines: &[&str], drop_refs: &[&str]) -> Result<()> {
+        let content = fs::read_to_string(path)
+            .map_err(|e| format!("Failed to read {}: {e}", path.display()))?;
+
+        let mut out: Vec<String> = Vec::with_capacity(content.lines().count());
+        let mut skipping = false;
+        for line in content.lines() {
+            if skipping {
+                if line.contains("</ProjectReference>") {
+                    skipping = false;
+                }
+                continue;
+            }
+            if line.contains("<ProjectReference") && drop_refs.iter().any(|r| line.contains(r)) {
+                // Multi-line block unless it self-closes on this line.
+                if !line.contains("</ProjectReference>") && !line.contains("/>") {
+                    skipping = true;
+                }
+                continue;
+            }
+            if !drop_defines.is_empty() && line.contains("<PreprocessorDefinitions>") {
+                out.push(Self::strip_defines(line, drop_defines));
+            } else {
+                out.push(line.to_owned());
+            }
+        }
+
+        fs::write(path, out.join("\n"))
+            .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+        Ok(())
+    }
+
+    /// Rebuild a single `<PreprocessorDefinitions>` line without the dropped macros.
+    fn strip_defines(line: &str, drop: &[&str]) -> String {
+        const OPEN: &str = "<PreprocessorDefinitions>";
+        const CLOSE: &str = "</PreprocessorDefinitions>";
+        let (Some(open), Some(close)) = (line.find(OPEN), line.find(CLOSE)) else {
+            return line.to_owned();
+        };
+        let inner = open + OPEN.len();
+        if close < inner {
+            return line.to_owned();
+        }
+        let kept: Vec<&str> = line[inner..close]
+            .split(';')
+            .filter(|tok| !drop.contains(&tok.split('=').next().unwrap_or(tok)))
+            .collect();
+        format!("{}{}{}", &line[..inner], kept.join(";"), &line[close..])
+    }
+
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
         self.cl.push("/MP".to_owned());
 
         self.patch_nan(build_dir)?;
         self.remove_libresources_fonts(build_dir)?;
+
+        let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
+            match find_vs_version() {
+                Ok(VsVers::Vs17) => "v143",
+                _ => "v142",
+            }
+            .to_owned()
+        });
+        let clang_cl = platform_toolset.eq_ignore_ascii_case("ClangCL");
+
+        // libmupdf's own deskew/skew use SSE4.1 intrinsics (smmintrin.h)
+        // unconditionally on x86 (ARCH_HAS_SSE, system.h). MSVC exposes every
+        // intrinsic regardless of /arch, but clang-cl gates them behind target
+        // features, so those TUs fail to compile under ClangCL unless SSE4.1 is
+        // enabled explicitly. SSE4.1 (⊇ SSSE3/SSE3/SSE2) is the level libmupdf
+        // needs and is also MuPDF's assumed x86 baseline, so applying it build-wide
+        // raises no runtime requirement. Gate on the toolset (not $CC, which MSBuild
+        // doesn't set) so plain MSVC (v142/v143) builds are untouched.
+        if clang_cl {
+            self.cl.push("/clang:-msse4.1".to_owned());
+        }
+
+        // The MSBuild project graph hard-codes every optional dependency ON; strip
+        // the ones whose Cargo feature is disabled (see `exclude_disabled_features`).
+        self.exclude_disabled_features(build_dir)?;
 
         let configuration = if target.debug_profile() {
             "Debug"
@@ -71,14 +204,6 @@ impl Msbuild {
                 target.arch,
             ))?,
         };
-
-        let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
-            match find_vs_version() {
-                Ok(VsVers::Vs17) => "v143",
-                _ => "v142",
-            }
-            .to_owned()
-        });
 
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
             Err("Could not find msbuild.exe. Do you have it installed?")?
