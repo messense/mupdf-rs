@@ -84,6 +84,9 @@ docx-output = ["mupdf-sys/docx-output"]
 tesseract = ["mupdf-sys/tesseract"]
 zxingcpp = ["mupdf-sys/zxingcpp"]
 libarchive = ["mupdf-sys/libarchive"]
+# Cross-language ThinLTO across the Rust<->C boundary (ClangCL only). See the
+# mupdf-sys feature of the same name for the toolset + consumer RUSTFLAGS it requires.
+linker-plugin-lto = ["mupdf-sys/linker-plugin-lto"]
 
 # Derive Serialize/Deserialize for a few structs
 serde = ["dep:serde"]

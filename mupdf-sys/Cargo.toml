@@ -235,6 +235,14 @@ docx-output = []
 tesseract = []
 zxingcpp = []
 libarchive = []
+# Compile the vendored MuPDF C/C++ as LLVM ThinLTO bitcode so the final
+# (clang-cl + lld) rustc link can inline and optimize across the Rust<->C
+# boundary -- the one whole-program win MSVC `/GL` cannot deliver (its MSIL never
+# crosses into Rust). Off by default. Requires the ClangCL toolset and a
+# clang/LLVM whose major version matches rustc's bundled LLVM; the consuming
+# binary must also build with
+# `-Clinker-plugin-lto -Clinker=clang-cl -Clink-arg=-fuse-ld=lld`.
+linker-plugin-lto = []
 
 zerocopy = ["dep:zerocopy"]
 
