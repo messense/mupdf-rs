@@ -410,6 +410,9 @@ impl Build {
         self.fz_enable("JS", js);
         self.fz_enable("BROTLI", brotli);
         self.fz_enable("DOCX_OUTPUT", docx_output);
+        // barcode.c #includes zxingbarcode.h under #if FZ_ENABLE_BARCODE; gate it
+        // with the zxingcpp feature so it stubs out when the barcode stack is off.
+        self.fz_enable("BARCODE", zxingcpp);
 
         // gates which features get built
         self.make_bool("xps", xps);
