@@ -342,7 +342,12 @@ impl PdfAnnotation {
 
     /// Returns the underlying annotation dictionary object.
     pub fn object(&self) -> PdfObject {
-        unsafe { PdfObject::from_raw_keep_ref(pdf_annot_obj(context(), self.inner.as_ptr())) }
+        unsafe {
+            let inner = pdf_annot_obj(context(), self.inner.as_ptr());
+            pdf_keep_obj(context(), inner);
+            let doc = (*self.page.as_ptr()).doc;
+            PdfObject::from_raw_bound(inner, doc)
+        }
     }
 
     /// Returns the PDF xref number of the underlying annotation object.

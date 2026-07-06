@@ -616,27 +616,27 @@ impl PdfDocument {
 
     pub fn new_indirect(&self, num: i32, gen: i32) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_indirect(context(), self.inner, num, gen)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn new_array(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_array(context(), self.inner, 0)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn new_array_with_capacity(&self, capacity: i32) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_array(context(), self.inner, capacity)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn new_dict(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_dict(context(), self.inner, 0)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn new_dict_with_capacity(&self, capacity: i32) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_new_dict(context(), self.inner, capacity)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn new_graft_map(&self) -> Result<PdfGraftMap, Error> {
@@ -653,17 +653,17 @@ impl PdfDocument {
                 c_src.as_ptr()
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+        .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn graft_object(&self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_graft_object(context(), self.inner, obj.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn add_object(&mut self, obj: &PdfObject) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_add_object(context(), self.inner, obj.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     /// Adds a new indirect PDF stream object with the given buffer and optional dictionary.
@@ -683,12 +683,12 @@ impl PdfDocument {
                 compressed as c_int
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+        .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn create_object(&mut self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_create_object(context(), self.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn delete_object(&mut self, num: i32) -> Result<(), Error> {
@@ -697,12 +697,12 @@ impl PdfDocument {
 
     pub fn add_image<T>(&mut self, obj: &Image<T>) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_add_image(context(), self.inner, obj.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn add_font(&mut self, font: &Font) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_add_font(context(), self.inner, font.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn add_cjk_font(
@@ -722,7 +722,7 @@ impl PdfDocument {
                 serif
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+        .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn add_simple_font(
@@ -738,7 +738,7 @@ impl PdfDocument {
                 encoding as i32
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+        .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn has_unsaved_changes(&self) -> bool {
@@ -794,17 +794,17 @@ impl PdfDocument {
 
     pub fn trailer(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_trailer(context(), self.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn load_name_tree(&self, d: PdfObject) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_load_name_tree(context(), self.inner, d.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn catalog(&self) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_catalog(context(), self.inner)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     pub fn count_objects(&self) -> Result<u32, Error> {
@@ -873,7 +873,7 @@ impl PdfDocument {
 
     pub fn find_page(&self, page_no: i32) -> Result<PdfObject, Error> {
         unsafe { ffi_try!(mupdf_pdf_lookup_page_obj(context(), self.inner, page_no)) }
-            .map(|inner| unsafe { PdfObject::from_raw(inner) })
+            .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })
     }
 
     /// Given a page object reference, returns its zero-based page number.
@@ -1076,7 +1076,7 @@ impl PdfDocument {
                 i32::from(options.add_checksum)
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })?;
+        .map(|inner| unsafe { PdfObject::from_raw_bound(inner, self.inner) })?;
         let fs = if fs.is_indirect()? {
             fs
         } else {
