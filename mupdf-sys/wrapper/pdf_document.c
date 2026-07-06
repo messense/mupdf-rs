@@ -5,6 +5,7 @@ pdf_document *mupdf_pdf_open_document_from_bytes(fz_context *ctx, fz_buffer *byt
 {
     pdf_document *pdf = NULL;
     fz_stream *stream = NULL;
+    fz_var(pdf);
     fz_var(stream);
     fz_try(ctx)
     {
@@ -86,6 +87,8 @@ fz_buffer *mupdf_pdf_write_document(fz_context *ctx, pdf_document *pdf, pdf_writ
     }
     fz_catch(ctx)
     {
+        fz_drop_buffer(ctx, buf);
+        buf = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return buf;
@@ -121,6 +124,7 @@ void mupdf_pdf_bake_document(fz_context *ctx, pdf_document *pdf, bool bake_annot
 pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
+    fz_var(obj);
     fz_try(ctx)
     {
         obj = pdf_trailer(ctx, pdf);
@@ -136,6 +140,7 @@ pdf_obj *mupdf_pdf_trailer(fz_context *ctx, pdf_document *pdf, mupdf_error_t **e
 pdf_obj *mupdf_pdf_load_name_tree(fz_context *ctx, pdf_document *pdf, pdf_obj* name, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
+    fz_var(obj);
     fz_try(ctx)
     {
         obj = pdf_load_name_tree(ctx, pdf, name);
@@ -151,6 +156,7 @@ pdf_obj *mupdf_pdf_load_name_tree(fz_context *ctx, pdf_document *pdf, pdf_obj* n
 pdf_obj *mupdf_pdf_catalog(fz_context *ctx, pdf_document *pdf, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
+    fz_var(obj);
     fz_try(ctx)
     {
         obj = pdf_dict_get(ctx, pdf_trailer(ctx, pdf), PDF_NAME(Root));
@@ -194,6 +200,7 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
     fz_var(resources);
     fz_var(page_obj);
     fz_var(contents);
+    fz_var(page);
     fz_try(ctx)
     {
         // create /Resources and /Contents objects
@@ -225,6 +232,7 @@ pdf_page *mupdf_pdf_new_page(fz_context *ctx, pdf_document *pdf, int page_no, fl
 pdf_obj *mupdf_pdf_lookup_page_obj(fz_context *ctx, pdf_document *pdf, int page_no, mupdf_error_t **errptr)
 {
     pdf_obj *obj = NULL;
+    fz_var(obj);
     fz_try(ctx)
     {
         obj = pdf_lookup_page_obj(ctx, pdf, page_no);

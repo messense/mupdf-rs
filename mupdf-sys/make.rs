@@ -165,14 +165,19 @@ impl Make {
         self.cpu(target, "avx2", "-mavx2", "HAVE_AVX2", None);
         self.cpu(target, "fma", "-mfma", "HAVE_FMA", None);
 
-        // arm
-        self.cpu(
-            target,
-            "neon",
-            "-mfpu=neon",
-            "HAVE_NEON",
-            Some("ARCH_HAS_NEON"),
-        );
+        // arm — -mfpu=neon is 32-bit ARM only; aarch64 has NEON without that flag
+        if target.arch == "arm" {
+            self.cpu(
+                target,
+                "neon",
+                "-mfpu=neon",
+                "HAVE_NEON",
+                Some("ARCH_HAS_NEON"),
+            );
+        } else if target.arch == "aarch64" && target.features.iter().any(|f| f == "neon") {
+            self.make_bool("HAVE_NEON", true);
+            self.define("ARCH_HAS_NEON", "1");
+        }
     }
 
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {

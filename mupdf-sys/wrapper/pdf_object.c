@@ -9,6 +9,7 @@ pdf_obj *mupdf_pdf_clone_obj(fz_context *ctx, pdf_obj *self, mupdf_error_t **err
 pdf_document *mupdf_pdf_get_bound_document(fz_context *ctx, pdf_obj *obj)
 {
     pdf_document *pdf = NULL;
+    fz_var(pdf);
     fz_try(ctx)
     {
         pdf = pdf_get_bound_document(ctx, obj);
@@ -280,6 +281,7 @@ const unsigned char *mupdf_pdf_to_bytes(fz_context *ctx, pdf_obj *obj, size_t *l
 pdf_obj *mupdf_pdf_resolve_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t **errptr)
 {
     pdf_obj *ind = NULL;
+    fz_var(ind);
     fz_try(ctx)
     {
         ind = pdf_resolve_indirect(ctx, obj);
@@ -295,6 +297,7 @@ pdf_obj *mupdf_pdf_resolve_indirect(fz_context *ctx, pdf_obj *obj, mupdf_error_t
 pdf_obj *mupdf_pdf_array_get(fz_context *ctx, pdf_obj *obj, int index, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
+    fz_var(val);
     fz_try(ctx)
     {
         val = pdf_array_get(ctx, obj, index);
@@ -310,6 +313,7 @@ pdf_obj *mupdf_pdf_array_get(fz_context *ctx, pdf_obj *obj, int index, mupdf_err
 pdf_obj *mupdf_pdf_dict_get_val(fz_context *ctx, pdf_obj *obj, int idx, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
+    fz_var(val);
     fz_try(ctx)
     {
         val = pdf_dict_get_val(ctx, obj, idx);
@@ -325,6 +329,7 @@ pdf_obj *mupdf_pdf_dict_get_val(fz_context *ctx, pdf_obj *obj, int idx, mupdf_er
 pdf_obj *mupdf_pdf_dict_get_key(fz_context *ctx, pdf_obj *obj, int idx, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
+    fz_var(val);
     fz_try(ctx)
     {
         val = pdf_dict_get_key(ctx, obj, idx);
@@ -340,6 +345,7 @@ pdf_obj *mupdf_pdf_dict_get_key(fz_context *ctx, pdf_obj *obj, int idx, mupdf_er
 pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, pdf_obj *key, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
+    fz_var(val);
     fz_try(ctx)
     {
         val = pdf_dict_get(ctx, obj, key);
@@ -355,6 +361,7 @@ pdf_obj *mupdf_pdf_dict_get(fz_context *ctx, pdf_obj *obj, pdf_obj *key, mupdf_e
 pdf_obj *mupdf_pdf_dict_get_inheritable(fz_context *ctx, pdf_obj *obj, pdf_obj *key, mupdf_error_t **errptr)
 {
     pdf_obj *val = NULL;
+    fz_var(val);
     fz_try(ctx)
     {
         val = pdf_dict_get_inheritable(ctx, obj, key);

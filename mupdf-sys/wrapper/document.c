@@ -14,6 +14,7 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
     }
     fz_document *doc = NULL;
     fz_stream *stream = NULL;
+    fz_var(doc);
     fz_var(stream);
     fz_try(ctx)
     {
@@ -59,17 +60,23 @@ char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, 
 {
     int len;
     char *value = NULL;
+    fz_var(value);
     fz_try(ctx)
     {
         len = fz_lookup_metadata(ctx, doc, key, NULL, 0) + 1;
         if (len > 1)
         {
             value = calloc(len, sizeof(char));
+            if (!value)
+                fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot allocate metadata buffer");
             fz_lookup_metadata(ctx, doc, key, value, len);
         }
     }
     fz_catch(ctx)
     {
+        if (value)
+            free(value);
+        value = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return value;

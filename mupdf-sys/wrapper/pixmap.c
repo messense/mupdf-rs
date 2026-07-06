@@ -4,6 +4,7 @@
 fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, int w, int h, bool alpha, mupdf_error_t **errptr)
 {
     fz_pixmap *pixmap = NULL;
+    fz_var(pixmap);
     fz_try(ctx)
     {
         pixmap = fz_new_pixmap(ctx, cs, w, h, NULL, alpha);
@@ -12,6 +13,8 @@ fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, in
     }
     fz_catch(ctx)
     {
+        fz_drop_pixmap(ctx, pixmap);
+        pixmap = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return pixmap;
@@ -161,6 +164,8 @@ fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int f
     }
     fz_catch(ctx)
     {
+        fz_drop_buffer(ctx, buf);
+        buf = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return buf;
