@@ -1,8 +1,8 @@
 use std::ptr::NonNull;
 
-use mupdf_sys::{fz_drop_output, fz_new_output_with_buffer, fz_output, mupdf_close_output};
+use mupdf_sys::{fz_drop_output, fz_output, mupdf_close_output, mupdf_new_output_with_buffer};
 
-use crate::{context, Buffer};
+use crate::{context, Buffer, Error};
 
 pub struct Output {
     pub(crate) inner: NonNull<fz_output>,
@@ -27,13 +27,9 @@ impl Output {
         self.inner.as_ptr()
     }
 
-    pub fn from_buffer(buf: &Buffer) -> Self {
-        // SAFETY: `buf.inner` is a valid MuPDF buffer owned by `buf`.
-        let inner = unsafe { fz_new_output_with_buffer(context(), buf.inner) };
-        // This API historically returned `Self`; panic rather than construct an invalid wrapper if
-        // MuPDF unexpectedly returns null. A fallible constructor would be a future API addition.
-        let inner = NonNull::new(inner).expect("fz_new_output_with_buffer returned null");
-
-        Self { inner }
+    pub fn from_buffer(buf: &Buffer) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_new_output_with_buffer(context(), buf.inner)) }
+            .and_then(|ptr| NonNull::new(ptr).ok_or(Error::UnexpectedNullPtr))
+            .map(|inner| Self { inner })
     }
 }

@@ -58,6 +58,15 @@ pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
 }
 
 macro_rules! ffi_try {
+    ($func:ident()) => ({
+        use std::ptr;
+        let mut err = ptr::null_mut();
+        let res = $func((&mut err) as *mut *mut ::mupdf_sys::mupdf_error_t);
+        ::core::ptr::NonNull::new(err)
+            .map_or(Ok(res), |err| Err(
+                $crate::Error::MuPdf($crate::ffi_error(err))
+            ))
+    });
     ($func:ident($($arg:expr),+)) => ({
         use std::ptr;
         let mut err = ptr::null_mut();

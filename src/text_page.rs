@@ -135,7 +135,7 @@ impl TextPage {
     pub fn to_html(&self, id: i32, full: bool) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192)?;
 
-        let out = Output::from_buffer(&buf);
+        let out = Output::from_buffer(&buf)?;
         if full {
             unsafe {
                 ffi_try!(mupdf_print_stext_header_as_html(
@@ -170,7 +170,7 @@ impl TextPage {
     pub fn to_xhtml(&self, id: i32) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192)?;
 
-        let out = Output::from_buffer(&buf);
+        let out = Output::from_buffer(&buf)?;
         unsafe {
             ffi_try!(mupdf_print_stext_header_as_xhtml(
                 context(),
@@ -197,7 +197,7 @@ impl TextPage {
     pub fn to_xml(&self, id: i32) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192)?;
 
-        let out = Output::from_buffer(&buf);
+        let out = Output::from_buffer(&buf)?;
         unsafe {
             ffi_try!(mupdf_print_stext_page_as_xml(
                 context(),
@@ -216,7 +216,7 @@ impl TextPage {
     pub fn to_text(&self) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192)?;
 
-        let out = Output::from_buffer(&buf);
+        let out = Output::from_buffer(&buf)?;
         unsafe {
             ffi_try!(mupdf_print_stext_page_as_text(
                 context(),
@@ -234,7 +234,7 @@ impl TextPage {
     pub fn to_json(&self, scale: f32) -> Result<String, Error> {
         let mut buf = Buffer::with_capacity(8192)?;
 
-        let out = Output::from_buffer(&buf);
+        let out = Output::from_buffer(&buf)?;
         unsafe {
             ffi_try!(mupdf_print_stext_page_as_json(
                 context(),
@@ -459,7 +459,7 @@ impl TextPage {
             // And call the function with the data
             match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(data, slice))) {
                 Ok(response) => response as c_int,
-                Err(_) => SearchHitResponse::AbortSearch as c_int,
+                Err(_) => std::process::abort(),
             }
         }
 

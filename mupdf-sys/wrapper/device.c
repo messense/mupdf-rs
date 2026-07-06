@@ -4,6 +4,7 @@
 fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect clip, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
+    fz_var(device);
     fz_try(ctx)
     {
         if (fz_is_infinite_irect(clip))
@@ -17,6 +18,8 @@ fz_device *mupdf_new_draw_device(fz_context *ctx, fz_pixmap *pixmap, fz_irect cl
     }
     fz_catch(ctx)
     {
+        fz_drop_device(ctx, device);
+        device = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return device;
@@ -30,13 +33,17 @@ fz_device *mupdf_new_device_of_size(fz_context *ctx, int size, mupdf_error_t **e
 fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;
+    fz_var(device);
     fz_try(ctx)
     {
         device = fz_new_list_device(ctx, list);
+        /* Balance the extra keep performed by the Rust `Device` wrapper on drop. */
         fz_keep_display_list(ctx, list);
     }
     fz_catch(ctx)
     {
+        fz_drop_device(ctx, device);
+        device = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return device;

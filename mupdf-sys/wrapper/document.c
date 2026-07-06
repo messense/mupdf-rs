@@ -27,6 +27,8 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
     }
     fz_catch(ctx)
     {
+        fz_drop_document(ctx, doc);
+        doc = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return doc;

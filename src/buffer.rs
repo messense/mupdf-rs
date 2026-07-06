@@ -50,9 +50,14 @@ impl Buffer {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let mut buf = Buffer::with_capacity(bytes.len())?;
-        buf.write_bytes(bytes)?;
-        Ok(buf)
+        unsafe {
+            ffi_try!(mupdf_buffer_from_copied_bytes(
+                context(),
+                bytes.as_ptr(),
+                bytes.len()
+            ))
+        }
+        .map(|inner| Self { inner, offset: 0 })
     }
 
     pub fn with_capacity(cap: usize) -> Result<Self, Error> {
@@ -85,7 +90,10 @@ impl Buffer {
                 len
             ))
         }?;
-        self.offset += read_len as usize;
+        self.offset = self
+            .offset
+            .checked_add(read_len as usize)
+            .ok_or(Error::InvalidArgument("buffer read offset overflow".to_owned()))?;
         Ok(read_len)
     }
 
