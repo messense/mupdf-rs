@@ -42,13 +42,11 @@ impl Matrix {
     }
 
     pub fn new_rotate(degrees: f32) -> Self {
-        let mut degrees = degrees;
-        while degrees < 0.0 {
-            degrees += 360.0;
-        }
-        while degrees >= 360.0 {
-            degrees -= 360.0
-        }
+        let degrees = if degrees.is_finite() {
+            degrees.rem_euclid(360.0)
+        } else {
+            0.0
+        };
         let (sin, cos) = if (0.0 - degrees).abs() < 0.0001 {
             (0.0, 1.0)
         } else if (90.0 - degrees).abs() < 0.0001 {
@@ -168,22 +166,23 @@ impl Matrix {
 
         // Check for singular matrix
         if det.abs() > f64::EPSILON {
-            let det = 1.0 / det;
-            let da = sd * det;
-            let db = -sb * det;
-            let dc = -sc * det;
-            let dd = sa * det;
+            let inv_det = 1.0 / det;
+            let da = sd * inv_det;
+            let db = -sb * inv_det;
+            let dc = -sc * inv_det;
+            let dd = sa * inv_det;
             let de = -(self.e as f64) * da - (self.f as f64) * dc;
             let df = -(self.e as f64) * db - (self.f as f64) * dd;
 
-            return Some(Self {
-                a: da as f32,
-                b: db as f32,
-                c: dc as f32,
-                d: dd as f32,
-                e: de as f32,
-                f: df as f32,
-            });
+            let a = da as f32;
+            let b = db as f32;
+            let c = dc as f32;
+            let d = dd as f32;
+            let e = de as f32;
+            let f = df as f32;
+            if [a, b, c, d, e, f].iter().all(|v| v.is_finite()) {
+                return Some(Self { a, b, c, d, e, f });
+            }
         }
 
         None // MuPDF returns zeros here

@@ -154,6 +154,17 @@ impl Colorspace {
     }
 }
 
+impl Drop for Colorspace {
+    fn drop(&mut self) {
+        if self.inner.is_null() || self.is_device() {
+            return;
+        }
+        unsafe {
+            fz_drop_colorspace(context(), self.inner);
+        }
+    }
+}
+
 impl PartialEq for Colorspace {
     fn eq(&self, other: &Self) -> bool {
         self.inner == other.inner

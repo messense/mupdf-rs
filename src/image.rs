@@ -49,7 +49,10 @@ impl<T> Image<T> {
         if ptr.is_null() {
             None
         } else {
-            Some(unsafe { Colorspace::from_raw(ptr) })
+            unsafe {
+                fz_keep_colorspace(context(), ptr);
+                Some(Colorspace::from_raw(ptr))
+            }
         }
     }
 

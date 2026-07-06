@@ -73,7 +73,7 @@ impl Document {
     pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
         let c_magic = CString::new(magic)?;
         let len = bytes.len();
-        let mut buf = Buffer::with_capacity(len);
+        let mut buf = Buffer::with_capacity(len)?;
         buf.write_all(bytes)?;
         unsafe {
             ffi_try!(mupdf_open_document_from_bytes(
@@ -227,7 +227,12 @@ impl Document {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(unsafe { Colorspace::from_raw(inner) }))
+        // fz_document_output_intent returns a borrowed reference owned by the
+        // document; keep it so Colorspace::drop releases our own reference.
+        unsafe {
+            fz_keep_colorspace(context(), inner);
+            Ok(Some(Colorspace::from_raw(inner)))
+        }
     }
 
     unsafe fn walk_outlines(&self, outline: *mut fz_outline) -> Result<Vec<Outline>, Error> {

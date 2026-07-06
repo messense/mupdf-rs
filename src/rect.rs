@@ -80,6 +80,12 @@ impl IRect {
     }
 
     pub fn r#union(&self, other: IRect) -> Self {
+        if self.is_empty() {
+            return other;
+        }
+        if other.is_empty() {
+            return *self;
+        }
         if !self.is_valid() {
             other
         } else if !other.is_valid() {

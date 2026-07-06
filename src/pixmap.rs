@@ -181,6 +181,7 @@ impl Pixmap {
             if ptr.is_null() {
                 return None;
             }
+            fz_keep_colorspace(context(), ptr);
             Some(Colorspace::from_raw(ptr))
         }
     }
@@ -343,8 +344,16 @@ impl Pixmap {
 
         let n = self.n() as usize;
         let alpha_index = n - 1;
-        for pixel in self.samples_mut().chunks_exact_mut(n) {
-            pixel[alpha_index] = alpha;
+        // Zero-width pixmaps have stride 0; chunk by at least one byte so
+        // chunks_mut does not panic (the samples slice is empty anyway).
+        let stride = self.checked_stride()?.max(1);
+        let width = self.width() as usize;
+        let row_len = width.saturating_mul(n);
+        for row in self.samples_mut().chunks_mut(stride) {
+            let end = row_len.min(row.len());
+            for pixel in row[..end].chunks_exact_mut(n) {
+                pixel[alpha_index] = alpha;
+            }
         }
         Ok(())
     }
@@ -365,6 +374,8 @@ impl Pixmap {
         let ptr = unsafe { (*self.inner).samples };
         if ptr.is_null() {
             Some(&[])
+        } else if ptr.align_offset(std::mem::align_of::<u32>()) != 0 {
+            None
         } else {
             Some(unsafe { slice::from_raw_parts(ptr.cast(), size) })
         }
