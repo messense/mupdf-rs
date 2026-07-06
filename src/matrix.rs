@@ -87,7 +87,11 @@ impl Matrix {
     }
 
     pub fn rotate(&mut self, degrees: f32) -> &mut Self {
-        let degrees = degrees.rem_euclid(360.0);
+        let degrees = if degrees.is_finite() {
+            degrees.rem_euclid(360.0)
+        } else {
+            0.0
+        };
         if (0.0 - degrees).abs() < 0.0001 {
             // Nothing to do
         } else if (90.0 - degrees).abs() < 0.0001 {

@@ -155,11 +155,15 @@ impl Rect {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.x0 >= self.x1 || self.y0 >= self.y1
+        !self.is_valid() || self.x0 >= self.x1 || self.y0 >= self.y1
     }
 
     pub fn is_valid(&self) -> bool {
-        self.x0 <= self.x1 && self.y0 <= self.y1
+        [self.x0, self.y0, self.x1, self.y1]
+            .iter()
+            .all(|coord| coord.is_finite())
+            && self.x0 <= self.x1
+            && self.y0 <= self.y1
     }
 
     pub fn contains(&self, x: f32, y: f32) -> bool {
@@ -225,6 +229,12 @@ impl Rect {
     }
 
     pub fn r#union(&self, other: &Self) -> Self {
+        if self.is_empty() {
+            return *other;
+        }
+        if other.is_empty() {
+            return *self;
+        }
         unsafe { fz_union_rect((*self).into(), (*other).into()) }.into()
     }
 
