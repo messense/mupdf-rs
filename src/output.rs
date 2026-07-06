@@ -1,6 +1,6 @@
 use std::ptr::NonNull;
 
-use mupdf_sys::{fz_close_output, fz_drop_output, fz_new_output_with_buffer, fz_output};
+use mupdf_sys::{fz_drop_output, fz_new_output_with_buffer, fz_output, mupdf_close_output};
 
 use crate::{context, Buffer};
 
@@ -14,7 +14,7 @@ impl Drop for Output {
 
         // SAFETY: `ptr` is a valid output owned by this wrapper. MuPDF requires outputs to be
         // closed before they are dropped.
-        unsafe { fz_close_output(context(), ptr) };
+        let _ = unsafe { ffi_try!(mupdf_close_output(context(), ptr)) };
 
         // SAFETY: `ptr` remains owned by this wrapper after close and must be released exactly
         // once.

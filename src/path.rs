@@ -44,10 +44,18 @@ impl<W: PathWalker + ?Sized> PathWalker for &mut W {
     }
 }
 
+fn guard_ffi_callback<F: FnOnce()>(f: F) {
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
+        std::process::abort();
+    }
+}
+
 unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
-    let c_walker: *mut W = arg.cast();
-    let rust_walker = unsafe { &mut *c_walker };
-    f(rust_walker);
+    guard_ffi_callback(|| {
+        let c_walker: *mut W = arg.cast();
+        let rust_walker = unsafe { &mut *c_walker };
+        f(rust_walker);
+    });
 }
 
 unsafe extern "C" fn path_walk_move_to<W: PathWalker>(

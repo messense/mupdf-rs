@@ -27,7 +27,7 @@ impl FromStr for Buffer {
 
 impl Default for Buffer {
     fn default() -> Self {
-        Self::with_capacity(0)
+        Self::with_capacity(0).expect("failed to allocate empty buffer")
     }
 }
 
@@ -50,14 +50,14 @@ impl Buffer {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let mut buf = Buffer::with_capacity(bytes.len());
+        let mut buf = Buffer::with_capacity(bytes.len())?;
         buf.write_bytes(bytes)?;
         Ok(buf)
     }
 
-    pub fn with_capacity(cap: usize) -> Self {
-        let inner = unsafe { fz_new_buffer(context(), cap) };
-        Self { inner, offset: 0 }
+    pub fn with_capacity(cap: usize) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }
+            .map(|inner| Self { inner, offset: 0 })
     }
 
     pub fn len(&self) -> usize {

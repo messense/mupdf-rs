@@ -133,7 +133,7 @@ unsafe_impl_ffi_wrapper!(TextPage, fz_stext_page, fz_drop_stext_page);
 
 impl TextPage {
     pub fn to_html(&self, id: i32, full: bool) -> Result<String, Error> {
-        let mut buf = Buffer::with_capacity(8192);
+        let mut buf = Buffer::with_capacity(8192)?;
 
         let out = Output::from_buffer(&buf);
         if full {
@@ -168,7 +168,7 @@ impl TextPage {
     }
 
     pub fn to_xhtml(&self, id: i32) -> Result<String, Error> {
-        let mut buf = Buffer::with_capacity(8192);
+        let mut buf = Buffer::with_capacity(8192)?;
 
         let out = Output::from_buffer(&buf);
         unsafe {
@@ -195,7 +195,7 @@ impl TextPage {
     }
 
     pub fn to_xml(&self, id: i32) -> Result<String, Error> {
-        let mut buf = Buffer::with_capacity(8192);
+        let mut buf = Buffer::with_capacity(8192)?;
 
         let out = Output::from_buffer(&buf);
         unsafe {
@@ -214,7 +214,7 @@ impl TextPage {
     }
 
     pub fn to_text(&self) -> Result<String, Error> {
-        let mut buf = Buffer::with_capacity(8192);
+        let mut buf = Buffer::with_capacity(8192)?;
 
         let out = Output::from_buffer(&buf);
         unsafe {
@@ -232,7 +232,7 @@ impl TextPage {
     }
 
     pub fn to_json(&self, scale: f32) -> Result<String, Error> {
-        let mut buf = Buffer::with_capacity(8192);
+        let mut buf = Buffer::with_capacity(8192)?;
 
         let out = Output::from_buffer(&buf);
         unsafe {
@@ -457,7 +457,10 @@ impl TextPage {
             let data = unsafe { &mut (*data).data };
 
             // And call the function with the data
-            f(data, slice) as c_int
+            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(data, slice))) {
+                Ok(response) => response as c_int,
+                Err(_) => SearchHitResponse::AbortSearch as c_int,
+            }
         }
 
         let c_needle = CString::new(needle)?;
@@ -553,6 +556,9 @@ impl TextBlock<'_> {
         unsafe {
             if self.inner.type_ == FZ_STEXT_BLOCK_IMAGE as i32 {
                 let inner = self.inner.u.i.image;
+                if inner.is_null() {
+                    return None;
+                }
                 fz_keep_image(context(), inner);
                 return Some(Image::from_raw(inner));
             }

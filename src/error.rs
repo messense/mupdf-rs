@@ -40,6 +40,14 @@ pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
     let code = err.type_;
     let c_msg = err.message;
 
+    if c_msg.is_null() {
+        unsafe { mupdf_drop_error(ptr.as_ptr()) };
+        return MuPdfError {
+            code,
+            message: "unknown MuPDF error".to_owned(),
+        };
+    }
+
     // SAFETY: Upheld by caller
     let c_str = unsafe { CStr::from_ptr(c_msg) };
     let message = c_str.to_string_lossy().to_string();

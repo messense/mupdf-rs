@@ -660,6 +660,12 @@ struct CDevice<D> {
 // temporary Rust wrappers created here must not take ownership of those pointers, so callbacks use
 // `ManuallyDrop` to prevent Drop impls from releasing borrowed MuPDF objects. Color slices are
 // formed from `color` with the component count reported by the corresponding MuPDF colorspace.
+fn guard_ffi_callback<F: FnOnce()>(f: F) {
+    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
+        std::process::abort();
+    }
+}
+
 unsafe fn with_rust_device<D: NativeDevice, T>(
     dev: *mut fz_device,
     f: impl FnOnce(&mut D) -> T,
@@ -667,11 +673,15 @@ unsafe fn with_rust_device<D: NativeDevice, T>(
     // SAFETY: `dev` is the `base` field of a `CDevice<D>` allocated by `create`. MuPDF calls these
     // callbacks only while that device is alive, and `drop_device` drops the embedded Rust value
     // exactly once.
-    unsafe {
-        let c_device: *mut CDevice<D> = dev.cast();
-        let rust_device = &mut (*c_device).rust_device;
-        f(rust_device)
-    }
+    let mut out = None;
+    guard_ffi_callback(|| {
+        unsafe {
+            let c_device: *mut CDevice<D> = dev.cast();
+            let rust_device = &mut (*c_device).rust_device;
+            out = Some(f(rust_device));
+        }
+    });
+    out.expect("native device callback completed")
 }
 
 unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
@@ -681,12 +691,11 @@ unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *
 }
 
 unsafe extern "C" fn drop_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    unsafe {
+    guard_ffi_callback(|| unsafe {
         let c_device: *mut CDevice<D> = dev.cast();
         let rust_device = &raw mut (*c_device).rust_device;
-
         ptr::drop_in_place(rust_device);
-    }
+    });
 }
 
 unsafe extern "C" fn fill_path<D: NativeDevice>(
@@ -1055,12 +1064,15 @@ unsafe extern "C" fn begin_group<D: NativeDevice>(
         with_rust_device::<D, _>(dev, |dev| {
             let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
 
+            let Ok(blendmode) = blendmode.try_into() else {
+                return;
+            };
             dev.begin_group(
                 area.into(),
                 &cs,
                 isolated != 0,
                 knockout != 0,
-                blendmode.try_into().unwrap(),
+                blendmode,
                 alpha,
             );
         });
@@ -1119,8 +1131,8 @@ unsafe extern "C" fn render_flags<D: NativeDevice>(
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
             dev.render_flags(
-                DeviceFlag::from_bits(set as u32).unwrap(),
-                DeviceFlag::from_bits(clear as u32).unwrap(),
+                DeviceFlag::from_bits_truncate(set as u32),
+                DeviceFlag::from_bits_truncate(clear as u32),
             );
         });
     }
@@ -1147,9 +1159,11 @@ unsafe extern "C" fn begin_layer<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let name = CStr::from_ptr(layer_name).to_str().unwrap();
-
-            dev.begin_layer(name);
+            if layer_name.is_null() {
+                return;
+            }
+            let name = CStr::from_ptr(layer_name).to_string_lossy();
+            dev.begin_layer(&name);
         });
     }
 }
@@ -1171,10 +1185,14 @@ unsafe extern "C" fn begin_structure<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let standard = Structure::try_from(standard as i32).unwrap();
-            let raw = CStr::from_ptr(raw).to_str().unwrap();
-
-            dev.begin_structure(standard, raw, idx as i32);
+            let Ok(standard) = Structure::try_from(standard as i32) else {
+                return;
+            };
+            if raw.is_null() {
+                return;
+            }
+            let raw = CStr::from_ptr(raw).to_string_lossy();
+            dev.begin_structure(standard, &raw, idx as i32);
         });
     }
 }
@@ -1195,10 +1213,14 @@ unsafe extern "C" fn begin_metatext<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let meta = Metatext::try_from(meta).unwrap();
-            let text = CStr::from_ptr(text).to_str().unwrap();
-
-            dev.begin_metatext(meta, text);
+            let Ok(meta) = Metatext::try_from(meta) else {
+                return;
+            };
+            if text.is_null() {
+                return;
+            }
+            let text = CStr::from_ptr(text).to_string_lossy();
+            dev.begin_metatext(meta, &text);
         });
     }
 }
