@@ -81,9 +81,8 @@ impl Shape<'_> {
             block.push_str(&format!("{} M\n", format_g(miter_limit)));
         }
         if let Some(dashes) = &opts.dashes {
-            let dashes = dashes.trim();
-            if !dashes.is_empty() {
-                block.push_str(dashes);
+            if let Some(serialized) = serialize_dash_pattern(dashes)? {
+                block.push_str(&serialized);
                 block.push_str(" d\n");
             }
         }
@@ -201,11 +200,82 @@ fn effective_stroke_color(opts: &FinishOptions) -> Option<&super::PdfColor> {
     (opts.width > 0.0).then_some(opts.color.as_ref()).flatten()
 }
 
+fn validate_dash_pattern(dashes: &str) -> Result<(), Error> {
+    let _ = parse_dash_pattern(dashes)?;
+    Ok(())
+}
+
+fn serialize_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
+    parse_dash_pattern(dashes)
+}
+
+fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
+    let dashes = dashes.trim();
+    if dashes.is_empty() {
+        return Ok(None);
+    }
+
+    let (array_part, phase_part) = match dashes.rsplit_once(']') {
+        Some((array_part, phase_part)) => {
+            let array_part = array_part
+                .strip_prefix('[')
+                .ok_or_else(|| Error::InvalidArgument("dash pattern must start with '['".to_owned()))?;
+            (array_part.trim(), phase_part.trim())
+        }
+        None => return Err(Error::InvalidArgument(
+            "dash pattern must be a PDF array followed by a phase".to_owned(),
+        )),
+    };
+
+    let mut values = Vec::new();
+    if !array_part.is_empty() {
+        for token in array_part.split_whitespace() {
+            let value: f32 = token
+                .parse()
+                .map_err(|_| Error::InvalidArgument("dash array entries must be numbers".to_owned()))?;
+            if !value.is_finite() || value < 0.0 {
+                return Err(Error::InvalidArgument(
+                    "dash array entries must be non-negative finite numbers".to_owned(),
+                ));
+            }
+            values.push(format_g(value));
+        }
+    }
+
+    let phase: f32 = phase_part
+        .parse()
+        .map_err(|_| Error::InvalidArgument("dash phase must be a number".to_owned()))?;
+    if !phase.is_finite() {
+        return Err(Error::InvalidArgument(
+            "dash phase must be a finite number".to_owned(),
+        ));
+    }
+
+    Ok(Some(format!("[{}] {}", values.join(" "), format_g(phase))))
+}
+
 fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
     if !opts.width.is_finite() || opts.width < 0.0 {
         return Err(Error::InvalidArgument(
             "width must be a non-negative finite value".to_owned(),
         ));
+    }
+    if let Some(line_cap) = opts.line_cap {
+        if !(0..=2).contains(&line_cap) {
+            return Err(Error::InvalidArgument(
+                "line_cap must be between 0 and 2".to_owned(),
+            ));
+        }
+    }
+    if let Some(line_join) = opts.line_join {
+        if !(0..=2).contains(&line_join) {
+            return Err(Error::InvalidArgument(
+                "line_join must be between 0 and 2".to_owned(),
+            ));
+        }
+    }
+    if let Some(dashes) = &opts.dashes {
+        validate_dash_pattern(dashes)?;
     }
     if let Some(color) = effective_stroke_color(opts) {
         color.validate()?;

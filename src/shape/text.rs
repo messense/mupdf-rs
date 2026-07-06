@@ -58,6 +58,12 @@ impl Shape<'_> {
             return Ok(self);
         }
 
+        if !point.x.is_finite() || !point.y.is_finite() {
+            return Err(Error::InvalidArgument(
+                "text anchor point must be finite".to_owned(),
+            ));
+        }
+
         let rotate = normalize_rotate(opts.rotate)?;
         let lines = text.lines().collect::<Vec<_>>();
 
@@ -67,6 +73,7 @@ impl Shape<'_> {
             opts.border_width,
             opts.miter_limit,
         )?;
+        validate_render_mode(opts.render_mode)?;
         validate_text_colors(opts.color.as_ref(), opts.fill.as_ref())?;
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
@@ -256,6 +263,7 @@ impl Shape<'_> {
                 ));
             }
         }
+        validate_render_mode(opts.render_mode)?;
         validate_text_colors(opts.color.as_ref(), opts.fill.as_ref())?;
 
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
@@ -402,6 +410,15 @@ impl Shape<'_> {
         self.update_rect_with_rect(rect);
         Ok(unused_height)
     }
+}
+
+fn validate_render_mode(render_mode: i32) -> Result<(), Error> {
+    if !(0..=7).contains(&render_mode) {
+        return Err(Error::InvalidArgument(
+            "render_mode must be between 0 and 7".to_owned(),
+        ));
+    }
+    Ok(())
 }
 
 fn validate_text_scalars(
