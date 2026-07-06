@@ -240,6 +240,18 @@ impl Pixmap {
             .map(move |row| &row[..row_len.min(row.len())])
     }
 
+    fn count_pixels_by_key(&self, n: usize) -> Option<HashMap<u64, usize>> {
+        if !(1..=4).contains(&n) {
+            return None;
+        }
+        let mut counts = HashMap::<u64, usize>::new();
+        for components in self.pixel_rows().flat_map(|row| row.chunks_exact(n)) {
+            let key = Self::pixel_key(components)?;
+            *counts.entry(key).or_default() += 1;
+        }
+        Some(counts)
+    }
+
     fn checked_stride(&self) -> Result<usize, Error> {
         usize::try_from(self.stride()).map_err(|_| {
             Error::InvalidArgument("pixmap stride cannot be represented as usize".to_owned())
@@ -440,10 +452,49 @@ impl Pixmap {
         Ok(PixmapDigest(digest))
     }
 
+    fn pixel_key(components: &[u8]) -> Option<u64> {
+        match components.len() {
+            1 => Some(u64::from(components[0])),
+            3 => Some(
+                u64::from(components[0])
+                    | (u64::from(components[1]) << 8)
+                    | (u64::from(components[2]) << 16),
+            ),
+            4 => Some(
+                u64::from(components[0])
+                    | (u64::from(components[1]) << 8)
+                    | (u64::from(components[2]) << 16)
+                    | (u64::from(components[3]) << 24),
+            ),
+            _ => None,
+        }
+    }
+
+    fn pixel_from_key(key: u64, n: usize) -> Pixel {
+        match n {
+            1 => Pixel::gray(key as u8),
+            3 => Pixel::rgb(
+                (key & 0xff) as u8,
+                ((key >> 8) & 0xff) as u8,
+                ((key >> 16) & 0xff) as u8,
+            ),
+            4 => Pixel::rgba(
+                (key & 0xff) as u8,
+                ((key >> 8) & 0xff) as u8,
+                ((key >> 16) & 0xff) as u8,
+                ((key >> 24) & 0xff) as u8,
+            ),
+            _ => Pixel::new(Vec::new()),
+        }
+    }
+
     pub fn color_count(&self) -> usize {
         let n = self.n() as usize;
         if n == 0 {
             return 0;
+        }
+        if let Some(counts) = self.count_pixels_by_key(n) {
+            return counts.len();
         }
         self.pixel_rows()
             .flat_map(|row| row.chunks_exact(n))
@@ -456,6 +507,18 @@ impl Pixmap {
         let n = self.n() as usize;
         if n == 0 || self.samples().is_empty() {
             return None;
+        }
+
+        if let Some(counts) = self.count_pixels_by_key(n) {
+            let total = (self.width() as usize).checked_mul(self.height() as usize)?;
+            return counts
+                .into_iter()
+                .max_by_key(|(_, count)| *count)
+                .map(|(key, count)| ColorUsage {
+                    pixel: Self::pixel_from_key(key, n),
+                    count,
+                    ratio: count as f32 / total as f32,
+                });
         }
 
         let mut counts = HashMap::<Pixel, usize>::new();
