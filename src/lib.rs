@@ -97,7 +97,7 @@ pub use destination::{Destination, DestinationKind};
 pub use device::{BlendMode, Device, DisplayListDevice, Function, NativeDevice};
 pub use display_list::DisplayList;
 pub use document::{Document, MetadataName};
-pub use document_writer::DocumentWriter;
+pub use document_writer::{DocumentWriter, WriterPage};
 pub(crate) use error::ffi_error;
 pub use error::Error;
 pub use file_path::FilePath;
