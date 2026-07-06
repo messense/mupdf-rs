@@ -602,7 +602,10 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
     let ret = unsafe {
         let c_device: *mut CDevice<D> =
             ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"))?;
-        ptr::write(&raw mut (*c_device).rust_device, device);
+        ptr::write(
+            &raw mut (*c_device).rust_device,
+            ManuallyDrop::new(Some(device)),
+        );
 
         (*c_device).base.close_device = Some(close_device::<D>);
         (*c_device).base.drop_device = Some(drop_device::<D>);
@@ -653,7 +656,7 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
 #[repr(C)]
 struct CDevice<D> {
     base: fz_device,
-    rust_device: D,
+    rust_device: ManuallyDrop<Option<D>>,
 }
 
 // MuPDF invokes these callbacks with pointers borrowed for the duration of each callback. The
@@ -677,7 +680,10 @@ unsafe fn with_rust_device<D: NativeDevice, T>(
     guard_ffi_callback(|| {
         unsafe {
             let c_device: *mut CDevice<D> = dev.cast();
-            let rust_device = &mut (*c_device).rust_device;
+            let rust_device = (*c_device)
+                .rust_device
+                .as_mut()
+                .expect("native device callback invoked after drop");
             out = Some(f(rust_device));
         }
     });
@@ -694,7 +700,9 @@ unsafe extern "C" fn drop_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *m
     guard_ffi_callback(|| unsafe {
         let c_device: *mut CDevice<D> = dev.cast();
         let rust_device = &raw mut (*c_device).rust_device;
-        ptr::drop_in_place(rust_device);
+        if let Some(device) = (*rust_device).take() {
+            drop(device);
+        }
     });
 }
 
