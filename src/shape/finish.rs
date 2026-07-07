@@ -32,6 +32,12 @@ impl Shape<'_> {
         }
 
         validate_finish_scalars(opts)?;
+        // Parse the dash pattern once, before any document mutation below, so an invalid
+        // pattern fails without side effects.
+        let serialized_dashes = match &opts.dashes {
+            Some(dashes) => parse_dash_pattern(dashes)?,
+            None => None,
+        };
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
             let doc = self.page.document_handle()?;
@@ -80,11 +86,9 @@ impl Shape<'_> {
         if let Some(miter_limit) = opts.miter_limit {
             block.push_str(&format!("{} M\n", format_g(miter_limit)));
         }
-        if let Some(dashes) = &opts.dashes {
-            if let Some(serialized) = serialize_dash_pattern(dashes)? {
-                block.push_str(&serialized);
-                block.push_str(" d\n");
-            }
+        if let Some(serialized) = &serialized_dashes {
+            block.push_str(serialized);
+            block.push_str(" d\n");
         }
         if let Some(color) = effective_stroke_color(opts) {
             block.push_str(&color_code(color.components(), ColorRole::Stroke)?);
@@ -200,15 +204,6 @@ fn effective_stroke_color(opts: &FinishOptions) -> Option<&super::PdfColor> {
     (opts.width > 0.0).then_some(opts.color.as_ref()).flatten()
 }
 
-fn validate_dash_pattern(dashes: &str) -> Result<(), Error> {
-    let _ = parse_dash_pattern(dashes)?;
-    Ok(())
-}
-
-fn serialize_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
-    parse_dash_pattern(dashes)
-}
-
 fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
     let dashes = dashes.trim();
     if dashes.is_empty() {
@@ -275,9 +270,6 @@ fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
                 "line_join must be between 0 and 2".to_owned(),
             ));
         }
-    }
-    if let Some(dashes) = &opts.dashes {
-        validate_dash_pattern(dashes)?;
     }
     if let Some(color) = effective_stroke_color(opts) {
         color.validate()?;

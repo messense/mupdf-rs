@@ -2,7 +2,7 @@ use std::os::raw::c_void;
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Matrix, Point, Rect, StrokeState};
+use crate::{context, guard_ffi_callback, Error, Matrix, Point, Rect, StrokeState};
 
 pub trait PathWalker {
     fn move_to(&mut self, x: f32, y: f32);
@@ -41,12 +41,6 @@ impl<W: PathWalker + ?Sized> PathWalker for &mut W {
     }
     fn rect(&mut self, x1: f32, y1: f32, x2: f32, y2: f32) {
         (**self).rect(x1, y1, x2, y2)
-    }
-}
-
-fn guard_ffi_callback<F: FnOnce()>(f: F) {
-    if std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)).is_err() {
-        std::process::abort();
     }
 }
 

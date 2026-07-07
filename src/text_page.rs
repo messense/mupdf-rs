@@ -457,10 +457,7 @@ impl TextPage {
             let data = unsafe { &mut (*data).data };
 
             // And call the function with the data
-            match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| f(data, slice))) {
-                Ok(response) => response as c_int,
-                Err(_) => std::process::abort(),
-            }
+            crate::guard_ffi_callback(|| f(data, slice)) as c_int
         }
 
         let c_needle = CString::new(needle)?;

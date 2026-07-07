@@ -57,16 +57,18 @@ pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
     MuPdfError { code, message }
 }
 
+/// Runs `f`, aborting the process if it panics.
+///
+/// Rust panics must not unwind across the C FFI boundary (doing so is undefined behavior), so
+/// callbacks invoked by MuPDF wrap their bodies with this guard.
+pub(crate) fn guard_ffi_callback<T>(f: impl FnOnce() -> T) -> T {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(value) => value,
+        Err(_) => std::process::abort(),
+    }
+}
+
 macro_rules! ffi_try {
-    ($func:ident()) => ({
-        use std::ptr;
-        let mut err = ptr::null_mut();
-        let res = $func((&mut err) as *mut *mut ::mupdf_sys::mupdf_error_t);
-        ::core::ptr::NonNull::new(err)
-            .map_or(Ok(res), |err| Err(
-                $crate::Error::MuPdf($crate::ffi_error(err))
-            ))
-    });
     ($func:ident($($arg:expr),+)) => ({
         use std::ptr;
         let mut err = ptr::null_mut();
