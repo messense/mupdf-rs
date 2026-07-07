@@ -367,15 +367,13 @@ impl Iterator for LinkIter {
                 (String::new(), None)
             } else {
                 let uri_cstr = CStr::from_ptr(uri_ptr);
-                let dest = LinkDestination::from_uri(&self.doc, uri_cstr).ok().flatten();
+                let dest = LinkDestination::from_uri(&self.doc, uri_cstr)
+                    .ok()
+                    .flatten();
                 (uri_cstr.to_string_lossy().into_owned(), dest)
             };
 
-            Some(Link {
-                bounds,
-                dest,
-                uri,
-            })
+            Some(Link { bounds, dest, uri })
         }
     }
 }

@@ -61,8 +61,7 @@ impl Buffer {
     }
 
     pub fn with_capacity(cap: usize) -> Result<Self, Error> {
-        unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }
-            .map(|inner| Self { inner, offset: 0 })
+        unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }.map(|inner| Self { inner, offset: 0 })
     }
 
     pub fn len(&self) -> usize {
@@ -93,7 +92,9 @@ impl Buffer {
         self.offset = self
             .offset
             .checked_add(read_len as usize)
-            .ok_or(Error::InvalidArgument("buffer read offset overflow".to_owned()))?;
+            .ok_or(Error::InvalidArgument(
+                "buffer read offset overflow".to_owned(),
+            ))?;
         Ok(read_len)
     }
 

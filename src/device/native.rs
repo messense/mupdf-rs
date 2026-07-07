@@ -677,15 +677,13 @@ unsafe fn with_rust_device<D: NativeDevice, T>(
     // callbacks only while that device is alive, and `drop_device` drops the embedded Rust value
     // exactly once.
     let mut out = None;
-    guard_ffi_callback(|| {
-        unsafe {
-            let c_device: *mut CDevice<D> = dev.cast();
-            let rust_device = (*c_device)
-                .rust_device
-                .as_mut()
-                .expect("native device callback invoked after drop");
-            out = Some(f(rust_device));
-        }
+    guard_ffi_callback(|| unsafe {
+        let c_device: *mut CDevice<D> = dev.cast();
+        let rust_device = (*c_device)
+            .rust_device
+            .as_mut()
+            .expect("native device callback invoked after drop");
+        out = Some(f(rust_device));
     });
     out.expect("native device callback completed")
 }

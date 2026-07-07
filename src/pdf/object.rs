@@ -48,10 +48,7 @@ impl PdfObject {
         }
     }
 
-    pub(crate) unsafe fn from_raw_bound(
-        ptr: *mut pdf_obj,
-        owner: *mut pdf_document,
-    ) -> Self {
+    pub(crate) unsafe fn from_raw_bound(ptr: *mut pdf_obj, owner: *mut pdf_document) -> Self {
         Self::with_owner(ptr, owner)
     }
 
@@ -69,10 +66,7 @@ impl PdfObject {
 
     /// Like [`from_raw_bound`](Self::from_raw_bound), but takes ownership of an
     /// already-kept document reference instead of keeping a new one.
-    pub(crate) unsafe fn from_raw_bound_owned(
-        ptr: *mut pdf_obj,
-        owner: *mut pdf_document,
-    ) -> Self {
+    pub(crate) unsafe fn from_raw_bound_owned(ptr: *mut pdf_obj, owner: *mut pdf_document) -> Self {
         Self {
             inner: ptr,
             owner: if owner.is_null() { None } else { Some(owner) },
@@ -678,14 +672,13 @@ impl TryFrom<&PdfAnnotation> for PdfObject {
     type Error = Error;
 
     fn try_from(annot: &PdfAnnotation) -> Result<PdfObject, Self::Error> {
-        unsafe { ffi_try!(mupdf_pdf_annot_obj(context(), annot.inner.as_ptr())) }
-            .map(|inner| {
-                unsafe {
-                    pdf_keep_obj(context(), inner);
-                    // mupdf_pdf_get_bound_document returns an owned reference.
-                    let doc = mupdf_pdf_get_bound_document(context(), inner);
-                    PdfObject::from_raw_bound_owned(inner, doc)
-                }
-            })
+        unsafe { ffi_try!(mupdf_pdf_annot_obj(context(), annot.inner.as_ptr())) }.map(|inner| {
+            unsafe {
+                pdf_keep_obj(context(), inner);
+                // mupdf_pdf_get_bound_document returns an owned reference.
+                let doc = mupdf_pdf_get_bound_document(context(), inner);
+                PdfObject::from_raw_bound_owned(inner, doc)
+            }
+        })
     }
 }

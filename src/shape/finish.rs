@@ -217,22 +217,24 @@ fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
 
     let (array_part, phase_part) = match dashes.rsplit_once(']') {
         Some((array_part, phase_part)) => {
-            let array_part = array_part
-                .strip_prefix('[')
-                .ok_or_else(|| Error::InvalidArgument("dash pattern must start with '['".to_owned()))?;
+            let array_part = array_part.strip_prefix('[').ok_or_else(|| {
+                Error::InvalidArgument("dash pattern must start with '['".to_owned())
+            })?;
             (array_part.trim(), phase_part.trim())
         }
-        None => return Err(Error::InvalidArgument(
-            "dash pattern must be a PDF array followed by a phase".to_owned(),
-        )),
+        None => {
+            return Err(Error::InvalidArgument(
+                "dash pattern must be a PDF array followed by a phase".to_owned(),
+            ))
+        }
     };
 
     let mut values = Vec::new();
     if !array_part.is_empty() {
         for token in array_part.split_whitespace() {
-            let value: f32 = token
-                .parse()
-                .map_err(|_| Error::InvalidArgument("dash array entries must be numbers".to_owned()))?;
+            let value: f32 = token.parse().map_err(|_| {
+                Error::InvalidArgument("dash array entries must be numbers".to_owned())
+            })?;
             if !value.is_finite() || value < 0.0 {
                 return Err(Error::InvalidArgument(
                     "dash array entries must be non-negative finite numbers".to_owned(),
@@ -245,9 +247,9 @@ fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
     let phase: f32 = phase_part
         .parse()
         .map_err(|_| Error::InvalidArgument("dash phase must be a number".to_owned()))?;
-    if !phase.is_finite() {
+    if !phase.is_finite() || phase < 0.0 {
         return Err(Error::InvalidArgument(
-            "dash phase must be a finite number".to_owned(),
+            "dash phase must be a non-negative finite number".to_owned(),
         ));
     }
 
@@ -311,7 +313,7 @@ mod tests {
     use std::path::Path;
     use std::str;
 
-    fn finished_line(opts: &FinishOptions) -> String {
+    fn try_finished_line(opts: &FinishOptions) -> Result<String, Error> {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut shape = Shape::new(&mut page).unwrap();
@@ -321,10 +323,13 @@ mod tests {
         shape
             .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
             .unwrap()
-            .finish(opts)
-            .unwrap();
+            .finish(opts)?;
 
-        shape.total_cont().to_owned()
+        Ok(shape.total_cont().to_owned())
+    }
+
+    fn finished_line(opts: &FinishOptions) -> String {
+        try_finished_line(opts).unwrap()
     }
 
     fn finish_rect(opts: &FinishOptions) -> String {
@@ -752,6 +757,19 @@ mod tests {
             ..Default::default()
         });
         assert!(!without_dashes.contains(" d\n"));
+    }
+
+    #[test]
+    fn finish_rejects_negative_dash_phase() {
+        let err = try_finished_line(&FinishOptions {
+            dashes: Some("[3 2] -1".to_owned()),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(
+            matches!(err, Error::InvalidArgument(message) if message == "dash phase must be a non-negative finite number")
+        );
     }
 
     #[test]
