@@ -82,8 +82,6 @@ impl IRect {
     pub fn r#union(&self, other: IRect) -> Self {
         if !other.is_valid() {
             *self
-        } else if !self.is_valid() {
-            other
         } else if self.is_empty() {
             other
         } else if other.is_empty() {
