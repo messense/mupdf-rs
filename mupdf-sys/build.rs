@@ -63,7 +63,7 @@ fn run() -> Result<()> {
         patch_mupdf_sources(build_dir.as_ref())?;
 
         Build::new(&target).run(&target, build_dir)?;
-        build_wrapper().map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
+        build_wrapper(&target).map_err(|e| format!("Unable to compile mupdf wrapper:\n  {e}"))?;
     }
 
     generate_bindings(&target, &out_dir.join("bindings.rs"), sysroot)
@@ -209,8 +209,15 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-fn build_wrapper() -> Result<()> {
+fn build_wrapper(target: &Target) -> Result<()> {
     let mut build = cc::Build::new();
+    // For cross-language LTO the wrapper TUs -- which rustc links directly, not via
+    // libmupdf -- must also be clang-cl ThinLTO bitcode so they participate in the
+    // whole-program link. Scope to the MSVC/ClangCL path (the only one msbuild.rs
+    // gates the feature on); other targets use their own LTO mechanism.
+    if cfg!(feature = "linker-plugin-lto") && target.env == "msvc" {
+        build.compiler("clang-cl").flag("/clang:-flto=thin");
+    }
     for entry in fs::read_dir("wrapper")? {
         let entry = entry?;
         let path = entry.path();

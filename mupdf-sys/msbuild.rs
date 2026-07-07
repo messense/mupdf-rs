@@ -159,8 +159,6 @@ impl Msbuild {
     }
 
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
-        self.cl.push("/MP".to_owned());
-
         self.patch_nan(build_dir)?;
         self.remove_libresources_fonts(build_dir)?;
 
@@ -183,6 +181,25 @@ impl Msbuild {
         // doesn't set) so plain MSVC (v142/v143) builds are untouched.
         if clang_cl {
             self.cl.push("/clang:-msse4.1".to_owned());
+        }
+
+        // Cross-language LTO: emit libmupdf's TUs as LLVM ThinLTO bitcode so the
+        // consuming rustc link (built with `-Clinker-plugin-lto`, clang-cl + lld)
+        // can inline and optimize across the Rust<->C boundary. MSVC `/GL` can't do
+        // this -- its MSIL is not LLVM bitcode and never crosses into Rust -- so
+        // this is ClangCL-only; error out under any MSVC toolset. `/clang:` forwards
+        // to the clang driver (same mechanism as the SSE4.1 flag above). `/GL`/WPO
+        // must stay off (it is, by default) -- the two whole-program models are
+        // mutually exclusive.
+        if cfg!(feature = "linker-plugin-lto") {
+            if !clang_cl {
+                Err(
+                    "the `linker-plugin-lto` feature requires the ClangCL toolset \
+                     (MSVC `/GL` is not LLVM bitcode); set \
+                     MUPDF_MSVC_PLATFORM_TOOLSET=ClangCL",
+                )?;
+            }
+            self.cl.push("/clang:-flto=thin".to_owned());
         }
 
         // The MSBuild project graph hard-codes every optional dependency ON; strip
@@ -208,14 +225,35 @@ impl Msbuild {
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
             Err("Could not find msbuild.exe. Do you have it installed?")?
         };
+        let mut args = vec![
+            r"platform\win32\mupdf.sln".to_owned(),
+            "/target:libmupdf".to_owned(),
+            format!("/p:Configuration={configuration}"),
+            format!("/p:Platform={platform}"),
+            format!("/p:PlatformToolset={platform_toolset}"),
+        ];
+        // MuPDF's Release config sets `<WholeProgramOptimization>true</…>` (`/GL`),
+        // which is the wrong default for libmupdf *as built here*: it's a static lib
+        // produced solely to be linked by an external (rustc) link. `/GL` defers code
+        // generation to that final link, so the .lib ships version-locked MSIL objects
+        // rather than finished code. Consequences for the consumer:
+        //   - the final rustc link (which doesn't pass `/LTCG`) makes link.exe detect
+        //     the `/GL` modules and *restart* with `/LTCG`, re-running whole-program
+        //     codegen of all of libmupdf on every relink (slow; on some toolsets it
+        //     ICEs, e.g. freetype t1load.c C1001 / link.exe 0xc0000005);
+        //   - `lld-link` (an increasingly common Rust linker) can't consume `/GL`
+        //     objects at all → hard link failure;
+        //   - MS itself advises against shipping `.lib` files made of `/GL` objects.
+        // The `/GL`→Rust link can't optimize across the Rust↔C boundary anyway, so the
+        // only thing lost is cross-TU optimization *within* MuPDF — a real but bounded
+        // runtime win. Default it off; let perf-sensitive users opt back in. A global
+        // `/p:` overrides the per-config project setting. (ClangCL builds don't emit
+        // MSIL for `/GL`, so they're unaffected either way.)
+        if env::var_os("MUPDF_MSVC_WHOLE_PROGRAM_OPT").is_none() {
+            args.push("/p:WholeProgramOptimization=false".to_owned());
+        }
         let status = msbuild
-            .args([
-                r"platform\win32\mupdf.sln",
-                "/target:libmupdf",
-                &format!("/p:Configuration={configuration}"),
-                &format!("/p:Platform={platform}"),
-                &format!("/p:PlatformToolset={platform_toolset}"),
-            ])
+            .args(&args)
             .current_dir(build_dir)
             .env("CL", self.cl.join(" "))
             .status()
@@ -243,6 +281,11 @@ impl Msbuild {
 
         println!("cargo:rustc-link-lib=dylib=libmupdf");
         println!("cargo:rustc-link-lib=dylib=libthirdparty");
+        // NB: no separate libtesseract/libleptonica directives are needed even with
+        // the `tesseract` feature — MSVC "Link Library Dependencies" merges the
+        // ProjectReference'd static libs into libmupdf.lib (it carries the
+        // libtesseract/libleptonica objects directly), so libmupdf alone resolves
+        // all OCR symbols. Verified 2026-06-27 via dumpbin /ARCHIVEMEMBERS.
 
         Ok(())
     }
