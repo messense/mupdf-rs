@@ -536,7 +536,11 @@ impl PdfPage {
     }
 
     pub fn object(&self) -> PdfObject {
-        unsafe { PdfObject::from_raw_keep_ref(self.as_ref().obj) }
+        unsafe {
+            let inner = self.as_ref().obj;
+            pdf_keep_obj(context(), inner);
+            PdfObject::from_raw_bound(inner, self.as_ref().doc)
+        }
     }
 
     pub(crate) fn document_handle(&self) -> Result<PdfDocument, Error> {

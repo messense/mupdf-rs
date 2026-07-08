@@ -1,6 +1,15 @@
 #include "internal.h"
 
 /* Buffer */
+fz_buffer *mupdf_new_buffer(fz_context *ctx, size_t cap, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_buffer*, NULL, fz_new_buffer(ctx, cap));
+}
+
+void mupdf_close_output(fz_context *ctx, fz_output *out, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_close_output(ctx, out));
+}
 size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsigned char *output, size_t buf_len, mupdf_error_t **errptr)
 {
     size_t remaining_input = 0;
@@ -27,6 +36,11 @@ size_t mupdf_buffer_read_bytes(fz_context *ctx, fz_buffer *buf, size_t at, unsig
 void mupdf_buffer_write_bytes(fz_context *ctx, fz_buffer *buf, const unsigned char *bytes, size_t len, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(fz_append_data(ctx, buf, bytes, len));
+}
+
+fz_buffer *mupdf_buffer_from_copied_bytes(fz_context *ctx, const unsigned char *data, size_t len, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_buffer*, NULL, fz_new_buffer_from_copied_data(ctx, data, len));
 }
 
 fz_buffer *mupdf_buffer_from_str(fz_context *ctx, const char *s, mupdf_error_t **errptr)

@@ -20,17 +20,16 @@ fz_pixmap *mupdf_page_to_pixmap(fz_context *ctx, fz_page *page, fz_matrix ctm, f
 
 fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_cookie *cookie, mupdf_error_t **errptr)
 {
-    fz_rect mediabox = fz_bound_page(ctx, page);
     fz_device *dev = NULL;
     fz_buffer *buf = NULL;
     fz_output *out = NULL;
     fz_var(out);
     fz_var(dev);
     fz_var(buf);
-    fz_rect tbounds = mediabox;
-    tbounds = fz_transform_rect(tbounds, ctm);
     fz_try(ctx)
     {
+        fz_rect mediabox = fz_bound_page(ctx, page);
+        fz_rect tbounds = fz_transform_rect(mediabox, ctm);
         buf = fz_new_buffer(ctx, 1024);
         out = fz_new_output_with_buffer(ctx, buf);
         dev = fz_new_svg_device(ctx, out, tbounds.x1 - tbounds.x0, tbounds.y1 - tbounds.y0, FZ_SVG_TEXT_AS_PATH, 1);
@@ -44,6 +43,8 @@ fz_buffer *mupdf_page_to_svg(fz_context *ctx, fz_page *page, fz_matrix ctm, fz_c
     }
     fz_catch(ctx)
     {
+        fz_drop_buffer(ctx, buf);
+        buf = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return buf;
@@ -167,6 +168,7 @@ fz_quad *mupdf_search_page(fz_context *ctx, fz_page *page, const char *needle, c
     fz_catch(ctx)
     {
         fz_free(ctx, result);
+        result = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return result;
@@ -194,6 +196,7 @@ fz_quad *mupdf_search_stext_page(fz_context *ctx, fz_stext_page *page, const cha
     fz_catch(ctx)
     {
         fz_free(ctx, result);
+        result = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return result;

@@ -80,9 +80,11 @@ impl IRect {
     }
 
     pub fn r#union(&self, other: IRect) -> Self {
-        if !self.is_valid() {
+        if !other.is_valid() {
+            *self
+        } else if self.is_empty() {
             other
-        } else if !other.is_valid() {
+        } else if other.is_empty() {
             *self
         } else {
             IRect {
@@ -149,11 +151,15 @@ impl Rect {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.x0 >= self.x1 || self.y0 >= self.y1
+        !self.is_valid() || self.x0 >= self.x1 || self.y0 >= self.y1
     }
 
     pub fn is_valid(&self) -> bool {
-        self.x0 <= self.x1 && self.y0 <= self.y1
+        [self.x0, self.y0, self.x1, self.y1]
+            .iter()
+            .all(|coord| coord.is_finite())
+            && self.x0 <= self.x1
+            && self.y0 <= self.y1
     }
 
     pub fn contains(&self, x: f32, y: f32) -> bool {
@@ -219,6 +225,18 @@ impl Rect {
     }
 
     pub fn r#union(&self, other: &Self) -> Self {
+        if !other.is_valid() {
+            return *self;
+        }
+        if !self.is_valid() {
+            return *other;
+        }
+        if self.is_empty() {
+            return *other;
+        }
+        if other.is_empty() {
+            return *self;
+        }
         unsafe { fz_union_rect((*self).into(), (*other).into()) }.into()
     }
 
@@ -321,5 +339,25 @@ mod tests {
         assert_eq!(quad.ll, rect.bl());
         assert_eq!(quad.lr, rect.br());
         assert_eq!(Rect::from(quad), rect);
+    }
+
+    #[test]
+    fn irect_union_ignores_invalid_operand() {
+        let empty = IRect::new(0, 0, 0, 0);
+        let invalid = IRect::new(5, 0, 1, 1);
+        let valid = IRect::new(1, 2, 3, 4);
+
+        assert_eq!(empty.r#union(invalid), empty);
+        assert_eq!(invalid.r#union(valid), valid);
+    }
+
+    #[test]
+    fn rect_union_ignores_invalid_operand() {
+        let empty = Rect::new(0.0, 0.0, 0.0, 0.0);
+        let invalid = Rect::new(f32::NAN, 0.0, 1.0, 1.0);
+        let valid = Rect::new(1.0, 2.0, 3.0, 4.0);
+
+        assert_eq!(empty.r#union(&invalid), empty);
+        assert_eq!(invalid.r#union(&valid), valid);
     }
 }

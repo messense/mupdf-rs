@@ -1,4 +1,5 @@
-use std::{ffi::CString, io::Read, ptr::NonNull};
+use std::ffi::{c_int, CString};
+use std::{io::Read, ptr::NonNull};
 
 use mupdf_sys::*;
 
@@ -137,13 +138,14 @@ impl DisplayList {
     pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
+        let hit_max = c_int::try_from(hit_max)?;
         let mut hit_count = 0;
         unsafe {
             ffi_try!(mupdf_search_display_list(
                 context(),
                 self.as_ptr(),
                 c_needle.as_ptr(),
-                hit_max as i32,
+                hit_max,
                 &mut hit_count
             ))
         }

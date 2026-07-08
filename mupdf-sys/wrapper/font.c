@@ -4,6 +4,7 @@
 fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_error_t **errptr)
 {
     fz_font *font = NULL;
+    fz_var(font);
     fz_try(ctx)
     {
         const unsigned char *data;
@@ -21,6 +22,8 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_erro
     }
     fz_catch(ctx)
     {
+        fz_drop_font(ctx, font);
+        font = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return font;

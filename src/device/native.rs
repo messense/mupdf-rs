@@ -1,4 +1,5 @@
 use std::{
+    borrow::Cow,
     cell::RefCell,
     ffi::{c_char, c_int, CStr},
     mem::ManuallyDrop,
@@ -11,8 +12,8 @@ use std::{
 use mupdf_sys::*;
 
 use crate::{
-    context, BlendMode, ColorParams, Colorspace, Device, Error, Function, Image, Matrix, Path,
-    Rect, Shade, StrokeState, Text,
+    context, guard_ffi_callback, BlendMode, ColorParams, Colorspace, Device, Error, Function,
+    Image, Matrix, Path, Rect, Shade, StrokeState, Text,
 };
 
 use super::{DefaultColorspaces, DeviceFlag, Metatext, Structure};
@@ -602,7 +603,10 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
     let ret = unsafe {
         let c_device: *mut CDevice<D> =
             ffi_try!(mupdf_new_derived_device(context(), c"RustDevice"))?;
-        ptr::write(&raw mut (*c_device).rust_device, device);
+        ptr::write(
+            &raw mut (*c_device).rust_device,
+            ManuallyDrop::new(Some(device)),
+        );
 
         (*c_device).base.close_device = Some(close_device::<D>);
         (*c_device).base.drop_device = Some(drop_device::<D>);
@@ -653,7 +657,7 @@ pub(crate) fn create<D: NativeDevice>(device: D) -> Result<Device, Error> {
 #[repr(C)]
 struct CDevice<D> {
     base: fz_device,
-    rust_device: D,
+    rust_device: ManuallyDrop<Option<D>>,
 }
 
 // MuPDF invokes these callbacks with pointers borrowed for the duration of each callback. The
@@ -667,11 +671,14 @@ unsafe fn with_rust_device<D: NativeDevice, T>(
     // SAFETY: `dev` is the `base` field of a `CDevice<D>` allocated by `create`. MuPDF calls these
     // callbacks only while that device is alive, and `drop_device` drops the embedded Rust value
     // exactly once.
-    unsafe {
+    guard_ffi_callback(|| unsafe {
         let c_device: *mut CDevice<D> = dev.cast();
-        let rust_device = &mut (*c_device).rust_device;
+        let rust_device = (*c_device)
+            .rust_device
+            .as_mut()
+            .expect("native device callback invoked after drop");
         f(rust_device)
-    }
+    })
 }
 
 unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
@@ -681,12 +688,13 @@ unsafe extern "C" fn close_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *
 }
 
 unsafe extern "C" fn drop_device<D: NativeDevice>(_ctx: *mut fz_context, dev: *mut fz_device) {
-    unsafe {
+    guard_ffi_callback(|| unsafe {
         let c_device: *mut CDevice<D> = dev.cast();
         let rust_device = &raw mut (*c_device).rust_device;
-
-        ptr::drop_in_place(rust_device);
-    }
+        if let Some(device) = (*rust_device).take() {
+            drop(device);
+        }
+    });
 }
 
 unsafe extern "C" fn fill_path<D: NativeDevice>(
@@ -1055,12 +1063,15 @@ unsafe extern "C" fn begin_group<D: NativeDevice>(
         with_rust_device::<D, _>(dev, |dev| {
             let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
 
+            // Fall back to Normal for blend modes this binding does not know: MuPDF pairs every
+            // begin_group with an end_group, so skipping the call would unbalance user devices.
+            let blendmode = blendmode.try_into().unwrap_or(BlendMode::Normal);
             dev.begin_group(
                 area.into(),
                 &cs,
                 isolated != 0,
                 knockout != 0,
-                blendmode.try_into().unwrap(),
+                blendmode,
                 alpha,
             );
         });
@@ -1119,8 +1130,8 @@ unsafe extern "C" fn render_flags<D: NativeDevice>(
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
             dev.render_flags(
-                DeviceFlag::from_bits(set as u32).unwrap(),
-                DeviceFlag::from_bits(clear as u32).unwrap(),
+                DeviceFlag::from_bits_truncate(set as u32),
+                DeviceFlag::from_bits_truncate(clear as u32),
             );
         });
     }
@@ -1147,9 +1158,14 @@ unsafe extern "C" fn begin_layer<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let name = CStr::from_ptr(layer_name).to_str().unwrap();
-
-            dev.begin_layer(name);
+            // Use an empty name for null pointers: MuPDF pairs every begin_layer with an
+            // end_layer, so skipping the call would unbalance user devices.
+            let name = if layer_name.is_null() {
+                Cow::Borrowed("")
+            } else {
+                CStr::from_ptr(layer_name).to_string_lossy()
+            };
+            dev.begin_layer(&name);
         });
     }
 }
@@ -1171,10 +1187,16 @@ unsafe extern "C" fn begin_structure<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let standard = Structure::try_from(standard as i32).unwrap();
-            let raw = CStr::from_ptr(raw).to_str().unwrap();
-
-            dev.begin_structure(standard, raw, idx as i32);
+            // Fall back to Structure::Invalid / an empty string for values this binding does not
+            // know: MuPDF pairs every begin_structure with an end_structure, so skipping the call
+            // would unbalance user devices.
+            let standard = Structure::try_from(standard as i32).unwrap_or(Structure::Invalid);
+            let raw = if raw.is_null() {
+                Cow::Borrowed("")
+            } else {
+                CStr::from_ptr(raw).to_string_lossy()
+            };
+            dev.begin_structure(standard, &raw, idx as i32);
         });
     }
 }
@@ -1195,10 +1217,16 @@ unsafe extern "C" fn begin_metatext<D: NativeDevice>(
 ) {
     unsafe {
         with_rust_device::<D, _>(dev, |dev| {
-            let meta = Metatext::try_from(meta).unwrap();
-            let text = CStr::from_ptr(text).to_str().unwrap();
-
-            dev.begin_metatext(meta, text);
+            // Fall back to ActualText / an empty string for values this binding does not know:
+            // MuPDF pairs every begin_metatext with an end_metatext, so skipping the call would
+            // unbalance user devices.
+            let meta = Metatext::try_from(meta).unwrap_or(Metatext::ActualText);
+            let text = if text.is_null() {
+                Cow::Borrowed("")
+            } else {
+                CStr::from_ptr(text).to_string_lossy()
+            };
+            dev.begin_metatext(meta, &text);
         });
     }
 }

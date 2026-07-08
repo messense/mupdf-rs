@@ -181,6 +181,7 @@ impl Pixmap {
             if ptr.is_null() {
                 return None;
             }
+            fz_keep_colorspace(context(), ptr);
             Some(Colorspace::from_raw(ptr))
         }
     }
@@ -237,6 +238,18 @@ impl Pixmap {
         self.samples()
             .chunks(self.stride().max(1) as usize)
             .map(move |row| &row[..row_len.min(row.len())])
+    }
+
+    fn count_pixels_by_key(&self, n: usize) -> Option<HashMap<u64, usize>> {
+        if !(1..=4).contains(&n) {
+            return None;
+        }
+        let mut counts = HashMap::<u64, usize>::new();
+        for components in self.pixel_rows().flat_map(|row| row.chunks_exact(n)) {
+            let key = Self::pixel_key(components)?;
+            *counts.entry(key).or_default() += 1;
+        }
+        Some(counts)
     }
 
     fn checked_stride(&self) -> Result<usize, Error> {
@@ -343,8 +356,16 @@ impl Pixmap {
 
         let n = self.n() as usize;
         let alpha_index = n - 1;
-        for pixel in self.samples_mut().chunks_exact_mut(n) {
-            pixel[alpha_index] = alpha;
+        // Zero-width pixmaps have stride 0; chunk by at least one byte so
+        // chunks_mut does not panic (the samples slice is empty anyway).
+        let stride = self.checked_stride()?.max(1);
+        let width = self.width() as usize;
+        let row_len = width.saturating_mul(n);
+        for row in self.samples_mut().chunks_mut(stride) {
+            let end = row_len.min(row.len());
+            for pixel in row[..end].chunks_exact_mut(n) {
+                pixel[alpha_index] = alpha;
+            }
         }
         Ok(())
     }
@@ -365,6 +386,8 @@ impl Pixmap {
         let ptr = unsafe { (*self.inner).samples };
         if ptr.is_null() {
             Some(&[])
+        } else if ptr.align_offset(std::mem::align_of::<u32>()) != 0 {
+            None
         } else {
             Some(unsafe { slice::from_raw_parts(ptr.cast(), size) })
         }
@@ -429,10 +452,51 @@ impl Pixmap {
         Ok(PixmapDigest(digest))
     }
 
+    fn pixel_key(components: &[u8]) -> Option<u64> {
+        match components.len() {
+            1 => Some(u64::from(components[0])),
+            2 => Some(u64::from(components[0]) | (u64::from(components[1]) << 8)),
+            3 => Some(
+                u64::from(components[0])
+                    | (u64::from(components[1]) << 8)
+                    | (u64::from(components[2]) << 16),
+            ),
+            4 => Some(
+                u64::from(components[0])
+                    | (u64::from(components[1]) << 8)
+                    | (u64::from(components[2]) << 16)
+                    | (u64::from(components[3]) << 24),
+            ),
+            _ => None,
+        }
+    }
+
+    fn pixel_from_key(key: u64, n: usize) -> Pixel {
+        match n {
+            1 => Pixel::gray(key as u8),
+            2 => Pixel::new([(key & 0xff) as u8, ((key >> 8) & 0xff) as u8]),
+            3 => Pixel::rgb(
+                (key & 0xff) as u8,
+                ((key >> 8) & 0xff) as u8,
+                ((key >> 16) & 0xff) as u8,
+            ),
+            4 => Pixel::rgba(
+                (key & 0xff) as u8,
+                ((key >> 8) & 0xff) as u8,
+                ((key >> 16) & 0xff) as u8,
+                ((key >> 24) & 0xff) as u8,
+            ),
+            _ => Pixel::new(Vec::new()),
+        }
+    }
+
     pub fn color_count(&self) -> usize {
         let n = self.n() as usize;
         if n == 0 {
             return 0;
+        }
+        if let Some(counts) = self.count_pixels_by_key(n) {
+            return counts.len();
         }
         self.pixel_rows()
             .flat_map(|row| row.chunks_exact(n))
@@ -445,6 +509,18 @@ impl Pixmap {
         let n = self.n() as usize;
         if n == 0 || self.samples().is_empty() {
             return None;
+        }
+
+        if let Some(counts) = self.count_pixels_by_key(n) {
+            let total = (self.width() as usize).checked_mul(self.height() as usize)?;
+            return counts
+                .into_iter()
+                .max_by_key(|(_, count)| *count)
+                .map(|(key, count)| ColorUsage {
+                    pixel: Self::pixel_from_key(key, n),
+                    count,
+                    ratio: count as f32 / total as f32,
+                });
         }
 
         let mut counts = HashMap::<Pixel, usize>::new();
@@ -569,6 +645,38 @@ mod test {
         let samples = pixmap.samples();
         assert!(samples.iter().all(|x| *x == 0));
         assert_eq!(samples.len(), 100 * 100 * pixmap_cs.n() as usize);
+    }
+
+    #[test]
+    fn test_color_space_accessor_refcount_balanced() {
+        let cs = Colorspace::device_rgb();
+        let pixmap = Pixmap::new_with_w_h(&cs, 1, 1, false).expect("Pixmap::new_with_w_h");
+
+        let refs_before = unsafe { (*cs.inner).key_storable.storable.refs };
+        for _ in 0..10_000 {
+            drop(pixmap.color_space().unwrap());
+        }
+        let refs_after = unsafe { (*cs.inner).key_storable.storable.refs };
+
+        // Other tests share the device colorspace singleton, so allow some
+        // slack, but 10k balanced accessor calls must not leak ~10k references.
+        assert!(
+            (refs_after - refs_before).abs() < 100,
+            "device colorspace refcount grew from {refs_before} to {refs_after}"
+        );
+    }
+
+    #[test]
+    fn test_color_count_gray_alpha() {
+        let cs = Colorspace::device_gray();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 2, 2, true).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        pixmap.set_pixel(0, 0, [10u8, 255]).unwrap();
+
+        assert_eq!(pixmap.color_count(), 2);
+        let top = pixmap.top_color_usage().unwrap();
+        assert_eq!(top.pixel.components(), &[0, 0]);
+        assert_eq!(top.count, 3);
     }
 
     #[test]

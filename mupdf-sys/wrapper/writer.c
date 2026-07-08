@@ -19,3 +19,8 @@ void mupdf_document_writer_end_page(fz_context *ctx, fz_document_writer *writer,
 {
     TRY_CATCH_VOID(fz_end_page(ctx, writer));
 }
+
+void mupdf_close_document_writer(fz_context *ctx, fz_document_writer *writer, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_close_document_writer(ctx, writer));
+}

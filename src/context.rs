@@ -11,6 +11,9 @@ use crate::Error;
 static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
     let ctx = unsafe {
         let base_ctx = mupdf_new_base_context();
+        if base_ctx.is_null() {
+            panic!("failed to create MuPDF base context");
+        }
         // Resolves fonts via the registered `FontLoader` (see
         // `crate::font_loader::set_font_loader`) and the built-in
         // bundled/system font lookup paths.

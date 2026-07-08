@@ -313,7 +313,7 @@ impl Page {
                 context(),
                 self.as_ptr().cast_mut(),
                 c_needle.as_ptr(),
-                hit_max as c_int,
+                c_int::try_from(hit_max)?,
                 &mut hit_count
             ))
         }
@@ -362,14 +362,18 @@ impl Iterator for LinkIter {
         unsafe {
             self.next = (*node).next;
             let bounds = (*node).rect.into();
-            let uri = CStr::from_ptr((*node).uri);
-            let dest = LinkDestination::from_uri(&self.doc, uri).unwrap();
+            let uri_ptr = (*node).uri;
+            let (uri, dest) = if uri_ptr.is_null() {
+                (String::new(), None)
+            } else {
+                let uri_cstr = CStr::from_ptr(uri_ptr);
+                let dest = LinkDestination::from_uri(&self.doc, uri_cstr)
+                    .ok()
+                    .flatten();
+                (uri_cstr.to_string_lossy().into_owned(), dest)
+            };
 
-            Some(Link {
-                bounds,
-                dest,
-                uri: uri.to_string_lossy().into_owned(),
-            })
+            Some(Link { bounds, dest, uri })
         }
     }
 }

@@ -47,9 +47,9 @@ fn test_issue_43_malloc() {
     for _ in 0..2 {
         let page0 = doc.load_page(0).unwrap();
         let mediabox = page0.bounds().unwrap();
-        let device = writer.begin_page(mediabox).unwrap();
-        page0.run(&device, &mupdf::Matrix::IDENTITY).unwrap();
-        writer.end_page(device).unwrap();
+        let page_device = writer.begin_page(mediabox).unwrap();
+        page0.run(&page_device, &mupdf::Matrix::IDENTITY).unwrap();
+        page_device.end().unwrap();
     }
 }
 

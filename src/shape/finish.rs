@@ -32,6 +32,31 @@ impl Shape<'_> {
         }
 
         validate_finish_scalars(opts)?;
+        // Parse the dash pattern once, before any document mutation below, so an invalid
+        // pattern fails without side effects.
+        let serialized_dashes = match &opts.dashes {
+            Some(dashes) => parse_dash_pattern(dashes)?,
+            None => None,
+        };
+        // Compose the morph transform up front: individually finite inputs can still
+        // overflow to a non-finite matrix, which has no valid PDF serialization.
+        let morph_cm = match &opts.morph {
+            Some((fixpoint, matrix)) if *matrix != Matrix::IDENTITY => {
+                let composed = morph_matrix(*fixpoint, matrix, &self.pctm, &self.ipctm);
+                if ![
+                    composed.a, composed.b, composed.c, composed.d, composed.e, composed.f,
+                ]
+                .into_iter()
+                .all(f32::is_finite)
+                {
+                    return Err(Error::InvalidArgument(
+                        "morph transform produces a non-finite matrix".to_owned(),
+                    ));
+                }
+                Some(cm_operator(&composed))
+            }
+            _ => None,
+        };
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
             let doc = self.page.document_handle()?;
@@ -52,15 +77,8 @@ impl Shape<'_> {
 
         let mut block = String::new();
         block.push_str("q\n");
-        if let Some((fixpoint, matrix)) = &opts.morph {
-            if matrix != &Matrix::IDENTITY {
-                block.push_str(&cm_operator(&morph_matrix(
-                    *fixpoint,
-                    matrix,
-                    &self.pctm,
-                    &self.ipctm,
-                )));
-            }
+        if let Some(morph_cm) = &morph_cm {
+            block.push_str(morph_cm);
         }
         if let Some(oc_name) = &oc_name {
             block.push_str(&format!("/OC {oc_name} BDC\n"));
@@ -80,12 +98,9 @@ impl Shape<'_> {
         if let Some(miter_limit) = opts.miter_limit {
             block.push_str(&format!("{} M\n", format_g(miter_limit)));
         }
-        if let Some(dashes) = &opts.dashes {
-            let dashes = dashes.trim();
-            if !dashes.is_empty() {
-                block.push_str(dashes);
-                block.push_str(" d\n");
-            }
+        if let Some(serialized) = &serialized_dashes {
+            block.push_str(serialized);
+            block.push_str(" d\n");
         }
         if let Some(color) = effective_stroke_color(opts) {
             block.push_str(&color_code(color.components(), ColorRole::Stroke)?);
@@ -201,11 +216,80 @@ fn effective_stroke_color(opts: &FinishOptions) -> Option<&super::PdfColor> {
     (opts.width > 0.0).then_some(opts.color.as_ref()).flatten()
 }
 
+fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
+    let dashes = dashes.trim();
+    if dashes.is_empty() {
+        return Ok(None);
+    }
+
+    let (array_part, phase_part) = match dashes.rsplit_once(']') {
+        Some((array_part, phase_part)) => {
+            let array_part = array_part.strip_prefix('[').ok_or_else(|| {
+                Error::InvalidArgument("dash pattern must start with '['".to_owned())
+            })?;
+            (array_part.trim(), phase_part.trim())
+        }
+        None => {
+            return Err(Error::InvalidArgument(
+                "dash pattern must be a PDF array followed by a phase".to_owned(),
+            ))
+        }
+    };
+
+    let mut values = Vec::new();
+    if !array_part.is_empty() {
+        let mut has_positive = false;
+        for token in array_part.split_whitespace() {
+            let value: f32 = token.parse().map_err(|_| {
+                Error::InvalidArgument("dash array entries must be numbers".to_owned())
+            })?;
+            if !value.is_finite() || value < 0.0 {
+                return Err(Error::InvalidArgument(
+                    "dash array entries must be non-negative finite numbers".to_owned(),
+                ));
+            }
+            has_positive |= value > 0.0;
+            values.push(format_g(value));
+        }
+        // The PDF spec forbids dash arrays consisting of all zeros.
+        if !has_positive {
+            return Err(Error::InvalidArgument(
+                "dash array must contain at least one positive value".to_owned(),
+            ));
+        }
+    }
+
+    let phase: f32 = phase_part
+        .parse()
+        .map_err(|_| Error::InvalidArgument("dash phase must be a number".to_owned()))?;
+    if !phase.is_finite() || phase < 0.0 {
+        return Err(Error::InvalidArgument(
+            "dash phase must be a non-negative finite number".to_owned(),
+        ));
+    }
+
+    Ok(Some(format!("[{}] {}", values.join(" "), format_g(phase))))
+}
+
 fn validate_finish_scalars(opts: &FinishOptions) -> Result<(), Error> {
     if !opts.width.is_finite() || opts.width < 0.0 {
         return Err(Error::InvalidArgument(
             "width must be a non-negative finite value".to_owned(),
         ));
+    }
+    if let Some(line_cap) = opts.line_cap {
+        if !(0..=2).contains(&line_cap) {
+            return Err(Error::InvalidArgument(
+                "line_cap must be between 0 and 2".to_owned(),
+            ));
+        }
+    }
+    if let Some(line_join) = opts.line_join {
+        if !(0..=2).contains(&line_join) {
+            return Err(Error::InvalidArgument(
+                "line_join must be between 0 and 2".to_owned(),
+            ));
+        }
     }
     if let Some(color) = effective_stroke_color(opts) {
         color.validate()?;
@@ -241,7 +325,7 @@ mod tests {
     use std::path::Path;
     use std::str;
 
-    fn finished_line(opts: &FinishOptions) -> String {
+    fn try_finished_line(opts: &FinishOptions) -> Result<String, Error> {
         let mut doc = PdfDocument::new();
         let mut page = doc.new_page(Size::A4).unwrap();
         let mut shape = Shape::new(&mut page).unwrap();
@@ -251,10 +335,13 @@ mod tests {
         shape
             .draw_line(Point::new(10.0, 20.0), Point::new(30.0, 40.0))
             .unwrap()
-            .finish(opts)
-            .unwrap();
+            .finish(opts)?;
 
-        shape.total_cont().to_owned()
+        Ok(shape.total_cont().to_owned())
+    }
+
+    fn finished_line(opts: &FinishOptions) -> String {
+        try_finished_line(opts).unwrap()
     }
 
     fn finish_rect(opts: &FinishOptions) -> String {
@@ -682,6 +769,45 @@ mod tests {
             ..Default::default()
         });
         assert!(!without_dashes.contains(" d\n"));
+    }
+
+    #[test]
+    fn finish_rejects_negative_dash_phase() {
+        let err = try_finished_line(&FinishOptions {
+            dashes: Some("[3 2] -1".to_owned()),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(
+            matches!(err, Error::InvalidArgument(message) if message == "dash phase must be a non-negative finite number")
+        );
+    }
+
+    #[test]
+    fn finish_rejects_all_zero_dash_array() {
+        let err = try_finished_line(&FinishOptions {
+            dashes: Some("[0 0] 0".to_owned()),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(
+            matches!(err, Error::InvalidArgument(message) if message == "dash array must contain at least one positive value")
+        );
+    }
+
+    #[test]
+    fn finish_rejects_non_finite_morph_product() {
+        // Each component is finite, but composing the fixpoint translation with
+        // the matrix overflows f32 to infinity.
+        let err = try_finished_line(&FinishOptions {
+            morph: Some((Point::new(3.0e38, 0.0), Matrix::new_scale(2.0, 2.0))),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(matches!(err, Error::InvalidArgument(_)));
     }
 
     #[test]

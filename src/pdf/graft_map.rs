@@ -20,7 +20,11 @@ impl PdfGraftMap {
                 obj.inner
             ))
         }
-        .map(|inner| unsafe { PdfObject::from_raw(inner) })
+        .map(|inner| unsafe {
+            // mupdf_pdf_get_bound_document returns an owned reference.
+            let doc = mupdf_pdf_get_bound_document(context(), inner);
+            PdfObject::from_raw_bound_owned(inner, doc)
+        })
     }
 }
 

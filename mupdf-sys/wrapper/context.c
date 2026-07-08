@@ -40,6 +40,10 @@ static const fz_locks_context locks =
 void mupdf_drop_base_context(fz_context *ctx)
 {
     int i;
+
+    if (ctx)
+        fz_drop_context(ctx);
+
     for (i = 0; i < FZ_LOCK_MAX; i++)
     {
 #ifdef _WIN32
@@ -48,9 +52,6 @@ void mupdf_drop_base_context(fz_context *ctx)
         (void)pthread_mutex_destroy(&mutexes[i]);
 #endif
     }
-
-    fz_drop_context(ctx);
-    ctx = NULL;
 }
 
 fz_context *mupdf_new_base_context()
@@ -75,6 +76,7 @@ fz_context *mupdf_new_base_context()
     }
     fz_catch(ctx) {
         mupdf_drop_base_context(ctx);
+        return NULL;
     }
     // Disable default warning & error printing
     fz_set_warning_callback(ctx, NULL, NULL);

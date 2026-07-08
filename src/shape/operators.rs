@@ -10,6 +10,7 @@ pub(super) enum ColorRole {
 pub(super) fn format_g(value: f32) -> String {
     const PRECISION: i32 = 6;
 
+    debug_assert!(value.is_finite(), "format_g expects finite values");
     if value.is_nan() {
         return "nan".to_owned();
     }

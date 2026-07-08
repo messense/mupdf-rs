@@ -36,22 +36,60 @@ impl IntoPdfDictKey for PdfObject {
 #[derive(Debug)]
 pub struct PdfObject {
     pub(crate) inner: *mut pdf_obj,
+    /// Keeps the bound [`pdf_document`] alive when this object can resolve indirect refs.
+    owner: Option<*mut pdf_document>,
 }
 
 impl PdfObject {
     pub(crate) unsafe fn from_raw(ptr: *mut pdf_obj) -> Self {
-        Self { inner: ptr }
+        Self {
+            inner: ptr,
+            owner: None,
+        }
     }
 
-    pub(crate) unsafe fn from_raw_keep_ref(ptr: *mut pdf_obj) -> Self {
-        unsafe {
-            pdf_keep_obj(context(), ptr);
-            Self { inner: ptr }
+    pub(crate) unsafe fn from_raw_bound(ptr: *mut pdf_obj, owner: *mut pdf_document) -> Self {
+        Self::with_owner(ptr, owner)
+    }
+
+    fn with_owner(ptr: *mut pdf_obj, owner: *mut pdf_document) -> Self {
+        if !owner.is_null() {
+            unsafe {
+                pdf_keep_document(context(), owner);
+            }
+        }
+        Self {
+            inner: ptr,
+            owner: if owner.is_null() { None } else { Some(owner) },
+        }
+    }
+
+    /// Like [`from_raw_bound`](Self::from_raw_bound), but takes ownership of an
+    /// already-kept document reference instead of keeping a new one.
+    pub(crate) unsafe fn from_raw_bound_owned(ptr: *mut pdf_obj, owner: *mut pdf_document) -> Self {
+        Self {
+            inner: ptr,
+            owner: if owner.is_null() { None } else { Some(owner) },
+        }
+    }
+
+    /// Wraps an already-owned `pdf_obj` reference (the C wrappers keep the
+    /// object before returning it), propagating this object's owning document.
+    fn adopt_with_owner(&self, inner: *mut pdf_obj) -> Self {
+        if let Some(owner) = self.owner {
+            unsafe {
+                pdf_keep_document(context(), owner);
+            }
+        }
+        Self {
+            inner,
+            owner: self.owner,
         }
     }
 
     pub fn try_clone(&self) -> Result<Self, Error> {
-        unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) }.map(|inner| Self { inner })
+        unsafe { ffi_try!(mupdf_pdf_clone_obj(context(), self.inner)) }
+            .map(|inner| self.adopt_with_owner(inner))
     }
 
     pub fn new_null() -> PdfObject {
@@ -170,6 +208,16 @@ impl PdfObject {
             .map_err(|_| Error::InvalidUtf8)
     }
 
+    /// Like [`as_string`](Self::as_string), but returns lossy UTF-8 for non-UTF-8 PDF strings.
+    pub fn as_string_lossy(&self) -> Result<String, Error> {
+        let str_ptr = unsafe { ffi_try!(mupdf_pdf_to_string(context(), self.inner)) }?;
+        if str_ptr.is_null() {
+            return Err(Error::UnexpectedNullPtr);
+        }
+        let c_str = unsafe { CStr::from_ptr(str_ptr) };
+        Ok(c_str.to_string_lossy().into_owned())
+    }
+
     pub fn as_bytes(&self) -> Result<Vec<u8>, Error> {
         let mut len = 0;
         let ptr = unsafe { ffi_try!(mupdf_pdf_to_bytes(context(), self.inner, &mut len)) }?;
@@ -184,7 +232,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
 
     pub fn read_stream(&self) -> Result<Vec<u8>, Error> {
@@ -248,7 +296,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
 
     pub fn dict_len(&self) -> Result<usize, Error> {
@@ -260,14 +308,14 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
     pub fn get_dict_key(&self, idx: i32) -> Result<Option<Self>, Error> {
         let inner = unsafe { ffi_try!(mupdf_pdf_dict_get_key(context(), self.inner, idx)) }?;
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
 
     pub fn get_dict<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
@@ -276,7 +324,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
 
     pub fn get_dict_inheritable<K: IntoPdfDictKey>(&self, key: K) -> Result<Option<Self>, Error> {
@@ -291,7 +339,7 @@ impl PdfObject {
         if inner.is_null() {
             return Ok(None);
         }
-        Ok(Some(Self { inner }))
+        Ok(Some(self.adopt_with_owner(inner)))
     }
 
     #[allow(clippy::len_without_is_empty)]
@@ -306,7 +354,7 @@ impl PdfObject {
     /// array.
     pub fn copy_array(&self) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_pdf_copy_array(context(), self.inner)) }
-            .map(|inner| unsafe { Self::from_raw(inner) })
+            .map(|inner| self.adopt_with_owner(inner))
     }
 
     /// Creates a shallow copy of this dictionary, resolving any indirect reference.
@@ -316,7 +364,7 @@ impl PdfObject {
     /// dictionary.
     pub fn copy_dict(&self) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_pdf_copy_dict(context(), self.inner)) }
-            .map(|inner| unsafe { Self::from_raw(inner) })
+            .map(|inner| self.adopt_with_owner(inner))
     }
 
     pub fn array_put(&mut self, index: i32, value: Self) -> Result<(), Error> {
@@ -440,6 +488,7 @@ impl PdfObject {
             if ptr.is_null() {
                 return None;
             }
+            // mupdf_pdf_get_bound_document already returns an owned reference.
             Some(PdfDocument::from_raw(ptr))
         }
     }
@@ -540,12 +589,10 @@ impl ExactSizeIterator for PdfDictIter<'_> {
 
 impl Write for PdfObject {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let len = buf.len();
-        let mut fz_buf = Buffer::with_capacity(len);
-        fz_buf.write(buf)?;
+        let fz_buf = Buffer::from_bytes(buf).map_err(io::Error::other)?;
         self.write_stream_buffer(&fz_buf)
             .map_err(io::Error::other)?;
-        Ok(len)
+        Ok(buf.len())
     }
 
     fn flush(&mut self) -> io::Result<()> {
@@ -558,6 +605,11 @@ impl Drop for PdfObject {
         if !self.inner.is_null() {
             unsafe {
                 pdf_drop_obj(context(), self.inner);
+            }
+        }
+        if let Some(owner) = self.owner.take() {
+            unsafe {
+                pdf_drop_document(context(), owner);
             }
         }
     }
@@ -618,7 +670,13 @@ impl TryFrom<&PdfAnnotation> for PdfObject {
     type Error = Error;
 
     fn try_from(annot: &PdfAnnotation) -> Result<PdfObject, Self::Error> {
-        unsafe { ffi_try!(mupdf_pdf_annot_obj(context(), annot.inner.as_ptr())) }
-            .map(|inner| unsafe { PdfObject::from_raw_keep_ref(inner) })
+        unsafe { ffi_try!(mupdf_pdf_annot_obj(context(), annot.inner.as_ptr())) }.map(|inner| {
+            unsafe {
+                pdf_keep_obj(context(), inner);
+                // mupdf_pdf_get_bound_document returns an owned reference.
+                let doc = mupdf_pdf_get_bound_document(context(), inner);
+                PdfObject::from_raw_bound_owned(inner, doc)
+            }
+        })
     }
 }

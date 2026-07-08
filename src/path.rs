@@ -2,7 +2,7 @@ use std::os::raw::c_void;
 
 use mupdf_sys::*;
 
-use crate::{context, Error, Matrix, Point, Rect, StrokeState};
+use crate::{context, guard_ffi_callback, Error, Matrix, Point, Rect, StrokeState};
 
 pub trait PathWalker {
     fn move_to(&mut self, x: f32, y: f32);
@@ -45,9 +45,11 @@ impl<W: PathWalker + ?Sized> PathWalker for &mut W {
 }
 
 unsafe fn with_path_walker<W: PathWalker>(arg: *mut c_void, f: impl FnOnce(&mut W)) {
-    let c_walker: *mut W = arg.cast();
-    let rust_walker = unsafe { &mut *c_walker };
-    f(rust_walker);
+    guard_ffi_callback(|| {
+        let c_walker: *mut W = arg.cast();
+        let rust_walker = unsafe { &mut *c_walker };
+        f(rust_walker);
+    });
 }
 
 unsafe extern "C" fn path_walk_move_to<W: PathWalker>(

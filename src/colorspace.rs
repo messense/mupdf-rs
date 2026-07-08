@@ -17,24 +17,29 @@ impl Colorspace {
         Self { inner }
     }
 
-    pub fn device_gray() -> Self {
-        let inner = unsafe { fz_device_gray(context()) };
+    /// Wraps a borrowed device colorspace, keeping a reference so `Drop`
+    /// releases exactly what this wrapper owns.
+    unsafe fn from_device(inner: *mut fz_colorspace) -> Self {
+        unsafe {
+            fz_keep_colorspace(context(), inner);
+        }
         Self { inner }
+    }
+
+    pub fn device_gray() -> Self {
+        unsafe { Self::from_device(fz_device_gray(context())) }
     }
 
     pub fn device_rgb() -> Self {
-        let inner = unsafe { fz_device_rgb(context()) };
-        Self { inner }
+        unsafe { Self::from_device(fz_device_rgb(context())) }
     }
 
     pub fn device_bgr() -> Self {
-        let inner = unsafe { fz_device_bgr(context()) };
-        Self { inner }
+        unsafe { Self::from_device(fz_device_bgr(context())) }
     }
 
     pub fn device_cmyk() -> Self {
-        let inner = unsafe { fz_device_cmyk(context()) };
-        Self { inner }
+        unsafe { Self::from_device(fz_device_cmyk(context())) }
     }
 
     pub fn n(&self) -> u32 {
@@ -150,6 +155,17 @@ impl Colorspace {
                 params.into()
             ))?;
             Ok(n)
+        }
+    }
+}
+
+impl Drop for Colorspace {
+    fn drop(&mut self) {
+        if self.inner.is_null() {
+            return;
+        }
+        unsafe {
+            fz_drop_colorspace(context(), self.inner);
         }
     }
 }

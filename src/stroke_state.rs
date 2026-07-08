@@ -43,7 +43,7 @@ impl StrokeState {
         dash_phase: f32,
         dash: &[f32],
     ) -> Result<Self, Error> {
-        let dash_len = dash.len() as i32;
+        let dash_len = i32::try_from(dash.len())?;
         unsafe {
             ffi_try!(mupdf_new_stroke_state(
                 context(),

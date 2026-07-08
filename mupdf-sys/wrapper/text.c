@@ -19,6 +19,7 @@ fz_stroke_state *mupdf_new_stroke_state(
     float miter_limit, float dash_phase, const float dash[], int dash_len, mupdf_error_t **errptr)
 {
     fz_stroke_state *stroke = NULL;
+    fz_var(stroke);
     fz_try(ctx)
     {
         stroke = fz_new_stroke_state_with_dash_len(ctx, dash_len);
@@ -30,10 +31,13 @@ fz_stroke_state *mupdf_new_stroke_state(
         stroke->miterlimit = miter_limit;
         stroke->dash_phase = dash_phase;
         stroke->dash_len = dash_len;
-        memcpy(stroke->dash_list, dash, dash_len);
+        if (dash_len > 0)
+            memcpy(stroke->dash_list, dash, (size_t)dash_len * sizeof(float));
     }
     fz_catch(ctx)
     {
+        fz_drop_stroke_state(ctx, stroke);
+        stroke = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return stroke;

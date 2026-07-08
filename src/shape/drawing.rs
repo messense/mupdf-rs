@@ -110,6 +110,8 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn draw_line(&mut self, p1: Point, p2: Point) -> Result<&mut Self, Error> {
+        validate_point(p1)?;
+        validate_point(p2)?;
         self.move_to_if_needed(p1);
         self.line_to(p2);
         Ok(self)
@@ -141,6 +143,9 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn draw_polyline(&mut self, points: &[Point]) -> Result<&mut Self, Error> {
+        for point in points {
+            validate_point(*point)?;
+        }
         let Some((first, rest)) = points.split_first() else {
             return Ok(self);
         };
@@ -183,6 +188,7 @@ impl Shape<'_> {
     /// # }
     /// ```
     pub fn draw_rect(&mut self, rect: &Rect) -> Result<&mut Self, Error> {
+        validate_drawing_rect(rect)?;
         let top_left = rect.tl();
         let bottom_right = rect.br();
         let transformed_top_left = self.transform_point(top_left);
@@ -283,6 +289,10 @@ impl Shape<'_> {
         p3: Point,
         p4: Point,
     ) -> Result<&mut Self, Error> {
+        validate_point(p1)?;
+        validate_point(p2)?;
+        validate_point(p3)?;
+        validate_point(p4)?;
         self.move_to_if_needed(p1);
         let p2_transformed = self.transform_point(p2);
         let p3_transformed = self.transform_point(p3);
@@ -447,6 +457,7 @@ impl Shape<'_> {
     /// ```
     pub fn draw_oval(&mut self, tetra: impl Into<Quad>) -> Result<&mut Self, Error> {
         let quad = tetra.into();
+        validate_quad(&quad)?;
         let middle_top = point_between(quad.ul, quad.ur, 0.5);
         let middle_right = point_between(quad.ur, quad.lr, 0.5);
         let middle_bottom = point_between(quad.ll, quad.lr, 0.5);
@@ -685,6 +696,36 @@ fn finite_abs(value: f32) -> f32 {
     } else {
         0.0
     }
+}
+
+fn validate_point(point: Point) -> Result<(), Error> {
+    if point.x.is_finite() && point.y.is_finite() {
+        Ok(())
+    } else {
+        Err(Error::InvalidArgument(
+            "point coordinates must be finite".to_owned(),
+        ))
+    }
+}
+
+fn validate_drawing_rect(rect: &Rect) -> Result<(), Error> {
+    if [rect.x0, rect.y0, rect.x1, rect.y1]
+        .into_iter()
+        .all(f32::is_finite)
+    {
+        Ok(())
+    } else {
+        Err(Error::InvalidArgument(
+            "rect coordinates must be finite".to_owned(),
+        ))
+    }
+}
+
+fn validate_quad(quad: &Quad) -> Result<(), Error> {
+    validate_point(quad.ul)?;
+    validate_point(quad.ur)?;
+    validate_point(quad.ll)?;
+    validate_point(quad.lr)
 }
 
 fn checked_breadth(breadth: f32) -> Result<f32, Error> {

@@ -14,6 +14,7 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
     }
     fz_document *doc = NULL;
     fz_stream *stream = NULL;
+    fz_var(doc);
     fz_var(stream);
     fz_try(ctx)
     {
@@ -26,6 +27,8 @@ fz_document *mupdf_open_document_from_bytes(fz_context *ctx, fz_buffer *bytes, c
     }
     fz_catch(ctx)
     {
+        fz_drop_document(ctx, doc);
+        doc = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return doc;
@@ -59,17 +62,23 @@ char *mupdf_lookup_metadata(fz_context *ctx, fz_document *doc, const char *key, 
 {
     int len;
     char *value = NULL;
+    fz_var(value);
     fz_try(ctx)
     {
         len = fz_lookup_metadata(ctx, doc, key, NULL, 0) + 1;
         if (len > 1)
         {
             value = calloc(len, sizeof(char));
+            if (!value)
+                fz_throw(ctx, FZ_ERROR_SYSTEM, "cannot allocate metadata buffer");
             fz_lookup_metadata(ctx, doc, key, value, len);
         }
     }
     fz_catch(ctx)
     {
+        if (value)
+            free(value);
+        value = NULL;
         mupdf_save_error(ctx, errptr);
     }
     return value;
@@ -82,17 +91,30 @@ bool mupdf_is_document_reflowable(fz_context *ctx, fz_document *doc, mupdf_error
 
 void mupdf_layout_document(fz_context *ctx, fz_document *doc, float w, float h, float em, mupdf_error_t **errptr)
 {
+    /* Never return from inside fz_try: it would leak the exception-stack slot
+       pushed by fz_push_try and leave a stale jump buffer on the context. */
+    bool reflowable = false;
+    fz_var(reflowable);
     fz_try(ctx)
     {
-        if (!fz_is_document_reflowable(ctx, doc))
-        {
-            return;
-        }
-        if (w <= 0.0f || h <= 0.0f)
-        {
-            *errptr = mupdf_new_error_from_str("invalid width or height");
-            return;
-        }
+        reflowable = fz_is_document_reflowable(ctx, doc);
+    }
+    fz_catch(ctx)
+    {
+        mupdf_save_error(ctx, errptr);
+        return;
+    }
+    if (!reflowable)
+    {
+        return;
+    }
+    if (w <= 0.0f || h <= 0.0f)
+    {
+        *errptr = mupdf_new_error_from_str("invalid width or height");
+        return;
+    }
+    fz_try(ctx)
+    {
         fz_layout_document(ctx, doc, w, h, em);
     }
     fz_catch(ctx)
@@ -120,50 +142,80 @@ static pdf_document *mupdf_convert_to_pdf_internal(fz_context *ctx, fz_document 
     fz_device *dev = NULL;
     fz_buffer *contents = NULL;
     pdf_obj *resources = NULL;
-    fz_page *page;
+    fz_page *page = NULL;
+    pdf_obj *page_obj = NULL;
     fz_var(dev);
     fz_var(contents);
     fz_var(resources);
     fz_var(page);
-    for (i = fp; i >= s && i <= e; i += incr)
+    fz_var(page_obj);
+    fz_try(ctx)
     {
-        fz_try(ctx)
+        for (i = fp; i >= s && i <= e; i += incr)
         {
-            page = fz_load_page(ctx, doc, i);
-            mediabox = fz_bound_page(ctx, page);
-            dev = pdf_page_write(ctx, pdfout, mediabox, &resources, &contents);
-            fz_run_page(ctx, page, dev, fz_identity, cookie);
-            fz_close_device(ctx, dev);
-            fz_drop_device(ctx, dev);
-            dev = NULL;
-            pdf_obj *page_obj = pdf_add_page(ctx, pdfout, mediabox, rotate, resources, contents);
-            pdf_insert_page(ctx, pdfout, -1, page_obj);
-            pdf_drop_obj(ctx, page_obj);
+            fz_try(ctx)
+            {
+                page = fz_load_page(ctx, doc, i);
+                mediabox = fz_bound_page(ctx, page);
+                dev = pdf_page_write(ctx, pdfout, mediabox, &resources, &contents);
+                fz_run_page(ctx, page, dev, fz_identity, cookie);
+                fz_close_device(ctx, dev);
+                fz_drop_device(ctx, dev);
+                dev = NULL;
+                page_obj = pdf_add_page(ctx, pdfout, mediabox, rotate, resources, contents);
+                pdf_insert_page(ctx, pdfout, -1, page_obj);
+                pdf_drop_obj(ctx, page_obj);
+                page_obj = NULL;
+            }
+            fz_always(ctx)
+            {
+                pdf_drop_obj(ctx, resources);
+                resources = NULL;
+                fz_drop_buffer(ctx, contents);
+                contents = NULL;
+                fz_drop_device(ctx, dev);
+                dev = NULL;
+                pdf_drop_obj(ctx, page_obj);
+                page_obj = NULL;
+                fz_drop_page(ctx, page);
+                page = NULL;
+            }
+            fz_catch(ctx)
+            {
+                fz_rethrow(ctx);
+            }
         }
-        fz_always(ctx)
-        {
-            pdf_drop_obj(ctx, resources);
-            fz_drop_buffer(ctx, contents);
-            fz_drop_device(ctx, dev);
-            fz_drop_page(ctx, page);
-        }
-        fz_catch(ctx)
-        {
-            fz_rethrow(ctx);
-        }
+    }
+    fz_catch(ctx)
+    {
+        pdf_drop_document(ctx, pdfout);
+        fz_rethrow(ctx);
     }
     return pdfout;
 }
 
 pdf_document *mupdf_convert_to_pdf(fz_context *ctx, fz_document *doc, int fp, int tp, int rotate, fz_cookie *cookie, mupdf_error_t **errptr)
 {
+    pdf_document *pdfout = NULL;
+
     if (rotate % 90)
     {
         *errptr = mupdf_new_error_from_str("rotation not multiple of 90");
         return NULL;
     }
 
-    TRY_CATCH(pdf_document*, NULL, mupdf_convert_to_pdf_internal(ctx, doc, fp, tp, rotate, cookie));
+    fz_var(pdfout);
+    fz_try(ctx)
+    {
+        pdfout = mupdf_convert_to_pdf_internal(ctx, doc, fp, tp, rotate, cookie);
+    }
+    fz_catch(ctx)
+    {
+        pdf_drop_document(ctx, pdfout);
+        pdfout = NULL;
+        mupdf_save_error(ctx, errptr);
+    }
+    return pdfout;
 }
 
 fz_location mupdf_resolve_link(fz_context *ctx, fz_document *doc, const char *uri, float *xp, float *yp, mupdf_error_t **errptr)

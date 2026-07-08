@@ -28,6 +28,7 @@ typedef struct mupdf_error
 #define TRY_CATCH(ty, init, call) \
 do { \
     ty result = init; \
+    fz_var(result); \
     fz_try(ctx) \
     { \
         result = call; \
@@ -55,5 +56,6 @@ do { \
 /* Internal error handling functions */
 void mupdf_save_error(fz_context *ctx, mupdf_error_t **errptr);
 mupdf_error_t *mupdf_new_error_from_str(const char *message);
+void mupdf_drop_error(mupdf_error_t *err);
 
 #endif /* WRAPPER_INTERNAL_H */

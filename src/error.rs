@@ -40,6 +40,14 @@ pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
     let code = err.type_;
     let c_msg = err.message;
 
+    if c_msg.is_null() {
+        unsafe { mupdf_drop_error(ptr.as_ptr()) };
+        return MuPdfError {
+            code,
+            message: "unknown MuPDF error".to_owned(),
+        };
+    }
+
     // SAFETY: Upheld by caller
     let c_str = unsafe { CStr::from_ptr(c_msg) };
     let message = c_str.to_string_lossy().to_string();
@@ -47,6 +55,17 @@ pub unsafe fn ffi_error(ptr: NonNull<mupdf_error_t>) -> MuPdfError {
     // SAFETY: Upheld by caller; if it's pointing to a valid instance then it can be dropped
     unsafe { mupdf_drop_error(ptr.as_ptr()) };
     MuPdfError { code, message }
+}
+
+/// Runs `f`, aborting the process if it panics.
+///
+/// Rust panics must not unwind across the C FFI boundary (doing so is undefined behavior), so
+/// callbacks invoked by MuPDF wrap their bodies with this guard.
+pub(crate) fn guard_ffi_callback<T>(f: impl FnOnce() -> T) -> T {
+    match std::panic::catch_unwind(std::panic::AssertUnwindSafe(f)) {
+        Ok(value) => value,
+        Err(_) => std::process::abort(),
+    }
 }
 
 macro_rules! ffi_try {
