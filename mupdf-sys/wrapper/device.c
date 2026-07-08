@@ -30,6 +30,11 @@ fz_device *mupdf_new_device_of_size(fz_context *ctx, int size, mupdf_error_t **e
     TRY_CATCH(fz_device*, NULL, fz_new_device_of_size(ctx, size));
 }
 
+void mupdf_close_device(fz_context *ctx, fz_device *dev, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_close_device(ctx, dev));
+}
+
 fz_device *mupdf_new_display_list_device(fz_context *ctx, fz_display_list *list, mupdf_error_t **errptr)
 {
     fz_device *device = NULL;

@@ -38,6 +38,25 @@ impl Shape<'_> {
             Some(dashes) => parse_dash_pattern(dashes)?,
             None => None,
         };
+        // Compose the morph transform up front: individually finite inputs can still
+        // overflow to a non-finite matrix, which has no valid PDF serialization.
+        let morph_cm = match &opts.morph {
+            Some((fixpoint, matrix)) if *matrix != Matrix::IDENTITY => {
+                let composed = morph_matrix(*fixpoint, matrix, &self.pctm, &self.ipctm);
+                if ![
+                    composed.a, composed.b, composed.c, composed.d, composed.e, composed.f,
+                ]
+                .into_iter()
+                .all(f32::is_finite)
+                {
+                    return Err(Error::InvalidArgument(
+                        "morph transform produces a non-finite matrix".to_owned(),
+                    ));
+                }
+                Some(cm_operator(&composed))
+            }
+            _ => None,
+        };
         PdfPage::validate_opacity_pair(opts.stroke_opacity, opts.fill_opacity)?;
         if let Some(oc_xref) = opts.oc {
             let doc = self.page.document_handle()?;
@@ -58,15 +77,8 @@ impl Shape<'_> {
 
         let mut block = String::new();
         block.push_str("q\n");
-        if let Some((fixpoint, matrix)) = &opts.morph {
-            if matrix != &Matrix::IDENTITY {
-                block.push_str(&cm_operator(&morph_matrix(
-                    *fixpoint,
-                    matrix,
-                    &self.pctm,
-                    &self.ipctm,
-                )));
-            }
+        if let Some(morph_cm) = &morph_cm {
+            block.push_str(morph_cm);
         }
         if let Some(oc_name) = &oc_name {
             block.push_str(&format!("/OC {oc_name} BDC\n"));
@@ -226,6 +238,7 @@ fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
 
     let mut values = Vec::new();
     if !array_part.is_empty() {
+        let mut has_positive = false;
         for token in array_part.split_whitespace() {
             let value: f32 = token.parse().map_err(|_| {
                 Error::InvalidArgument("dash array entries must be numbers".to_owned())
@@ -235,7 +248,14 @@ fn parse_dash_pattern(dashes: &str) -> Result<Option<String>, Error> {
                     "dash array entries must be non-negative finite numbers".to_owned(),
                 ));
             }
+            has_positive |= value > 0.0;
             values.push(format_g(value));
+        }
+        // The PDF spec forbids dash arrays consisting of all zeros.
+        if !has_positive {
+            return Err(Error::InvalidArgument(
+                "dash array must contain at least one positive value".to_owned(),
+            ));
         }
     }
 
@@ -762,6 +782,32 @@ mod tests {
         assert!(
             matches!(err, Error::InvalidArgument(message) if message == "dash phase must be a non-negative finite number")
         );
+    }
+
+    #[test]
+    fn finish_rejects_all_zero_dash_array() {
+        let err = try_finished_line(&FinishOptions {
+            dashes: Some("[0 0] 0".to_owned()),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(
+            matches!(err, Error::InvalidArgument(message) if message == "dash array must contain at least one positive value")
+        );
+    }
+
+    #[test]
+    fn finish_rejects_non_finite_morph_product() {
+        // Each component is finite, but composing the fixpoint translation with
+        // the matrix overflows f32 to infinity.
+        let err = try_finished_line(&FinishOptions {
+            morph: Some((Point::new(3.0e38, 0.0), Matrix::new_scale(2.0, 2.0))),
+            ..Default::default()
+        })
+        .unwrap_err();
+
+        assert!(matches!(err, Error::InvalidArgument(_)));
     }
 
     #[test]

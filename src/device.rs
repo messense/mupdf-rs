@@ -641,8 +641,11 @@ impl Device {
 impl Drop for Device {
     fn drop(&mut self) {
         if !self.dev.is_null() {
+            // Closing can fail (the device flushes pending work); route it through the
+            // fz_try-protected wrapper so the error cannot longjmp out of Rust (an
+            // uncaught fz_throw exits the process).
+            let _ = unsafe { ffi_try!(mupdf_close_device(context(), self.dev)) };
             unsafe {
-                fz_close_device(context(), self.dev);
                 fz_drop_device(context(), self.dev);
             }
         }

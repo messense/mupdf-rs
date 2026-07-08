@@ -1,5 +1,4 @@
 use std::ffi::{CStr, CString};
-use std::io::Write;
 use std::ptr;
 
 use mupdf_sys::*;
@@ -72,9 +71,7 @@ impl Document {
 
     pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
         let c_magic = CString::new(magic)?;
-        let len = bytes.len();
-        let mut buf = Buffer::with_capacity(len)?;
-        buf.write_all(bytes)?;
+        let buf = Buffer::from_bytes(bytes)?;
         unsafe {
             ffi_try!(mupdf_open_document_from_bytes(
                 context(),

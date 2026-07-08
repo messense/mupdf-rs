@@ -455,6 +455,7 @@ impl Pixmap {
     fn pixel_key(components: &[u8]) -> Option<u64> {
         match components.len() {
             1 => Some(u64::from(components[0])),
+            2 => Some(u64::from(components[0]) | (u64::from(components[1]) << 8)),
             3 => Some(
                 u64::from(components[0])
                     | (u64::from(components[1]) << 8)
@@ -473,6 +474,7 @@ impl Pixmap {
     fn pixel_from_key(key: u64, n: usize) -> Pixel {
         match n {
             1 => Pixel::gray(key as u8),
+            2 => Pixel::new([(key & 0xff) as u8, ((key >> 8) & 0xff) as u8]),
             3 => Pixel::rgb(
                 (key & 0xff) as u8,
                 ((key >> 8) & 0xff) as u8,
@@ -643,6 +645,38 @@ mod test {
         let samples = pixmap.samples();
         assert!(samples.iter().all(|x| *x == 0));
         assert_eq!(samples.len(), 100 * 100 * pixmap_cs.n() as usize);
+    }
+
+    #[test]
+    fn test_color_space_accessor_refcount_balanced() {
+        let cs = Colorspace::device_rgb();
+        let pixmap = Pixmap::new_with_w_h(&cs, 1, 1, false).expect("Pixmap::new_with_w_h");
+
+        let refs_before = unsafe { (*cs.inner).key_storable.storable.refs };
+        for _ in 0..10_000 {
+            drop(pixmap.color_space().unwrap());
+        }
+        let refs_after = unsafe { (*cs.inner).key_storable.storable.refs };
+
+        // Other tests share the device colorspace singleton, so allow some
+        // slack, but 10k balanced accessor calls must not leak ~10k references.
+        assert!(
+            (refs_after - refs_before).abs() < 100,
+            "device colorspace refcount grew from {refs_before} to {refs_after}"
+        );
+    }
+
+    #[test]
+    fn test_color_count_gray_alpha() {
+        let cs = Colorspace::device_gray();
+        let mut pixmap = Pixmap::new_with_w_h(&cs, 2, 2, true).expect("Pixmap::new_with_w_h");
+        pixmap.clear().unwrap();
+        pixmap.set_pixel(0, 0, [10u8, 255]).unwrap();
+
+        assert_eq!(pixmap.color_count(), 2);
+        let top = pixmap.top_color_usage().unwrap();
+        assert_eq!(top.pixel.components(), &[0, 0]);
+        assert_eq!(top.count, 3);
     }
 
     #[test]
