@@ -164,6 +164,7 @@ impl Msbuild {
 
         let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
             match find_vs_version() {
+                Ok(VsVers::Vs18) => "v145",
                 Ok(VsVers::Vs17) => "v143",
                 _ => "v142",
             }
