@@ -1,9 +1,8 @@
 use std::ffi::CStr;
 use std::path::{Path, PathBuf};
-use std::sync::RwLock;
+use std::sync::{LazyLock, RwLock};
 
 use mupdf_sys::*;
-use once_cell::sync::Lazy;
 
 use crate::{context, Buffer, CjkFontOrdering, Font};
 
@@ -63,8 +62,8 @@ fn default_loader() -> Option<Box<dyn FontLoader>> {
     None
 }
 
-static FONT_LOADER: Lazy<RwLock<Option<Box<dyn FontLoader>>>> =
-    Lazy::new(|| RwLock::new(default_loader()));
+static FONT_LOADER: LazyLock<RwLock<Option<Box<dyn FontLoader>>>> =
+    LazyLock::new(|| RwLock::new(default_loader()));
 
 /// Register a global font loader, replacing any previously registered one
 /// (including the default [`AndroidFontLoader`] on Android).
