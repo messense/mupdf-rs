@@ -1,14 +1,13 @@
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::ptr;
-use std::sync::Mutex;
+use std::sync::{LazyLock, Mutex};
 
 use mupdf_sys::*;
-use once_cell::sync::Lazy;
 
 use crate::Error;
 
-static BASE_CONTEXT: Lazy<Mutex<BaseContext>> = Lazy::new(|| {
+static BASE_CONTEXT: LazyLock<Mutex<BaseContext>> = LazyLock::new(|| {
     let ctx = unsafe {
         let base_ctx = mupdf_new_base_context();
         if base_ctx.is_null() {
