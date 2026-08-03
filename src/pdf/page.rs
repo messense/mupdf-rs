@@ -1881,6 +1881,21 @@ impl PdfPage {
         Ok(rect.into())
     }
 
+    pub fn art_box(&self) -> Result<Rect, Error> {
+        let rect = unsafe { mupdf_pdf_page_art_box(context(), self.as_ptr().cast_mut()) };
+        Ok(rect.into())
+    }
+
+    pub fn trim_box(&self) -> Result<Rect, Error> {
+        let rect = unsafe { mupdf_pdf_page_trim_box(context(), self.as_ptr().cast_mut()) };
+        Ok(rect.into())
+    }
+
+    pub fn bleed_box(&self) -> Result<Rect, Error> {
+        let rect = unsafe { mupdf_pdf_page_bleed_box(context(), self.as_ptr().cast_mut()) };
+        Ok(rect.into())
+    }
+
     pub fn crop_box(&self) -> Result<Rect, Error> {
         let bounds = self.bounds()?;
         let pos = unsafe { mupdf_pdf_page_crop_box_position(context(), self.as_ptr().cast_mut()) };

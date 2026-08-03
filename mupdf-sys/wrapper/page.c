@@ -91,6 +91,11 @@ fz_output *mupdf_new_output_with_buffer(fz_context *ctx, fz_buffer *buf, mupdf_e
     TRY_CATCH(fz_output*, NULL, fz_new_output_with_buffer(ctx, buf));
 }
 
+bool mupdf_page_uses_overprint(fz_context *ctx, fz_page *page, mupdf_error_t **errptr)
+{
+    TRY_CATCH(bool, false, fz_page_uses_overprint(ctx, page));
+}
+
 void mupdf_print_stext_page_as_html(fz_context *ctx, fz_output *out, fz_stext_page *page, int id, mupdf_error_t **errptr)
 {
     TRY_CATCH_VOID(fz_print_stext_page_as_html(ctx, out, page, id));
