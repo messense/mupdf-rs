@@ -1,15 +1,21 @@
 use std::cell::RefCell;
 use std::ffi::{CStr, CString};
 use std::ptr;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{LazyLock, Mutex};
 
 use mupdf_sys::*;
 
 use crate::Error;
 
+/// The maximum size (in bytes) of MuPDF's resource store. Applied when the
+/// context is first created. `0` implies "use default".
+static STORE_MAX: AtomicUsize = AtomicUsize::new(0);
+
 static BASE_CONTEXT: LazyLock<Mutex<BaseContext>> = LazyLock::new(|| {
+    let store_max = STORE_MAX.load(Ordering::Acquire);
     let ctx = unsafe {
-        let base_ctx = mupdf_new_base_context();
+        let base_ctx = mupdf_new_base_context(store_max);
         if base_ctx.is_null() {
             panic!("failed to create MuPDF base context");
         }
@@ -180,6 +186,25 @@ pub(crate) fn context() -> *mut fz_context {
     Context::get().inner
 }
 
+/// Set the maximum size (in bytes) of MuPDF's resource store.
+///
+/// Limits the size of MuPDF's internal cache.
+/// This corresponds to the `max_store` argument of MuPDF's `fz_new_context`.
+///
+/// # Errors
+///
+/// If the context was initialised before or during this call.
+pub fn set_store_max_size(bytes: usize) -> Result<(), Error> {
+    if LazyLock::get(&BASE_CONTEXT).is_some() {
+        return Err(Error::AlreadyInitialized);
+    }
+    STORE_MAX.store(bytes, Ordering::Release);
+    if LazyLock::get(&BASE_CONTEXT).is_some() {
+        return Err(Error::AlreadyInitialized);
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod test {
     use std::sync::Mutex;
@@ -218,5 +243,15 @@ mod test {
         assert_eq!(owned, "body { color: red; }");
         // Restore the shared style to its default (no user CSS) for other tests.
         unsafe { fz_set_user_css(super::context(), std::ptr::null()) };
+    }
+
+    #[test]
+    fn set_store_max_size_after_init_errors() {
+        // Ensure the process-wide base context is initialized.
+        let _ = Context::get();
+        assert!(matches!(
+            super::set_store_max_size(64 << 20),
+            Err(crate::Error::AlreadyInitialized)
+        ));
     }
 }

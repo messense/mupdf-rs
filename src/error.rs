@@ -99,6 +99,7 @@ pub enum Error {
     InvalidArgument(String),
     NotYetImplemented(String),
     NonInvertibleMatrix,
+    AlreadyInitialized,
 }
 
 impl fmt::Display for Error {
@@ -120,6 +121,7 @@ impl fmt::Display for Error {
             Error::InvalidArgument(msg) => write!(f, "invalid argument: {msg}"),
             Error::NotYetImplemented(msg) => write!(f, "not yet implemented: {msg}"),
             Error::NonInvertibleMatrix => write!(f, "matrix is not invertible"),
+            Error::AlreadyInitialized => write!(f, "context already initialized"),
         }
     }
 }
