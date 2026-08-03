@@ -54,7 +54,7 @@ void mupdf_drop_base_context(fz_context *ctx)
     }
 }
 
-fz_context *mupdf_new_base_context()
+fz_context *mupdf_new_base_context(size_t max_store)
 {
     int i;
     for (i = 0; i < FZ_LOCK_MAX; i++)
@@ -65,7 +65,9 @@ fz_context *mupdf_new_base_context()
         (void)pthread_mutex_init(&mutexes[i], NULL);
 #endif
     }
-    fz_context *ctx = fz_new_context(NULL, &locks, FZ_STORE_DEFAULT);
+    if (max_store == 0)
+        max_store = FZ_STORE_DEFAULT;
+    fz_context *ctx = fz_new_context(NULL, &locks, max_store);
     if (!ctx)
     {
         mupdf_drop_base_context(ctx);
