@@ -94,7 +94,7 @@ jobs:
           targets: wasm32-unknown-emscripten
       - uses: mymindstorm/setup-emsdk@v14
 
-      - run: CFLAGS="-sSUPPORT_LONGJMP=wasm" cargo test --target wasm32-unknown-emscripten --config "target.wasm32-unknown-emscripten.runner = 'node'" --features serde
+      - run: cargo test --target wasm32-unknown-emscripten --config "target.wasm32-unknown-emscripten.runner = 'node'" --features serde
 
   test-msys:
     name: Test Suite (MSYS2)
