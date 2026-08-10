@@ -60,6 +60,31 @@ impl Buffer {
         .map(|inner| Self { inner, offset: 0 })
     }
 
+    /// Creates a buffer backed directly by `bytes`, without copying them.
+    ///
+    /// [`from_bytes`](Self::from_bytes) copies the whole slice into a new
+    /// allocation; this variant makes the returned buffer borrow the caller's
+    /// data instead, which matters when opening large documents from several
+    /// threads at once.
+    ///
+    /// # Safety
+    ///
+    /// `bytes` must outlive the returned buffer and everything that keeps a
+    /// reference to it (for instance a [`Document`](crate::Document) opened
+    /// from it, and anything derived from that document), and must not be
+    /// mutated while any of them is alive.
+    pub unsafe fn from_shared_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        // SAFETY: upheld by the caller; the shared fz_buffer never frees `bytes`.
+        unsafe {
+            ffi_try!(mupdf_buffer_from_shared_bytes(
+                context(),
+                bytes.as_ptr(),
+                bytes.len()
+            ))
+        }
+        .map(|inner| Self { inner, offset: 0 })
+    }
+
     pub fn with_capacity(cap: usize) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }.map(|inner| Self { inner, offset: 0 })
     }

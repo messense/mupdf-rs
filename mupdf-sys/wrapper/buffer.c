@@ -43,6 +43,11 @@ fz_buffer *mupdf_buffer_from_copied_bytes(fz_context *ctx, const unsigned char *
     TRY_CATCH(fz_buffer*, NULL, fz_new_buffer_from_copied_data(ctx, data, len));
 }
 
+fz_buffer *mupdf_buffer_from_shared_bytes(fz_context *ctx, const unsigned char *data, size_t len, mupdf_error_t **errptr)
+{
+    TRY_CATCH(fz_buffer*, NULL, fz_new_buffer_from_shared_data(ctx, data, len));
+}
+
 fz_buffer *mupdf_buffer_from_str(fz_context *ctx, const char *s, mupdf_error_t **errptr)
 {
     TRY_CATCH(fz_buffer*, NULL, fz_new_buffer_from_copied_data(ctx, (const unsigned char *)s, strlen(s)));

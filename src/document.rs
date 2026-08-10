@@ -82,6 +82,35 @@ impl Document {
         .map(|inner| Self { inner })
     }
 
+    /// Opens a document backed directly by `bytes`, without copying them.
+    ///
+    /// [`from_bytes`](Self::from_bytes) copies the whole input into a new
+    /// `fz_buffer`, so every open of a large document costs its full size in
+    /// memory again (e.g. one `Document` per thread on a multi-hundred-MB
+    /// scanned PDF). This variant opens the document on a borrowed view of
+    /// the caller's data instead.
+    ///
+    /// # Safety
+    ///
+    /// `bytes` must outlive the returned `Document` and everything derived
+    /// from it (pages, pixmaps being rendered, ...), and must not be mutated
+    /// while any of them is alive.
+    pub unsafe fn from_shared_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
+        let c_magic = CString::new(magic)?;
+        // SAFETY: upheld by the caller. The document's stream takes its own
+        // reference on the shared fz_buffer, so dropping `buf` here is fine.
+        let buf = unsafe { Buffer::from_shared_bytes(bytes)? };
+        // SAFETY: `buf.inner` is a valid fz_buffer and `c_magic` a valid C string.
+        unsafe {
+            ffi_try!(mupdf_open_document_from_bytes(
+                context(),
+                buf.inner,
+                c_magic.as_ptr()
+            ))
+        }
+        .map(|inner| Self { inner })
+    }
+
     pub fn recognize(magic: &str) -> Result<bool, Error> {
         let c_magic = CString::new(magic)?;
         unsafe { ffi_try!(mupdf_recognize_document(context(), c_magic.as_ptr())) }
@@ -388,6 +417,21 @@ mod test {
 
         let cs = doc.output_intent().unwrap();
         assert!(cs.is_none());
+    }
+
+    #[test]
+    fn test_document_from_shared_bytes() {
+        let bytes = include_bytes!("../tests/files/dummy.pdf");
+        // SAFETY: `bytes` is 'static and never mutated.
+        let doc = unsafe { Document::from_shared_bytes(bytes, "pdf") }.unwrap();
+        assert!(doc.is_pdf());
+        assert_eq!(doc.page_count().unwrap(), 1);
+
+        // Same rendering-relevant behaviour as the copying constructor.
+        let copied = Document::from_bytes(bytes, "pdf").unwrap();
+        let bounds = doc.load_page(0).unwrap().bounds().unwrap();
+        let copied_bounds = copied.load_page(0).unwrap().bounds().unwrap();
+        assert_eq!(bounds, copied_bounds);
     }
 
     #[test]
