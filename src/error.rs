@@ -17,7 +17,7 @@ impl fmt::Display for MuPdfError {
         write!(
             f,
             "MuPDF error, code: {}, message: {}",
-            self.code, &self.message
+            self.code, self.message
         )
     }
 }
