@@ -85,6 +85,14 @@ impl Buffer {
         .map(|inner| Self { inner, offset: 0 })
     }
 
+    /// Safe variant of [`from_shared_bytes`](Self::from_shared_bytes) for
+    /// `'static` data (e.g. `include_bytes!`): the bytes are guaranteed to
+    /// outlive the buffer and shared references are never mutated.
+    pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
+        // SAFETY: `bytes` lives forever and cannot be mutated behind `&'static`.
+        unsafe { Self::from_shared_bytes(bytes) }
+    }
+
     pub fn with_capacity(cap: usize) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }.map(|inner| Self { inner, offset: 0 })
     }

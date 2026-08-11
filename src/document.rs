@@ -111,6 +111,14 @@ impl Document {
         .map(|inner| Self { inner })
     }
 
+    /// Safe variant of [`from_shared_bytes`](Self::from_shared_bytes) for
+    /// `'static` data (e.g. `include_bytes!`): the bytes are guaranteed to
+    /// outlive the document and shared references are never mutated.
+    pub fn from_static_bytes(bytes: &'static [u8], magic: &str) -> Result<Self, Error> {
+        // SAFETY: `bytes` lives forever and cannot be mutated behind `&'static`.
+        unsafe { Self::from_shared_bytes(bytes, magic) }
+    }
+
     pub fn recognize(magic: &str) -> Result<bool, Error> {
         let c_magic = CString::new(magic)?;
         unsafe { ffi_try!(mupdf_recognize_document(context(), c_magic.as_ptr())) }
@@ -432,6 +440,10 @@ mod test {
         let bounds = doc.load_page(0).unwrap().bounds().unwrap();
         let copied_bounds = copied.load_page(0).unwrap().bounds().unwrap();
         assert_eq!(bounds, copied_bounds);
+
+        // The safe 'static wrapper goes through the same path.
+        let from_static = Document::from_static_bytes(bytes, "pdf").unwrap();
+        assert_eq!(from_static.page_count().unwrap(), 1);
     }
 
     #[test]
