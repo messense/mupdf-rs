@@ -235,7 +235,7 @@ fn render_saved_pages(
     output_dir: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let bytes = fs::read(pdf_path)?;
-    let doc = PdfDocument::from_bytes(&bytes)?;
+    let doc = PdfDocument::from_copied_bytes(&bytes)?;
     for page_index in 0..doc.page_count()? {
         let page = PdfPage::try_from(doc.load_page(page_index)?)?;
         let pixmap = page.to_pixmap(

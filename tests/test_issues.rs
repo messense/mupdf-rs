@@ -4,7 +4,8 @@ use mupdf::{Error, TextPageFlags};
 #[cfg(not(target_arch = "wasm32"))]
 #[test]
 fn test_issue_16_pixmap_to_png() {
-    let document = PdfDocument::from_bytes(include_bytes!("../tests/files/dummy.pdf")).unwrap();
+    let document =
+        PdfDocument::from_copied_bytes(include_bytes!("../tests/files/dummy.pdf")).unwrap();
     let page = document.load_page(0).unwrap();
     let matrix = mupdf::Matrix::new_scale(72f32 / 72f32, 72f32 / 72f32);
     let pixmap = page
@@ -17,7 +18,7 @@ fn test_issue_16_pixmap_to_png() {
 
 #[test]
 fn test_issue_27_flatten() {
-    let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/dummy.pdf")).unwrap();
+    let doc = PdfDocument::from_copied_bytes(include_bytes!("../tests/files/dummy.pdf")).unwrap();
     let pages = doc
         .pages()
         .unwrap()
@@ -42,7 +43,8 @@ fn test_issue_43_malloc() {
 
     let mut writer =
         mupdf::DocumentWriter::new("tests/output/issue_43.png", "png", options.as_str()).unwrap();
-    let doc = mupdf::Document::from_bytes(include_bytes!("../tests/files/dummy.pdf"), "").unwrap();
+    let doc =
+        mupdf::Document::from_copied_bytes(include_bytes!("../tests/files/dummy.pdf"), "").unwrap();
 
     for _ in 0..2 {
         let page0 = doc.load_page(0).unwrap();
@@ -55,7 +57,7 @@ fn test_issue_43_malloc() {
 
 #[test]
 fn test_issue_60_display_list() {
-    let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/p11.pdf")).unwrap();
+    let doc = PdfDocument::from_copied_bytes(include_bytes!("../tests/files/p11.pdf")).unwrap();
     let num_pages = doc.page_count().unwrap();
     println!("Document has {num_pages} page(s)");
 
@@ -72,8 +74,10 @@ fn test_issue_60_display_list() {
 
 #[test]
 fn test_issue_86_invalid_utf8() {
-    let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/utf8-error-on-this-file.pdf"))
-        .unwrap();
+    let doc = PdfDocument::from_copied_bytes(include_bytes!(
+        "../tests/files/utf8-error-on-this-file.pdf"
+    ))
+    .unwrap();
     for (idx, page) in doc.pages().unwrap().enumerate() {
         let page = page.unwrap();
         let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
@@ -94,7 +98,7 @@ fn test_issue_86_invalid_utf8() {
 #[test]
 #[cfg(feature = "serde")]
 fn test_issue_i32_box() {
-    let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/i32-box.pdf")).unwrap();
+    let doc = PdfDocument::from_copied_bytes(include_bytes!("../tests/files/i32-box.pdf")).unwrap();
     for (idx, page) in doc.pages().unwrap().enumerate() {
         let page = page.unwrap();
         let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
@@ -114,7 +118,7 @@ fn test_issue_i32_box() {
 
 #[test]
 fn test_issue_no_json() {
-    let doc = PdfDocument::from_bytes(include_bytes!("../tests/files/no-json.pdf")).unwrap();
+    let doc = PdfDocument::from_copied_bytes(include_bytes!("../tests/files/no-json.pdf")).unwrap();
     let page = doc.load_page(0).unwrap();
     let text_page = page.to_text_page(TextPageFlags::empty()).unwrap();
     let json = text_page.to_json(1.0);

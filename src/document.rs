@@ -69,9 +69,10 @@ impl Document {
             .map(|inner| Self { inner })
     }
 
-    pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
+    /// Opens a document from a copy of `bytes`.
+    pub fn from_copied_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
         let c_magic = CString::new(magic)?;
-        let buf = Buffer::from_bytes(bytes)?;
+        let buf = Buffer::from_copied_bytes(bytes)?;
         unsafe {
             ffi_try!(mupdf_open_document_from_bytes(
                 context(),
@@ -82,9 +83,14 @@ impl Document {
         .map(|inner| Self { inner })
     }
 
+    #[deprecated(note = "renamed to `from_copied_bytes` to make the copy explicit")]
+    pub fn from_bytes(bytes: &[u8], magic: &str) -> Result<Self, Error> {
+        Self::from_copied_bytes(bytes, magic)
+    }
+
     /// Opens a document backed directly by `bytes`, without copying them.
     ///
-    /// [`from_bytes`](Self::from_bytes) copies the whole input into a new
+    /// [`from_copied_bytes`](Self::from_copied_bytes) copies the whole input into a new
     /// `fz_buffer`, so every open of a large document costs its full size in
     /// memory again (e.g. one `Document` per thread on a multi-hundred-MB
     /// scanned PDF). This variant opens the document on a borrowed view of
@@ -375,14 +381,15 @@ macro_rules! test_document {
         #[cfg(not(target_arch = "wasm32"))]
         let doc = PdfDocument::open(concat!("tests/", $path));
         #[cfg(target_arch = "wasm32")]
-        let doc = PdfDocument::from_bytes(include_bytes!(concat!($root, "/tests/", $path)));
+        let doc = PdfDocument::from_copied_bytes(include_bytes!(concat!($root, "/tests/", $path)));
         doc
     }};
     ($root:literal, $path:literal) => {{
         #[cfg(not(target_arch = "wasm32"))]
         let doc = Document::open(concat!("tests/", $path));
         #[cfg(target_arch = "wasm32")]
-        let doc = Document::from_bytes(include_bytes!(concat!($root, "/tests/", $path)), $path);
+        let doc =
+            Document::from_copied_bytes(include_bytes!(concat!($root, "/tests/", $path)), $path);
         doc
     }};
 }
@@ -436,7 +443,7 @@ mod test {
         assert_eq!(doc.page_count().unwrap(), 1);
 
         // Same rendering-relevant behaviour as the copying constructor.
-        let copied = Document::from_bytes(bytes, "pdf").unwrap();
+        let copied = Document::from_copied_bytes(bytes, "pdf").unwrap();
         let bounds = doc.load_page(0).unwrap().bounds().unwrap();
         let copied_bounds = copied.load_page(0).unwrap().bounds().unwrap();
         assert_eq!(bounds, copied_bounds);

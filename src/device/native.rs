@@ -11,6 +11,15 @@ use std::{
 
 use mupdf_sys::*;
 
+// On windows-msvc, bindgen with recent libclang (observed with LLVM 22) does
+// not emit `max_align_t` in the mupdf-sys bindings even though build.rs
+// allowlists it. On MSVC `max_align_t` is a double: alignment 8. This local
+// type shadows the glob import above when the binding is missing.
+#[cfg(target_env = "msvc")]
+#[repr(C, align(8))]
+#[allow(non_camel_case_types, dead_code)]
+struct max_align_t(f64);
+
 use crate::{
     context, guard_ffi_callback, BlendMode, ColorParams, Colorspace, Device, Error, Function,
     Image, Matrix, Path, Rect, Shade, StrokeState, Text,

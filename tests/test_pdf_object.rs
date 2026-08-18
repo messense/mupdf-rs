@@ -3,7 +3,7 @@ use mupdf::Error;
 
 /// Open the shared test fixture for building array/dict objects bound to a document.
 fn open() -> PdfDocument {
-    PdfDocument::from_bytes(include_bytes!("files/dummy.pdf")).unwrap()
+    PdfDocument::from_copied_bytes(include_bytes!("files/dummy.pdf")).unwrap()
 }
 
 #[test]

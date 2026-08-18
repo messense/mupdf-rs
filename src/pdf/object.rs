@@ -589,7 +589,7 @@ impl ExactSizeIterator for PdfDictIter<'_> {
 
 impl Write for PdfObject {
     fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
-        let fz_buf = Buffer::from_bytes(buf).map_err(io::Error::other)?;
+        let fz_buf = Buffer::from_copied_bytes(buf).map_err(io::Error::other)?;
         self.write_stream_buffer(&fz_buf)
             .map_err(io::Error::other)?;
         Ok(buf.len())

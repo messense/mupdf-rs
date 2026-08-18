@@ -159,7 +159,7 @@ fn probe(a: &str, b: &str, c: &str) -> Option<PathBuf> {
 /// font data itself (mirrors `fz_new_font_from_file(ctx, NULL, ...)`).
 fn font_from_file(path: &Path, index: i32) -> Option<Font> {
     let data = std::fs::read(path).ok()?;
-    let buffer = Buffer::from_bytes(&data).ok()?;
+    let buffer = Buffer::from_copied_bytes(&data).ok()?;
     // SAFETY: `context()` is a valid context, `buffer.inner` is a valid
     // buffer and a NULL name is allowed by `fz_new_font_from_buffer`.
     let inner = unsafe {
