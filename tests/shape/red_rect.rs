@@ -15,7 +15,7 @@ fn pixel_rgb(pixmap: &mupdf::Pixmap, x: u32, y: u32) -> [u8; 3] {
 #[test]
 #[cfg(not(target_arch = "wasm32"))]
 fn m1_red_rect_snapshot() {
-    let mut doc = PdfDocument::from_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
+    let mut doc = PdfDocument::from_copied_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
     let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
     let baseline = render_page(&page);
 

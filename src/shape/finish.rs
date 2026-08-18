@@ -1442,7 +1442,7 @@ mod tests {
     #[test]
     fn commit_overlay_wraps_existing() {
         let mut doc =
-            PdfDocument::from_bytes(include_bytes!("../../tests/files/dummy.pdf")).unwrap();
+            PdfDocument::from_copied_bytes(include_bytes!("../../tests/files/dummy.pdf")).unwrap();
         let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
         let original = page.contents().unwrap().unwrap();
         let original_bytes = original.read_stream().unwrap();

@@ -582,10 +582,16 @@ impl PdfDocument {
         Self::try_from(doc)
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let buf = Buffer::from_bytes(bytes)?;
+    /// Opens a PDF document from a copy of `bytes`.
+    pub fn from_copied_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let buf = Buffer::from_copied_bytes(bytes)?;
         unsafe { ffi_try!(mupdf_pdf_open_document_from_bytes(context(), buf.inner)) }
             .map(|inner| unsafe { Self::from_raw(inner) })
+    }
+
+    #[deprecated(note = "renamed to `from_copied_bytes` to make the copy explicit")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_copied_bytes(bytes)
     }
 
     pub fn new_null(&self) -> PdfObject {
@@ -1059,7 +1065,7 @@ impl PdfDocument {
     ) -> Result<EmbeddedFileInfo, Error> {
         let filename = CString::new(options.filename)?;
         let mime_type = options.mime_type.map(CString::new).transpose()?;
-        let contents = Buffer::from_bytes(contents)?;
+        let contents = Buffer::from_copied_bytes(contents)?;
         let fs = unsafe {
             ffi_try!(mupdf_pdf_add_embedded_file(
                 context(),
@@ -1978,7 +1984,7 @@ mod test {
     #[test]
     fn test_open_pdf_document_from_bytes() {
         let bytes = include_bytes!("../../tests/files/dummy.pdf");
-        let doc = PdfDocument::from_bytes(bytes).unwrap();
+        let doc = PdfDocument::from_copied_bytes(bytes).unwrap();
         assert!(!doc.needs_password().unwrap());
     }
 
@@ -2254,7 +2260,7 @@ mod test {
         let mut pdf = PdfDocument::new();
 
         for compressed in [false, true] {
-            let buf = Buffer::from_bytes(b"hello world").unwrap();
+            let buf = Buffer::from_copied_bytes(b"hello world").unwrap();
             let obj = pdf.add_stream(&buf, None, compressed).unwrap();
 
             assert!(obj.is_indirect().unwrap());
@@ -2278,11 +2284,11 @@ mod test {
         ];
 
         for payload in payloads {
-            let buf = Buffer::from_bytes(&payload).unwrap();
+            let buf = Buffer::from_copied_bytes(&payload).unwrap();
             let mut obj = pdf.add_stream(&buf, None, false).unwrap();
             assert_eq!(obj.read_stream().unwrap(), payload);
 
-            let rewritten = Buffer::from_bytes(&payload).unwrap();
+            let rewritten = Buffer::from_copied_bytes(&payload).unwrap();
             obj.write_stream_buffer(&rewritten).unwrap();
             assert_eq!(obj.read_stream().unwrap(), payload);
         }
@@ -2295,7 +2301,7 @@ mod test {
         dict.dict_put("X-Test", pdf.new_string("foo").unwrap())
             .unwrap();
 
-        let buf = Buffer::from_bytes(b"dict payload").unwrap();
+        let buf = Buffer::from_copied_bytes(b"dict payload").unwrap();
         let obj = pdf.add_stream(&buf, Some(&dict), false).unwrap();
         let sentinel = obj.get_dict("X-Test").unwrap().unwrap();
 

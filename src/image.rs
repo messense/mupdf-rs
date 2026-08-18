@@ -113,7 +113,7 @@ impl Image {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let buffer = Buffer::from_bytes(bytes)?;
+        let buffer = Buffer::from_copied_bytes(bytes)?;
         unsafe { ffi_try!(mupdf_new_image_from_buffer(context(), buffer.inner)) }
             .map(|inner| unsafe { Self::from_raw(inner) })
     }

@@ -49,7 +49,8 @@ impl Buffer {
             .map(|inner| Self { inner, offset: 0 })
     }
 
-    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+    /// Creates a buffer holding a copy of `bytes`.
+    pub fn from_copied_bytes(bytes: &[u8]) -> Result<Self, Error> {
         unsafe {
             ffi_try!(mupdf_buffer_from_copied_bytes(
                 context(),
@@ -60,9 +61,14 @@ impl Buffer {
         .map(|inner| Self { inner, offset: 0 })
     }
 
+    #[deprecated(note = "renamed to `from_copied_bytes` to make the copy explicit")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_copied_bytes(bytes)
+    }
+
     /// Creates a buffer backed directly by `bytes`, without copying them.
     ///
-    /// [`from_bytes`](Self::from_bytes) copies the whole slice into a new
+    /// [`from_copied_bytes`](Self::from_copied_bytes) copies the whole slice into a new
     /// allocation; this variant makes the returned buffer borrow the caller's
     /// data instead, which matters when opening large documents from several
     /// threads at once.
@@ -191,7 +197,7 @@ impl TryFrom<&[u8]> for Buffer {
     type Error = Error;
 
     fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
-        Buffer::from_bytes(bytes)
+        Buffer::from_copied_bytes(bytes)
     }
 }
 
@@ -199,7 +205,7 @@ impl TryFrom<Vec<u8>> for Buffer {
     type Error = Error;
 
     fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        Buffer::from_bytes(&bytes)
+        Buffer::from_copied_bytes(&bytes)
     }
 }
 

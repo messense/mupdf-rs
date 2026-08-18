@@ -85,7 +85,7 @@ impl Font {
 
     pub fn from_bytes_with_index(name: &str, index: i32, font_data: &[u8]) -> Result<Self, Error> {
         let c_name = CString::new(name)?;
-        let buffer = Buffer::from_bytes(font_data)?;
+        let buffer = Buffer::from_copied_bytes(font_data)?;
         unsafe {
             ffi_try!(mupdf_new_font_from_buffer(
                 context(),

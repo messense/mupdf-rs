@@ -1017,7 +1017,7 @@ impl PdfPage {
         let mut page_obj = self.object();
         let old_contents = page_obj.get_dict("Contents")?;
 
-        let stream_buf = Buffer::from_bytes(bytes)?;
+        let stream_buf = Buffer::from_copied_bytes(bytes)?;
         let new_stream = doc.add_stream(&stream_buf, None, false)?;
         let new_xref = new_stream.as_indirect()?;
 
@@ -2478,7 +2478,7 @@ mod test {
     }
 
     fn add_stream(doc: &mut PdfDocument, bytes: &[u8]) -> PdfObject {
-        doc.add_stream(&Buffer::from_bytes(bytes).unwrap(), None, false)
+        doc.add_stream(&Buffer::from_copied_bytes(bytes).unwrap(), None, false)
             .unwrap()
     }
 
@@ -2635,10 +2635,10 @@ mod test {
         let mut doc = PdfDocument::new();
         let page = doc.new_page(Size::A4).unwrap();
         let first = doc
-            .add_stream(&Buffer::from_bytes(b"q\n").unwrap(), None, false)
+            .add_stream(&Buffer::from_copied_bytes(b"q\n").unwrap(), None, false)
             .unwrap();
         let second = doc
-            .add_stream(&Buffer::from_bytes(b"Q\n").unwrap(), None, false)
+            .add_stream(&Buffer::from_copied_bytes(b"Q\n").unwrap(), None, false)
             .unwrap();
         let mut contents_array = doc.new_array_with_capacity(2).unwrap();
         contents_array.array_push(first).unwrap();
@@ -2809,7 +2809,7 @@ mod test {
         assert_eq!(stream.as_indirect().unwrap(), xref);
         assert_eq!(stream.read_stream().unwrap(), payload);
 
-        let rewritten = Buffer::from_bytes(b"rewritten\n").unwrap();
+        let rewritten = Buffer::from_copied_bytes(b"rewritten\n").unwrap();
         stream.write_stream_buffer(&rewritten).unwrap();
         assert_eq!(stream.read_stream().unwrap(), b"rewritten\n");
     }
@@ -3042,7 +3042,7 @@ mod test {
         drop(source_page);
         drop(source_doc);
 
-        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        let mut doc = PdfDocument::from_copied_bytes(&bytes).unwrap();
         assert!(doc.font_info_cache.borrow().is_empty());
         let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
 
@@ -3101,7 +3101,7 @@ mod test {
         drop(source_page);
         drop(source_doc);
 
-        let mut doc = PdfDocument::from_bytes(&bytes).unwrap();
+        let mut doc = PdfDocument::from_copied_bytes(&bytes).unwrap();
         assert!(doc.font_info_cache.borrow().is_empty());
         let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
 

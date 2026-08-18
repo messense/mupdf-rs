@@ -296,7 +296,7 @@ impl PdfTester {
         let mut buf = Vec::new();
         self.doc.write_to(&mut buf).context("Failed to write PDF")?;
         Ok(Self {
-            doc: PdfDocument::from_bytes(&buf).context("Failed to load PDF from buffer")?,
+            doc: PdfDocument::from_copied_bytes(&buf).context("Failed to load PDF from buffer")?,
             page: self.page,
         })
     }

@@ -88,7 +88,7 @@ fn build_shape_demo_example(output_dir: &Path) {
 }
 
 fn render_pdf_bytes(bytes: &[u8]) -> Vec<mupdf::Pixmap> {
-    let doc = PdfDocument::from_bytes(bytes).unwrap();
+    let doc = PdfDocument::from_copied_bytes(bytes).unwrap();
     assert_eq!(doc.page_count().unwrap(), 3);
     (0..3)
         .map(|page_index| {
@@ -324,7 +324,7 @@ pub mod cross {
         #[test]
         fn overlay_preserves_existing_content() {
             let original_doc =
-                PdfDocument::from_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
+                PdfDocument::from_copied_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
             let original_page = PdfPage::try_from(original_doc.load_page(0).unwrap()).unwrap();
             let original_text = original_page
                 .to_text_page(TextPageFlags::empty())
@@ -333,7 +333,8 @@ pub mod cross {
                 .unwrap();
             assert!(!original_text.trim().is_empty());
 
-            let mut doc = PdfDocument::from_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
+            let mut doc =
+                PdfDocument::from_copied_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
             let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
             {
                 let mut shape = Shape::new(&mut page).unwrap();
@@ -363,7 +364,7 @@ pub mod cross {
             }
             let mut bytes = Vec::new();
             doc.write_to(&mut bytes).unwrap();
-            let reopened = PdfDocument::from_bytes(&bytes).unwrap();
+            let reopened = PdfDocument::from_copied_bytes(&bytes).unwrap();
             let reopened_page = PdfPage::try_from(reopened.load_page(0).unwrap()).unwrap();
             let reopened_text = reopened_page
                 .to_text_page(TextPageFlags::empty())
@@ -375,7 +376,8 @@ pub mod cross {
 
         #[test]
         fn underlay_renders_behind() {
-            let mut doc = PdfDocument::from_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
+            let mut doc =
+                PdfDocument::from_copied_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
             let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
             let baseline = render_page(&page);
             let (dark_x, dark_y, dark_pixel) = find_dark_pixel(&baseline);
@@ -630,7 +632,7 @@ pub mod cross {
         use super::*;
 
         let (bytes, rendered, streams) = build_cross_kitchen_sink();
-        let reopened = PdfDocument::from_bytes(&bytes).unwrap();
+        let reopened = PdfDocument::from_copied_bytes(&bytes).unwrap();
         assert_eq!(reopened.page_count().unwrap(), 1);
         let painted = non_wrapper_streams(&streams);
         assert_eq!(painted.len(), 1);

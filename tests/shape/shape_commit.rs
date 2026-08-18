@@ -83,7 +83,7 @@ pub mod draw {
     #[test]
     #[cfg(not(target_arch = "wasm32"))]
     fn overlay_preserves_existing_snapshot() {
-        let mut doc = PdfDocument::from_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
+        let mut doc = PdfDocument::from_copied_bytes(include_bytes!("../files/dummy.pdf")).unwrap();
         let mut page = PdfPage::try_from(doc.load_page(0).unwrap()).unwrap();
         let rendered = {
             let mut shape = Shape::new(&mut page).unwrap();
