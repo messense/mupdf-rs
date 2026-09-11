@@ -1,4 +1,4 @@
-use std::ffi::{c_int, CString};
+use std::ffi::{c_int, c_void, CString};
 use std::{io::Read, ptr::NonNull};
 
 use mupdf_sys::*;
@@ -11,6 +11,8 @@ use crate::{
 #[derive(Debug)]
 pub struct DisplayList {
     pub(crate) inner: NonNull<fz_display_list>,
+    /// The context family that recorded the list; see [`Self::check_family`].
+    family: *const c_void,
 }
 
 impl DisplayList {
@@ -21,11 +23,24 @@ impl DisplayList {
     pub(crate) unsafe fn from_raw(ptr: *mut fz_display_list) -> Result<Self, Error> {
         Ok(Self {
             inner: non_null(ptr)?,
+            family: crate::context::current_family(),
         })
     }
 
     pub(crate) fn as_ptr(&self) -> *mut fz_display_list {
         self.inner.as_ptr()
+    }
+
+    /// MuPDF guards reference counts with the calling context's lock, so a
+    /// list may only be handed to MuPDF under a context of the family that
+    /// recorded it. Threads that use the default shared context are one
+    /// family; see [`init_thread_context`](crate::init_thread_context).
+    pub(crate) fn check_family(&self) -> Result<(), Error> {
+        if self.family == crate::context::current_family() {
+            Ok(())
+        } else {
+            Err(Error::ForeignContext)
+        }
     }
 
     pub fn new(media_box: Rect) -> Result<Self, Error> {
@@ -39,6 +54,7 @@ impl DisplayList {
     }
 
     pub fn to_pixmap(&self, ctm: &Matrix, cs: &Colorspace, alpha: bool) -> Result<Pixmap, Error> {
+        self.check_family()?;
         unsafe {
             ffi_try!(mupdf_display_list_to_pixmap(
                 context(),
@@ -52,6 +68,7 @@ impl DisplayList {
     }
 
     pub fn to_svg(&self, ctm: &Matrix) -> Result<String, Error> {
+        self.check_family()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
@@ -67,6 +84,7 @@ impl DisplayList {
     }
 
     pub fn to_svg_with_cookie(&self, ctm: &Matrix, cookie: &Cookie) -> Result<String, Error> {
+        self.check_family()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_svg(
                 context(),
@@ -82,6 +100,7 @@ impl DisplayList {
     }
 
     pub fn to_text_page(&self, opts: TextPageFlags) -> Result<TextPage, Error> {
+        self.check_family()?;
         let inner = unsafe {
             ffi_try!(mupdf_display_list_to_text_page(
                 context(),
@@ -100,6 +119,7 @@ impl DisplayList {
     }
 
     pub fn run(&self, device: &Device, ctm: &Matrix, area: Rect) -> Result<(), Error> {
+        self.check_family()?;
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
@@ -119,6 +139,7 @@ impl DisplayList {
         area: Rect,
         cookie: &Cookie,
     ) -> Result<(), Error> {
+        self.check_family()?;
         unsafe {
             ffi_try!(mupdf_display_list_run(
                 context(),
@@ -136,6 +157,7 @@ impl DisplayList {
     }
 
     pub fn search(&self, needle: &str, hit_max: u32) -> Result<FzArray<Quad>, Error> {
+        self.check_family()?;
         let c_needle = CString::new(needle)?;
         let hit_max = if hit_max < 1 { 16 } else { hit_max };
         let hit_max = c_int::try_from(hit_max)?;
@@ -155,6 +177,13 @@ impl DisplayList {
 
 impl Drop for DisplayList {
     fn drop(&mut self) {
+        // Releasing under another family's context would race with the
+        // recording thread's reference counting, so a list dropped away from
+        // its family is leaked instead. This cannot happen unless a thread
+        // opted into its own context; see `check_family`.
+        if self.check_family().is_err() {
+            return;
+        }
         // SAFETY: `self.inner` is the owned display-list pointer for this wrapper and must be
         // released exactly once when the Rust wrapper is dropped.
         unsafe { fz_drop_display_list(context(), self.as_ptr()) };
@@ -173,6 +202,51 @@ unsafe impl Sync for DisplayList {}
 #[cfg(test)]
 mod test {
     use crate::{document::test_document, Document};
+
+    /// MuPDF reference counts are guarded only by the calling context's
+    /// lock, so a display list must not be handed to MuPDF under a context
+    /// of another family: that would race with its owner's thread.
+    #[test]
+    fn display_list_from_another_family_is_rejected() {
+        use crate::{init_thread_context, Colorspace, DisplayList, Error, Matrix, Rect};
+
+        let list = std::thread::spawn(|| {
+            init_thread_context(None).unwrap();
+            DisplayList::new(Rect::new(0.0, 0.0, 10.0, 10.0)).unwrap()
+        })
+        .join()
+        .unwrap();
+
+        // Plain reads of the list's own fields are fine.
+        assert!(list.is_empty());
+        assert_eq!(list.bounds(), Rect::new(0.0, 0.0, 10.0, 10.0));
+
+        let cs = Colorspace::device_rgb();
+        assert!(matches!(
+            list.to_pixmap(&Matrix::IDENTITY, &cs, false),
+            Err(Error::ForeignContext)
+        ));
+        assert!(matches!(
+            list.to_image(10.0, 10.0),
+            Err(Error::ForeignContext)
+        ));
+        // Dropping `list` here leaks it instead of racing.
+    }
+
+    /// Threads that share the process-wide base context are one family, so
+    /// the check must not get in the way of the default configuration.
+    #[test]
+    fn display_list_crosses_threads_within_the_shared_family() {
+        use crate::{Colorspace, DisplayList, Matrix, Rect};
+
+        let list =
+            std::thread::spawn(|| DisplayList::new(Rect::new(0.0, 0.0, 10.0, 10.0)).unwrap())
+                .join()
+                .unwrap();
+        let cs = Colorspace::device_rgb();
+        let pixmap = list.to_pixmap(&Matrix::IDENTITY, &cs, false).unwrap();
+        assert_eq!((pixmap.width(), pixmap.height()), (10, 10));
+    }
 
     #[test]
     fn test_display_list_search() {

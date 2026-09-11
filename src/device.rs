@@ -232,6 +232,7 @@ impl Device {
     pub fn from_display_list<'a>(
         list: &'a mut DisplayList,
     ) -> Result<DisplayListDevice<'a>, Error> {
+        list.check_family()?;
         let list_ptr = list.as_ptr();
         unsafe { ffi_try!(mupdf_new_display_list_device(context(), list_ptr)) }.map(|dev| {
             DisplayListDevice {
