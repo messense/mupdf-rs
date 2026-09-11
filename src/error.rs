@@ -100,6 +100,9 @@ pub enum Error {
     NotYetImplemented(String),
     NonInvertibleMatrix,
     AlreadyInitialized,
+    /// The object belongs to another thread's MuPDF context family and
+    /// cannot be used from this one; see [`init_thread_context`](crate::init_thread_context).
+    ForeignContext,
 }
 
 impl fmt::Display for Error {
@@ -122,6 +125,10 @@ impl fmt::Display for Error {
             Error::NotYetImplemented(msg) => write!(f, "not yet implemented: {msg}"),
             Error::NonInvertibleMatrix => write!(f, "matrix is not invertible"),
             Error::AlreadyInitialized => write!(f, "context already initialized"),
+            Error::ForeignContext => write!(
+                f,
+                "object belongs to another thread's MuPDF context family"
+            ),
         }
     }
 }

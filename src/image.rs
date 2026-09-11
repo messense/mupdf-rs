@@ -126,6 +126,7 @@ impl Image {
         width: f32,
         height: f32,
     ) -> Result<DisplayListImage<'a>, Error> {
+        list.check_family()?;
         unsafe {
             ffi_try!(mupdf_new_image_from_display_list(
                 context(),
