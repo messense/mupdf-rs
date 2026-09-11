@@ -111,6 +111,17 @@ pub(crate) unsafe extern "C" fn load_system_fallback_font(
 ))]
 pub(crate) struct SystemFontLoader;
 
+/// Names for which the system font database has actually been queried, in
+/// order. Tests run in parallel and share this, so a test must only count
+/// entries for a name it alone uses.
+#[cfg(all(
+    test,
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
+static SYSTEM_LOOKUPS: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+
 #[cfg(all(
     feature = "system-fonts",
     not(target_arch = "wasm32"),
@@ -118,48 +129,9 @@ pub(crate) struct SystemFontLoader;
 ))]
 impl font_loader::FontLoader for SystemFontLoader {
     fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
-        use font_kit::family_name::FamilyName;
-        use font_kit::handle::Handle;
-        use font_kit::properties::{Properties, Style, Weight};
-        use font_kit::source::SystemSource;
-
-        let mut name = name;
-        let font_source = SystemSource::new();
-        let handle = match font_source.select_by_postscript_name(name) {
-            Ok(handle) => handle,
-            Err(_) => {
-                for suffix in &["MT", "PS", "IdentityH"] {
-                    if name.ends_with(suffix) {
-                        name = name.strip_suffix(suffix).unwrap_or(name);
-                    }
-                }
-                let mut properties = Properties::new();
-                let properties = properties
-                    .weight(if hints.bold {
-                        Weight::BOLD
-                    } else {
-                        Weight::NORMAL
-                    })
-                    .style(if hints.italic {
-                        Style::Italic
-                    } else {
-                        Style::Normal
-                    });
-                font_source
-                    .select_best_match(&[FamilyName::Title(name.to_string())], properties)
-                    .ok()?
-            }
-        };
-
-        let font_index = match handle {
-            Handle::Path { font_index, .. } => font_index,
-            Handle::Memory { font_index, .. } => font_index,
-        };
-        let loaded = handle.load().ok()?;
-        let font_data = loaded.copy_font_data()?;
+        let cached = system_font_cache::lookup(name, hints)?;
         let font =
-            Font::from_bytes_with_index(&loaded.family_name(), font_index as i32, &font_data)
-                .ok()?;
+            Font::from_static_bytes_with_index(&cached.name, cached.index, cached.data).ok()?;
 
         if hints.needs_exact_metrics
             && ((hints.bold && !font.is_bold()) || (hints.italic && !font.is_italic()))
@@ -189,6 +161,170 @@ impl font_loader::FontLoader for SystemFontLoader {
         names
             .iter()
             .find_map(|name| self.load_font(name, FontHints::default()))
+    }
+}
+
+/// Process-wide cache in front of the `font-kit` system font lookup.
+///
+/// MuPDF asks the system font hook for every non-embedded font of every
+/// document it opens (base-14 names like `Helvetica` included) and only
+/// remembers the answer per document. A `font-kit` query is expensive: on
+/// macOS it is a synchronous XPC round trip to the font daemon, which also
+/// serialises concurrent callers; on Linux it is a fontconfig match. Documents
+/// reference the same handful of names over and over, so the answer for each
+/// name, hit or miss, is kept for the life of the process.
+///
+/// Font data is leaked to `'static` on first load so that every `Font` built
+/// from it can share the bytes with MuPDF without copying. The cache is
+/// bounded by the number of distinct fonts a process ever asks for.
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
+mod system_font_cache {
+    use std::collections::HashMap;
+    use std::sync::{Arc, Mutex};
+
+    use font_kit::family_name::FamilyName;
+    use font_kit::handle::Handle;
+    use font_kit::properties::{Properties, Style, Weight};
+    use font_kit::source::SystemSource;
+
+    use crate::font_loader::FontHints;
+
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    struct Key {
+        name: String,
+        bold: bool,
+        italic: bool,
+    }
+
+    /// A font found on the system, ready to hand to MuPDF.
+    pub(super) struct CachedFont {
+        pub(super) name: String,
+        pub(super) index: i32,
+        pub(super) data: &'static [u8],
+    }
+
+    static CACHE: Mutex<Option<HashMap<Key, Option<Arc<CachedFont>>>>> = Mutex::new(None);
+
+    /// The system font matching `name` and the bold/italic hints, or `None`
+    /// if there is none. `needs_exact_metrics` is not part of the key: it is
+    /// a check on the returned font, applied by the caller.
+    pub(super) fn lookup(name: &str, hints: FontHints) -> Option<Arc<CachedFont>> {
+        let key = Key {
+            name: name.to_owned(),
+            bold: hints.bold,
+            italic: hints.italic,
+        };
+        // A panic inside `font-kit` poisons the lock; the map is still valid.
+        let mut guard = CACHE.lock().unwrap_or_else(|e| e.into_inner());
+        let cache = guard.get_or_insert_with(HashMap::new);
+        if let Some(cached) = cache.get(&key) {
+            return cached.clone();
+        }
+        // The lock is held across the query on purpose: concurrent lookups
+        // of the same name would otherwise all pay for it.
+        let found = query_system(name, hints).map(Arc::new);
+        cache.insert(key, found.clone());
+        found
+    }
+
+    fn query_system(name: &str, hints: FontHints) -> Option<CachedFont> {
+        #[cfg(test)]
+        super::SYSTEM_LOOKUPS.lock().unwrap().push(name.to_owned());
+
+        let mut name = name;
+        let font_source = SystemSource::new();
+        let handle = match font_source.select_by_postscript_name(name) {
+            Ok(handle) => handle,
+            Err(_) => {
+                for suffix in &["MT", "PS", "IdentityH"] {
+                    if name.ends_with(suffix) {
+                        name = name.strip_suffix(suffix).unwrap_or(name);
+                    }
+                }
+                let mut properties = Properties::new();
+                let properties = properties
+                    .weight(if hints.bold {
+                        Weight::BOLD
+                    } else {
+                        Weight::NORMAL
+                    })
+                    .style(if hints.italic {
+                        Style::Italic
+                    } else {
+                        Style::Normal
+                    });
+                font_source
+                    .select_best_match(&[FamilyName::Title(name.to_string())], properties)
+                    .ok()?
+            }
+        };
+
+        let index = match handle {
+            Handle::Path { font_index, .. } => font_index,
+            Handle::Memory { font_index, .. } => font_index,
+        };
+        let loaded = handle.load().ok()?;
+        let data = loaded.copy_font_data()?;
+        let data: &'static [u8] = match Arc::try_unwrap(data) {
+            Ok(vec) => Box::leak(vec.into_boxed_slice()),
+            Err(shared) => Box::leak(shared.as_slice().to_vec().into_boxed_slice()),
+        };
+        Some(CachedFont {
+            name: loaded.family_name(),
+            index: index as i32,
+            data,
+        })
+    }
+}
+
+#[cfg(all(
+    test,
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
+mod system_font_cache_tests {
+    use super::*;
+    use crate::font_loader::FontLoader;
+
+    fn lookups_of(name: &str) -> usize {
+        SYSTEM_LOOKUPS
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|n| n == &name)
+            .count()
+    }
+
+    /// MuPDF asks the system font hook for every non-embedded font of every
+    /// document it opens, and only caches the answer per document. Each
+    /// font-kit query is expensive (a synchronous XPC round trip to the font
+    /// daemon on macOS, a fontconfig match elsewhere), so repeated lookups of
+    /// the same name must be served from a process-wide cache, including
+    /// lookups that found nothing.
+    #[test]
+    fn repeated_lookups_query_the_system_once() {
+        let hints = FontHints {
+            bold: true,
+            ..FontHints::default()
+        };
+        // A name no font on any system has, so the result is a miss and the
+        // test does not depend on installed fonts.
+        let name = "MupdfRsSystemFontCacheProbe";
+
+        assert!(SystemFontLoader.load_font(name, hints).is_none());
+        assert_eq!(lookups_of(name), 1, "first lookup must query the system");
+
+        assert!(SystemFontLoader.load_font(name, hints).is_none());
+        assert_eq!(
+            lookups_of(name),
+            1,
+            "second lookup of the same name must be served from the cache"
+        );
     }
 }
 

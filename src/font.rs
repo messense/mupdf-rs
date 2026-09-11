@@ -97,6 +97,31 @@ impl Font {
         .map(|inner| Self { inner })
     }
 
+    /// Like [`from_bytes_with_index`](Self::from_bytes_with_index) but shares
+    /// `font_data` with MuPDF instead of copying it.
+    #[cfg(all(
+        feature = "system-fonts",
+        not(target_arch = "wasm32"),
+        not(target_os = "android")
+    ))]
+    pub(crate) fn from_static_bytes_with_index(
+        name: &str,
+        index: i32,
+        font_data: &'static [u8],
+    ) -> Result<Self, Error> {
+        let c_name = CString::new(name)?;
+        let buffer = Buffer::from_static_bytes(font_data)?;
+        unsafe {
+            ffi_try!(mupdf_new_font_from_buffer(
+                context(),
+                c_name.as_ptr(),
+                index,
+                buffer.inner
+            ))
+        }
+        .map(|inner| Self { inner })
+    }
+
     pub fn new_cjk(ordering: CjkFontOrdering) -> Result<Self, Error> {
         unsafe { ffi_try!(mupdf_new_cjk_font(context(), ordering as i32)) }
             .map(|inner| Self { inner })
