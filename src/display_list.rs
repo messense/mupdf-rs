@@ -207,15 +207,23 @@ mod test {
     /// lock, so a display list must not be handed to MuPDF under a context
     /// of another family: that would race with its owner's thread.
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn display_list_from_another_family_is_rejected() {
+        use std::sync::mpsc;
+
         use crate::{init_thread_context, Colorspace, DisplayList, Error, Matrix, Rect};
 
-        let list = std::thread::spawn(|| {
+        // The owner thread records the list, lends it out, and takes it back
+        // to drop it under its own family.
+        let (lend, borrow) = mpsc::channel::<DisplayList>();
+        let (give_back, take_back) = mpsc::channel::<DisplayList>();
+        let owner = std::thread::spawn(move || {
             init_thread_context(None).unwrap();
-            DisplayList::new(Rect::new(0.0, 0.0, 10.0, 10.0)).unwrap()
-        })
-        .join()
-        .unwrap();
+            lend.send(DisplayList::new(Rect::new(0.0, 0.0, 10.0, 10.0)).unwrap())
+                .unwrap();
+            drop(take_back.recv().unwrap());
+        });
+        let list = borrow.recv().unwrap();
 
         // Plain reads of the list's own fields are fine.
         assert!(list.is_empty());
@@ -230,12 +238,15 @@ mod test {
             list.to_image(10.0, 10.0),
             Err(Error::ForeignContext)
         ));
-        // Dropping `list` here leaks it instead of racing.
+
+        give_back.send(list).unwrap();
+        owner.join().unwrap();
     }
 
     /// Threads that share the process-wide base context are one family, so
     /// the check must not get in the way of the default configuration.
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn display_list_crosses_threads_within_the_shared_family() {
         use crate::{Colorspace, DisplayList, Matrix, Rect};
 

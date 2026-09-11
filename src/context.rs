@@ -377,6 +377,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn init_thread_context_gives_the_thread_its_own_family() {
         let shared = Context::get().family() as usize;
         std::thread::spawn(move || {
@@ -401,6 +402,7 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
     fn init_thread_context_after_first_use_errors() {
         std::thread::spawn(|| {
             let _ = Context::get();
