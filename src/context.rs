@@ -245,6 +245,45 @@ mod test {
         unsafe { fz_set_user_css(super::context(), std::ptr::null()) };
     }
 
+    /// Each base context must own its lock set. If all of them share one
+    /// process-wide set, work never runs in parallel across families, and
+    /// dropping any base context tears the mutexes down under the others
+    /// (see issue #260).
+    #[test]
+    fn base_contexts_own_their_lock_sets() {
+        use mupdf_sys::{
+            fz_clone_context, fz_drop_context, mupdf_context_lock_set, mupdf_drop_base_context,
+            mupdf_new_base_context,
+        };
+
+        unsafe {
+            let a = mupdf_new_base_context(0);
+            let b = mupdf_new_base_context(0);
+            assert!(!a.is_null() && !b.is_null());
+
+            let locks_a = mupdf_context_lock_set(a);
+            let locks_b = mupdf_context_lock_set(b);
+            assert!(!locks_a.is_null(), "a base context must carry a lock set");
+            assert_ne!(locks_a, locks_b, "base contexts must not share a lock set");
+
+            // A clone belongs to its base context's family.
+            let a2 = fz_clone_context(a);
+            assert!(!a2.is_null());
+            assert_eq!(mupdf_context_lock_set(a2), locks_a);
+            fz_drop_context(a2);
+
+            // Dropping one family leaves the other fully usable.
+            mupdf_drop_base_context(a);
+            let b2 = fz_clone_context(b);
+            assert!(!b2.is_null());
+            fz_drop_context(b2);
+            mupdf_drop_base_context(b);
+
+            // NULL is a no-op rather than a teardown of live mutexes.
+            mupdf_drop_base_context(std::ptr::null_mut());
+        }
+    }
+
     #[test]
     fn set_store_max_size_after_init_errors() {
         // Ensure the process-wide base context is initialized.
