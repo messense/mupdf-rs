@@ -42,7 +42,7 @@ jobs:
           fetch-depth: 500
       - uses: dtolnay/rust-toolchain@stable
 
-      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev
+      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev fonts-noto-cjk
         if: matrix.os == 'ubuntu-latest'
 
       - name: Download tesseract training data
@@ -140,7 +140,7 @@ jobs:
         with:
           components: rust-src
 
-      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev llvm
+      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev fonts-noto-cjk llvm
 
       - name: Download tesseract training data
         run: curl -LO https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
@@ -163,7 +163,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: taiki-e/install-action@valgrind
 
-      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev
+      - run: sudo apt-get update --fix-missing && sudo apt-get -y install libfontconfig1-dev fonts-noto-cjk
 
       - name: Download tesseract training data
         run: curl -LO https://github.com/tesseract-ocr/tessdata/raw/main/eng.traineddata
