@@ -141,26 +141,177 @@ impl font_loader::FontLoader for SystemFontLoader {
         Some(font)
     }
 
-    #[cfg(windows)]
     fn load_cjk_font(&self, _name: &str, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
-        let names: &[&str] = if serif {
-            match ordering {
-                CjkFontOrdering::AdobeCns => &["MingLiU"],
-                CjkFontOrdering::AdobeGb => &["SimSun"],
-                CjkFontOrdering::AdobeJapan => &["MS-Mincho"],
-                CjkFontOrdering::AdobeKorea => &["Batang"],
-            }
-        } else {
-            match ordering {
-                CjkFontOrdering::AdobeCns => &["DFKaiShu-SB-Estd-BF"],
-                CjkFontOrdering::AdobeGb => &["KaiTi", "KaiTi_GB2312"],
-                CjkFontOrdering::AdobeJapan => &["MS-Gothic"],
-                CjkFontOrdering::AdobeKorea => &["Gulim"],
-            }
-        };
-        names
+        // `dispatch_cjk` has already tried `_name` across the whole chain.
+        self.load_cjk_family(ordering, serif)
+    }
+
+    fn load_fallback_font(&self, script: u32, language: u32, hints: FontHints) -> Option<Font> {
+        // Only CJK scripts are served from the system: MuPDF's own Noto
+        // fallback (or the bundled font loader) covers everything else.
+        //
+        // The bold/italic hints are deliberately ignored, as MuPDF caches
+        // fallback fonts per script and serif flag only (see the "TODO: bold
+        // and italic" in `fz_load_fallback_font`): honouring them would let
+        // whichever style is requested first stick for the whole context.
+        let ordering = cjk_ordering(script, language)?;
+        self.load_cjk_family(ordering, hints.serif)
+    }
+}
+
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
+impl SystemFontLoader {
+    /// The first installed family for `ordering` in the requested style,
+    /// or in the other style if none is installed: stock Windows, for one,
+    /// ships no serif Japanese or Korean font, and a sans CJK glyph beats a
+    /// blank.
+    fn load_cjk_family(&self, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
+        use font_loader::FontLoader;
+        cjk_family_names(ordering, serif)
             .iter()
+            .chain(cjk_family_names(ordering, !serif))
             .find_map(|name| self.load_font(name, FontHints::default()))
+    }
+}
+
+/// The CJK ordering to substitute for a script/language pair, or `None` for
+/// non-CJK scripts. Mirrors `fz_lookup_noto_stem_from_script` in MuPDF.
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(target_os = "android")
+))]
+fn cjk_ordering(script: u32, language: u32) -> Option<CjkFontOrdering> {
+    const JA: u32 = FZ_LANG_ja as u32;
+    const KO: u32 = FZ_LANG_ko as u32;
+    const ZH_HANS: u32 = FZ_LANG_zh_Hans as u32;
+
+    match script {
+        UCDN_SCRIPT_HANGUL => Some(CjkFontOrdering::AdobeKorea),
+        UCDN_SCRIPT_HIRAGANA | UCDN_SCRIPT_KATAKANA => Some(CjkFontOrdering::AdobeJapan),
+        UCDN_SCRIPT_BOPOMOFO => Some(CjkFontOrdering::AdobeCns),
+        UCDN_SCRIPT_HAN => Some(match language {
+            JA => CjkFontOrdering::AdobeJapan,
+            KO => CjkFontOrdering::AdobeKorea,
+            ZH_HANS => CjkFontOrdering::AdobeGb,
+            _ => CjkFontOrdering::AdobeCns,
+        }),
+        _ => None,
+    }
+}
+
+/// Family names of the CJK fonts that ship with the platform, in order of
+/// preference. Every name is looked up through the cache, so a missing family
+/// costs one system query for the life of the process.
+#[cfg(all(feature = "system-fonts", target_os = "macos"))]
+fn cjk_family_names(ordering: CjkFontOrdering, serif: bool) -> &'static [&'static str] {
+    use CjkFontOrdering::*;
+    match (ordering, serif) {
+        (AdobeGb, true) => &["Songti SC", "STSong"],
+        (AdobeGb, false) => &["PingFang SC", "Heiti SC", "STHeiti", "Hiragino Sans GB"],
+        (AdobeCns, true) => &["Songti TC", "Apple LiSung"],
+        (AdobeCns, false) => &["PingFang TC", "Heiti TC", "Apple LiGothic"],
+        (AdobeJapan, true) => &["Hiragino Mincho ProN", "Hiragino Mincho Pro"],
+        (AdobeJapan, false) => &[
+            "Hiragino Sans",
+            "Hiragino Kaku Gothic ProN",
+            "Hiragino Kaku Gothic Pro",
+        ],
+        (AdobeKorea, true) => &["AppleMyungjo"],
+        (AdobeKorea, false) => &["Apple SD Gothic Neo", "AppleGothic"],
+    }
+}
+
+/// The families MuPDF's own Windows port substitutes, followed by the fonts
+/// newer Windows versions ship instead.
+#[cfg(all(feature = "system-fonts", windows))]
+fn cjk_family_names(ordering: CjkFontOrdering, serif: bool) -> &'static [&'static str] {
+    use CjkFontOrdering::*;
+    match (ordering, serif) {
+        (AdobeGb, true) => &["SimSun", "NSimSun"],
+        (AdobeGb, false) => &[
+            "KaiTi",
+            "KaiTi_GB2312",
+            "Microsoft YaHei",
+            "SimHei",
+            "SimSun",
+        ],
+        (AdobeCns, true) => &["MingLiU", "PMingLiU"],
+        (AdobeCns, false) => &["DFKaiShu-SB-Estd-BF", "Microsoft JhengHei", "MingLiU"],
+        (AdobeJapan, true) => &["MS-Mincho", "MS Mincho", "Yu Mincho"],
+        (AdobeJapan, false) => &["MS-Gothic", "MS Gothic", "Yu Gothic", "Meiryo"],
+        (AdobeKorea, true) => &["Batang"],
+        (AdobeKorea, false) => &["Gulim", "Malgun Gothic"],
+    }
+}
+
+/// Families provided by the CJK font packages common on Linux and BSD
+/// distributions (Noto/Source Han, WenQuanYi, Arphic, IPA, Nanum, Baekmuk).
+#[cfg(all(
+    feature = "system-fonts",
+    not(target_arch = "wasm32"),
+    not(any(target_os = "android", target_os = "macos", windows))
+))]
+fn cjk_family_names(ordering: CjkFontOrdering, serif: bool) -> &'static [&'static str] {
+    use CjkFontOrdering::*;
+    match (ordering, serif) {
+        (AdobeGb, true) => &[
+            "Noto Serif CJK SC",
+            "Source Han Serif SC",
+            "AR PL UMing CN",
+            "AR PL SungtiL GB",
+        ],
+        (AdobeGb, false) => &[
+            "Noto Sans CJK SC",
+            "Source Han Sans SC",
+            "WenQuanYi Zen Hei",
+            "WenQuanYi Micro Hei",
+            "AR PL UKai CN",
+            "Droid Sans Fallback",
+        ],
+        (AdobeCns, true) => &["Noto Serif CJK TC", "Source Han Serif TC", "AR PL UMing TW"],
+        (AdobeCns, false) => &[
+            "Noto Sans CJK TC",
+            "Source Han Sans TC",
+            "WenQuanYi Zen Hei",
+            "WenQuanYi Micro Hei",
+            "AR PL UKai TW",
+            "Droid Sans Fallback",
+        ],
+        (AdobeJapan, true) => &[
+            "Noto Serif CJK JP",
+            "Source Han Serif JP",
+            "IPAMincho",
+            "IPAexMincho",
+            "TakaoMincho",
+        ],
+        (AdobeJapan, false) => &[
+            "Noto Sans CJK JP",
+            "Source Han Sans JP",
+            "IPAGothic",
+            "IPAexGothic",
+            "TakaoGothic",
+            "VL Gothic",
+            "Droid Sans Fallback",
+        ],
+        (AdobeKorea, true) => &[
+            "Noto Serif CJK KR",
+            "Source Han Serif KR",
+            "NanumMyeongjo",
+            "UnBatang",
+        ],
+        (AdobeKorea, false) => &[
+            "Noto Sans CJK KR",
+            "Source Han Sans KR",
+            "NanumGothic",
+            "UnDotum",
+            "Baekmuk Gulim",
+            "Droid Sans Fallback",
+        ],
     }
 }
 
@@ -269,6 +420,11 @@ mod system_font_cache {
         };
         let loaded = handle.load().ok()?;
         let data = loaded.copy_font_data()?;
+        // The index is relative to the collection the handle points at. Some
+        // `font-kit` loaders (CoreText) unpack the selected face into a
+        // standalone font before returning its bytes, in which case the only
+        // valid index is 0.
+        let index = if data.starts_with(b"ttcf") { index } else { 0 };
         let data: &'static [u8] = match Arc::try_unwrap(data) {
             Ok(vec) => Box::leak(vec.into_boxed_slice()),
             Err(shared) => Box::leak(shared.as_slice().to_vec().into_boxed_slice()),
@@ -326,6 +482,30 @@ mod system_font_cache_tests {
             "second lookup of the same name must be served from the cache"
         );
     }
+
+    /// Apple ships most of its fonts as collections (`Songti.ttc`,
+    /// `Helvetica.ttc`, ...) and `font-kit`'s CoreText loader unpacks the
+    /// selected face into a standalone font before handing over the bytes.
+    /// The face index that was valid for the collection must not be passed
+    /// on to FreeType for the unpacked font, or every face but the first
+    /// fails to load. Both Songti families live in one `Songti.ttc` at
+    /// nonzero indices.
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn fonts_from_collections_load() {
+        for name in ["Songti SC", "Songti TC"] {
+            let font = SystemFontLoader
+                .load_font(name, FontHints::default())
+                .unwrap_or_else(|| panic!("{name} did not load"));
+            // The family name font-kit reports for the unpacked face varies
+            // between macOS versions; the glyph proves the right data loaded.
+            assert!(
+                font.encode_character('中' as i32).is_ok_and(|gid| gid != 0),
+                "{name} loaded as {} without CJK glyphs",
+                font.name()
+            );
+        }
+    }
 }
 
 #[cfg(all(test, feature = "bundled-fonts-droid", feature = "bundled-fonts-noto"))]
@@ -351,5 +531,114 @@ mod tests {
         unsafe { fz_drop_font(ctx, font) };
 
         assert_eq!(actual, "Noto Sans");
+    }
+}
+
+/// Every platform this module runs on ships CJK fonts out of the box (Apple's
+/// PingFang/Hiragino/Apple SD Gothic, Windows' SimSun/MS Gothic/Gulim) or has
+/// them installed on CI (`fonts-noto-cjk` on Linux), so these tests assert on
+/// actual hits rather than skipping when nothing is found.
+#[cfg(all(
+    test,
+    feature = "system-fonts",
+    any(target_os = "macos", target_os = "windows", target_os = "linux")
+))]
+mod system_cjk_font_tests {
+    use super::*;
+    use crate::font_loader::FontLoader;
+
+    fn has_glyph(font: &Font, ch: char) -> bool {
+        font.encode_character(ch as i32).is_ok_and(|gid| gid != 0)
+    }
+
+    /// A PDF that references a non-embedded CJK font by ROS ordering (e.g.
+    /// `SimSun` with `Adobe-GB1`) asks the CJK hook for a substitute. Without
+    /// bundled fonts the only place to get one from is the system.
+    #[test]
+    fn system_cjk_font_hook_finds_a_font_for_every_ordering() {
+        let probes = [
+            (CjkFontOrdering::AdobeGb, '中'),
+            (CjkFontOrdering::AdobeCns, '中'),
+            (CjkFontOrdering::AdobeJapan, 'あ'),
+            (CjkFontOrdering::AdobeKorea, '한'),
+        ];
+        for (ordering, ch) in probes {
+            for serif in [false, true] {
+                let font = SystemFontLoader
+                    .load_cjk_font("", ordering, serif)
+                    .unwrap_or_else(|| panic!("no system font for {ordering:?} serif={serif}"));
+                assert!(
+                    has_glyph(&font, ch),
+                    "{} (for {ordering:?} serif={serif}) has no glyph for {ch}",
+                    font.name()
+                );
+            }
+        }
+    }
+
+    /// EPUB/HTML text in a CJK script goes through the script fallback hook,
+    /// not the CJK hook, so it must resolve system fonts too. Non-CJK scripts
+    /// stay with MuPDF's own Noto fallback (or the bundled font loader).
+    #[test]
+    fn system_fallback_font_hook_covers_cjk_scripts() {
+        let probes = [
+            (UCDN_SCRIPT_HAN, FZ_LANG_zh_Hans as u32, Some('中')),
+            (UCDN_SCRIPT_HAN, FZ_LANG_zh_Hant as u32, Some('中')),
+            (UCDN_SCRIPT_HAN, FZ_LANG_ja as u32, Some('漢')),
+            (UCDN_SCRIPT_HAN, FZ_LANG_ko as u32, Some('漢')),
+            (UCDN_SCRIPT_HAN, FZ_LANG_UNSET as u32, Some('中')),
+            (UCDN_SCRIPT_HIRAGANA, FZ_LANG_UNSET as u32, Some('あ')),
+            (UCDN_SCRIPT_KATAKANA, FZ_LANG_UNSET as u32, Some('ア')),
+            (UCDN_SCRIPT_HANGUL, FZ_LANG_UNSET as u32, Some('한')),
+            (UCDN_SCRIPT_BOPOMOFO, FZ_LANG_UNSET as u32, None),
+        ];
+        for (script, language, ch) in probes {
+            for serif in [false, true] {
+                let hints = FontHints {
+                    serif,
+                    ..FontHints::default()
+                };
+                let font = SystemFontLoader
+                    .load_fallback_font(script, language, hints)
+                    .unwrap_or_else(|| {
+                        panic!("no system fallback font for script {script} language {language} serif={serif}")
+                    });
+                if let Some(ch) = ch {
+                    assert!(
+                        has_glyph(&font, ch),
+                        "{} (for script {script} language {language} serif={serif}) has no glyph for {ch}",
+                        font.name()
+                    );
+                }
+            }
+        }
+
+        assert!(
+            SystemFontLoader
+                .load_fallback_font(
+                    UCDN_SCRIPT_ARABIC,
+                    FZ_LANG_UNSET as u32,
+                    FontHints::default()
+                )
+                .is_none(),
+            "non-CJK scripts are left to MuPDF's built-in fallback"
+        );
+    }
+
+    /// End to end: CJK text in an HTML document must produce ink, not blank
+    /// space, with only system fonts available (issue #183 on macOS/Linux).
+    #[cfg(feature = "html")]
+    #[test]
+    fn html_cjk_text_renders_with_system_fonts() {
+        use crate::{Colorspace, Document, Matrix};
+
+        let mut doc = Document::from_copied_bytes("<p>中文字体</p>".as_bytes(), "html").unwrap();
+        doc.layout(400.0, 400.0, 20.0).unwrap();
+        let page = doc.load_page(0).unwrap();
+        let pixmap = page
+            .to_pixmap(&Matrix::IDENTITY, &Colorspace::device_gray(), false, false)
+            .unwrap();
+        let dark = pixmap.samples().iter().filter(|&&v| v < 128).count();
+        assert!(dark > 0, "CJK text rendered as blank space");
     }
 }
