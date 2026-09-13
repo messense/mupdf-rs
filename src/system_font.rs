@@ -165,10 +165,15 @@ impl font_loader::FontLoader for SystemFontLoader {
     not(target_os = "android")
 ))]
 impl SystemFontLoader {
+    /// The first installed family for `ordering` in the requested style,
+    /// or in the other style if none is installed: stock Windows, for one,
+    /// ships no serif Japanese or Korean font, and a sans CJK glyph beats a
+    /// blank.
     fn load_cjk_family(&self, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
         use font_loader::FontLoader;
         cjk_family_names(ordering, serif)
             .iter()
+            .chain(cjk_family_names(ordering, !serif))
             .find_map(|name| self.load_font(name, FontHints::default()))
     }
 }
@@ -478,16 +483,17 @@ mod system_font_cache_tests {
         );
     }
 
-    /// Apple ships most of its fonts as collections (`PingFang.ttc`,
-    /// `Songti.ttc`, ...) and `font-kit`'s CoreText loader unpacks the
+    /// Apple ships most of its fonts as collections (`Songti.ttc`,
+    /// `Helvetica.ttc`, ...) and `font-kit`'s CoreText loader unpacks the
     /// selected face into a standalone font before handing over the bytes.
     /// The face index that was valid for the collection must not be passed
     /// on to FreeType for the unpacked font, or every face but the first
-    /// fails to load.
+    /// fails to load. Both Songti families live in one `Songti.ttc` at
+    /// nonzero indices.
     #[cfg(target_os = "macos")]
     #[test]
     fn fonts_from_collections_load() {
-        for name in ["PingFang SC", "Songti SC", "Hiragino Sans"] {
+        for name in ["Songti SC", "Songti TC"] {
             let font = SystemFontLoader
                 .load_font(name, FontHints::default())
                 .unwrap_or_else(|| panic!("{name} did not load"));
