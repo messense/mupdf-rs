@@ -497,7 +497,13 @@ mod system_font_cache_tests {
             let font = SystemFontLoader
                 .load_font(name, FontHints::default())
                 .unwrap_or_else(|| panic!("{name} did not load"));
-            assert_eq!(font.name(), name);
+            // The family name font-kit reports for the unpacked face varies
+            // between macOS versions; the glyph proves the right data loaded.
+            assert!(
+                font.encode_character('中' as i32).is_ok_and(|gid| gid != 0),
+                "{name} loaded as {} without CJK glyphs",
+                font.name()
+            );
         }
     }
 }
