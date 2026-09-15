@@ -106,6 +106,9 @@ impl Page {
                 x1: 0.0,
                 y1: 0.0,
             },
+            table_hunt_options: fz_table_hunt_options {
+                vertically_collapse_bordered_cells: 0,
+            },
         };
 
         let inner = unsafe {

@@ -177,6 +177,13 @@ include = [
     "mupdf/thirdparty/zint/backend/*.c",
     "mupdf/thirdparty/zint/backend/*.h",
     "mupdf/thirdparty/zint/backend/fonts/*.h",
+
+	"mupdf/thirdparty/cmark-gfm/src/*.c",
+	"mupdf/thirdparty/cmark-gfm/src/*.h",
+	"mupdf/thirdparty/cmark-gfm/src/*.inc",
+	"mupdf/thirdparty/cmark-gfm/extensions/*.c",
+	"mupdf/thirdparty/cmark-gfm/extensions/*.h",
+	"mupdf/scripts/cmark-gfm/*.h",
 ]
 description = "Rust FFI binding to MuPDF"
 keywords = ["pdf", "mupdf"]
