@@ -336,3 +336,33 @@ void mupdf_pdf_abandon_operation(fz_context *ctx, pdf_document *doc, mupdf_error
 {
     TRY_CATCH_VOID(pdf_abandon_operation(ctx, doc));
 }
+
+void mupdf_pdf_enable_journal(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_enable_journal(ctx, doc));
+}
+
+int mupdf_pdf_undoredo_state(fz_context *ctx, pdf_document *doc, int *steps, mupdf_error_t **errptr)
+{
+    TRY_CATCH(int, 0, pdf_undoredo_state(ctx, doc, steps));
+}
+
+bool mupdf_pdf_can_undo(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH(bool, false, pdf_can_undo(ctx, doc));
+}
+
+bool mupdf_pdf_can_redo(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH(bool, false, pdf_can_redo(ctx, doc));
+}
+
+void mupdf_pdf_undo(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_undo(ctx, doc));
+}
+
+void mupdf_pdf_redo(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(pdf_redo(ctx, doc));
+}

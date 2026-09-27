@@ -1750,6 +1750,55 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_abandon_operation(context(), self.inner)) }
     }
 
+    /// Starts recording every change in an undo journal. Changes are grouped into
+    /// steps by [`begin_operation`](Self::begin_operation) and
+    /// [`end_operation`](Self::end_operation). Calling this again does nothing.
+    pub fn enable_journal(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_enable_journal(context(), self.inner)) }
+    }
+
+    /// Returns `(position, steps)`: the number of journal steps currently applied
+    /// and the total number of steps. Both are 0 when journalling is off.
+    ///
+    /// Fails while an operation is in progress.
+    pub fn undo_redo_state(&self) -> Result<(usize, usize), Error> {
+        let mut steps: c_int = 0;
+        let position =
+            unsafe { ffi_try!(mupdf_pdf_undoredo_state(context(), self.inner, &mut steps)) }?;
+        Ok((position as usize, steps as usize))
+    }
+
+    /// Whether [`undo`](Self::undo) has a step to take back.
+    ///
+    /// Fails while an operation is in progress.
+    pub fn can_undo(&self) -> Result<bool, Error> {
+        unsafe { ffi_try!(mupdf_pdf_can_undo(context(), self.inner)) }
+    }
+
+    /// Whether [`redo`](Self::redo) has a step to reapply.
+    ///
+    /// Fails while an operation is in progress.
+    pub fn can_redo(&self) -> Result<bool, Error> {
+        unsafe { ffi_try!(mupdf_pdf_can_redo(context(), self.inner)) }
+    }
+
+    /// Takes back the most recent journal step. Any change made afterwards
+    /// discards the steps that could have been redone.
+    ///
+    /// Fails if journalling is off, an operation is in progress, or there is
+    /// nothing to undo.
+    pub fn undo(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_undo(context(), self.inner)) }
+    }
+
+    /// Reapplies the most recently undone journal step.
+    ///
+    /// Fails if journalling is off, an operation is in progress, or there is
+    /// nothing to redo.
+    pub fn redo(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_redo(context(), self.inner)) }
+    }
+
     pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {
         self.delete_outlines()?;
 
