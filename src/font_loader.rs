@@ -167,7 +167,11 @@ fn font_from_file(path: &Path, index: i32) -> Option<Font> {
             context(),
             std::ptr::null(),
             index,
-            buffer.inner
+            buffer.inner,
+            // Stands in for a font the document names: measure each glyph,
+            // as MuPDF does for embedded fonts. CJK faces too; see
+            // `bundled_font::load_substitute_font` for why.
+            true.into()
         ))
     }
     .ok()?;
@@ -289,15 +293,65 @@ mod tests {
 
     impl FontLoader for TestLoader {
         fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
-            if name == "MupdfRsFontLoaderPanic" {
-                panic!("font loader panicked");
+            // Independent of the base14/bundled/system font features.
+            let data = include_bytes!("../tests/files/custom.ttf");
+            match name {
+                "MupdfRsFontLoaderPanic" => panic!("font loader panicked"),
+                "MupdfRsFontLoaderTest" if hints.bold && !hints.italic => {
+                    Some(Font::from_bytes(name, data).unwrap())
+                }
+                "MupdfRsGlyphBboxTest" => {
+                    Some(Font::from_bytes_with_glyph_bbox(name, 0, data).unwrap())
+                }
+                "MupdfRsFontBboxTest" => Some(Font::from_bytes(name, data).unwrap()),
+                _ => None,
             }
-            (name == "MupdfRsFontLoaderTest" && hints.bold && !hints.italic).then(|| {
-                // Independent of the base14/bundled/system font features.
-                let data = include_bytes!("../tests/files/custom.ttf");
-                Font::from_bytes("MupdfRsFontLoaderTest", data).unwrap()
-            })
         }
+    }
+
+    /// Height of the quad text extraction reports for `i` shown at 100pt in
+    /// `font`, which the page names but does not embed, so MuPDF asks the
+    /// font loader for it.
+    fn extracted_i_height(font: &str) -> f32 {
+        use crate::pdf::PdfDocument;
+        use crate::{Buffer, Size, TextPageFlags};
+
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+
+        let mut font_obj = doc.new_dict().unwrap();
+        for (key, name) in [("Type", "Font"), ("Subtype", "Type1"), ("BaseFont", font)] {
+            font_obj.dict_put(key, doc.new_name(name).unwrap()).unwrap();
+        }
+        let mut fonts = doc.new_dict().unwrap();
+        fonts.dict_put("F1", font_obj).unwrap();
+        page.resources().unwrap().dict_put("Font", fonts).unwrap();
+
+        let content = Buffer::from_copied_bytes(b"BT /F1 100 Tf 100 100 Td (i) Tj ET").unwrap();
+        let stream = doc.add_stream(&content, None, false).unwrap();
+        page.object().dict_put("Contents", stream).unwrap();
+
+        let text_page = page.to_text_page(TextPageFlags::ACCURATE_BBOXES).unwrap();
+        let block = text_page.blocks().next().expect("a block");
+        let line = block.lines().next().expect("a line");
+        let ch = line.chars().next().expect("a char");
+        assert_eq!(ch.char(), Some('i'));
+        let quad = ch.quad();
+        quad.ll.y - quad.ul.y
+    }
+
+    /// With `ACCURATE_BBOXES` a char's quad spans its glyph's box vertically:
+    /// `i` is shorter than an em in a loaded font that measures each glyph,
+    /// but as tall as the whole font's bbox, over an em, in one that does not.
+    #[test]
+    fn loaded_font_glyph_bbox_reaches_text_extraction() {
+        set_font_loader(TestLoader);
+
+        let glyph = extracted_i_height("MupdfRsGlyphBboxTest");
+        let whole = extracted_i_height("MupdfRsFontBboxTest");
+
+        assert!(glyph < 100.0, "glyph bbox expected: {glyph}");
+        assert!(whole > 100.0, "font bbox expected: {whole}");
     }
 
     #[test]

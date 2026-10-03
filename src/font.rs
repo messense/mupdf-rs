@@ -84,21 +84,34 @@ impl Font {
     }
 
     pub fn from_bytes_with_index(name: &str, index: i32, font_data: &[u8]) -> Result<Self, Error> {
-        let c_name = CString::new(name)?;
         let buffer = Buffer::from_copied_bytes(font_data)?;
-        unsafe {
-            ffi_try!(mupdf_new_font_from_buffer(
-                context(),
-                c_name.as_ptr(),
-                index,
-                buffer.inner
-            ))
-        }
-        .map(|inner| Self { inner })
+        Self::from_buffer(name, index, &buffer, false)
     }
 
-    /// Like [`from_bytes_with_index`](Self::from_bytes_with_index) but shares
-    /// `font_data` with MuPDF instead of copying it.
+    /// Like [`from_bytes_with_index`](Self::from_bytes_with_index), but MuPDF
+    /// measures each glyph's own bounding box, the way it treats fonts
+    /// embedded in a PDF.
+    ///
+    /// Without this every glyph bounds to the whole font's bbox: text
+    /// extraction with [`TextPageFlags::ACCURATE_BBOXES`] then reports every
+    /// quad as tall as that bbox. Use it for a font returned from a
+    /// [`FontLoader`] that stands in for one a document names. Each glyph is
+    /// measured on first use and cached with the font.
+    ///
+    /// [`TextPageFlags::ACCURATE_BBOXES`]: crate::TextPageFlags::ACCURATE_BBOXES
+    /// [`FontLoader`]: crate::FontLoader
+    pub fn from_bytes_with_glyph_bbox(
+        name: &str,
+        index: i32,
+        font_data: &[u8],
+    ) -> Result<Self, Error> {
+        let buffer = Buffer::from_copied_bytes(font_data)?;
+        Self::from_buffer(name, index, &buffer, true)
+    }
+
+    /// Shares `font_data` with MuPDF instead of copying it. Measures each
+    /// glyph: the system font loader uses it for fonts that stand in for one
+    /// a document names (see [`from_bytes_with_glyph_bbox`](Self::from_bytes_with_glyph_bbox)).
     #[cfg(all(
         feature = "system-fonts",
         not(target_arch = "wasm32"),
@@ -109,14 +122,24 @@ impl Font {
         index: i32,
         font_data: &'static [u8],
     ) -> Result<Self, Error> {
-        let c_name = CString::new(name)?;
         let buffer = Buffer::from_static_bytes(font_data)?;
+        Self::from_buffer(name, index, &buffer, true)
+    }
+
+    fn from_buffer(
+        name: &str,
+        index: i32,
+        buffer: &Buffer,
+        use_glyph_bbox: bool,
+    ) -> Result<Self, Error> {
+        let c_name = CString::new(name)?;
         unsafe {
             ffi_try!(mupdf_new_font_from_buffer(
                 context(),
                 c_name.as_ptr(),
                 index,
-                buffer.inner
+                buffer.inner,
+                use_glyph_bbox.into()
             ))
         }
         .map(|inner| Self { inner })
@@ -235,6 +258,28 @@ mod test {
         let font = Font::new("Courier").expect("new font failed");
         let glyph = font.encode_character(97).unwrap();
         let _path = font.outline_glyph(glyph).unwrap();
+    }
+
+    /// Built from bytes, a font bounds every glyph to its whole bbox unless
+    /// asked to measure each glyph; `i` is narrow either way it is drawn.
+    #[test]
+    fn test_glyph_bbox_from_bytes() {
+        use mupdf_sys::*;
+
+        fn bound_i(font: &Font) -> fz_rect {
+            let glyph = font.encode_character('i' as i32).unwrap();
+            let ctm = fz_matrix::from(&crate::Matrix::IDENTITY);
+            // SAFETY: `font.inner` is a valid font and `glyph` one of its glyphs.
+            unsafe { fz_bound_glyph(crate::context(), font.inner, glyph, ctm) }
+        }
+
+        let data = include_bytes!("../tests/files/custom.ttf");
+        let whole = bound_i(&Font::from_bytes("Custom", data).unwrap());
+        let glyph = bound_i(&Font::from_bytes_with_glyph_bbox("Custom", 0, data).unwrap());
+
+        assert!(whole.x1 - whole.x0 > 1.0, "font bbox expected: {whole:?}");
+        assert!(glyph.x1 - glyph.x0 < 0.5, "glyph bbox expected: {glyph:?}");
+        assert!(glyph.x0 >= whole.x0 && glyph.x1 <= whole.x1);
     }
 
     #[cfg(feature = "bundled-fonts-sil")]

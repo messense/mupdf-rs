@@ -29,14 +29,14 @@ fz_font *mupdf_new_font(fz_context *ctx, const char *name, int index, mupdf_erro
     return font;
 }
 
-fz_font *mupdf_new_font_from_buffer(fz_context *ctx, const char *name, int index, fz_buffer *buffer, mupdf_error_t **errptr)
+fz_font *mupdf_new_font_from_buffer(fz_context *ctx, const char *name, int index, fz_buffer *buffer, int use_glyph_bbox, mupdf_error_t **errptr)
 {
-    TRY_CATCH(fz_font*, NULL, fz_new_font_from_buffer(ctx, name, buffer, index, 0));
+    TRY_CATCH(fz_font*, NULL, fz_new_font_from_buffer(ctx, name, buffer, index, use_glyph_bbox));
 }
 
-fz_font *mupdf_new_font_from_memory(fz_context *ctx, const char *name, int index, const unsigned char *data, int len, mupdf_error_t **errptr)
+fz_font *mupdf_new_font_from_memory(fz_context *ctx, const char *name, int index, const unsigned char *data, int len, int use_glyph_bbox, mupdf_error_t **errptr)
 {
-    TRY_CATCH(fz_font*, NULL, fz_new_font_from_memory(ctx, name, data, len, index, 0));
+    TRY_CATCH(fz_font*, NULL, fz_new_font_from_memory(ctx, name, data, len, index, use_glyph_bbox));
 }
 
 fz_font *mupdf_new_cjk_font(fz_context *ctx, int ordering, mupdf_error_t **errptr)

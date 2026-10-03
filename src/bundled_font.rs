@@ -15,15 +15,17 @@ pub(crate) struct BundledFontLoader;
 
 impl FontLoader for BundledFontLoader {
     fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
-        find_by_name(name, hints.bold, hints.italic, hints.needs_exact_metrics).and_then(load_font)
+        find_by_name(name, hints.bold, hints.italic, hints.needs_exact_metrics)
+            .and_then(load_substitute_font)
     }
 
     fn load_cjk_font(&self, _name: &str, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
-        find_cjk_font(ordering as c_int, serif).and_then(load_font)
+        find_cjk_font(ordering as c_int, serif).and_then(load_substitute_font)
     }
 
     fn load_fallback_font(&self, script: u32, language: u32, hints: FontHints) -> Option<Font> {
-        find_fallback_font(script as c_int, language as c_int, hints.serif).and_then(load_font)
+        find_fallback_font(script as c_int, language as c_int, hints.serif)
+            .and_then(load_substitute_font)
     }
 }
 
@@ -145,7 +147,25 @@ fn find_fallback_font(script: c_int, language: c_int, serif: bool) -> Option<Fon
     None
 }
 
+/// A bundled font standing in for one a document names: MuPDF measures each
+/// glyph, as it does for embedded fonts, so text extraction reports glyph
+/// boxes rather than the whole font's bbox.
+///
+/// This includes CJK and fallback fonts, which MuPDF itself still loads
+/// without glyph boxes ("A glyph bbox cache is too big for CJK fonts" in
+/// `pdf-font.c`). That reason dates from when the table was allocated whole
+/// and capped at 4096 glyphs; since MuPDF commit cdac847 it is a sparse
+/// table filled per 256 glyphs on first use.
+fn load_substitute_font(font: FontData) -> Option<Font> {
+    load_font_from_memory(font, true)
+}
+
+/// A bundled font for [`Font::new`], built like the system fonts it finds.
 pub(crate) fn load_font(font: FontData) -> Option<Font> {
+    load_font_from_memory(font, false)
+}
+
+fn load_font_from_memory(font: FontData, use_glyph_bbox: bool) -> Option<Font> {
     let len = c_int::try_from(font.data.len()).ok()?;
     let name = std::ffi::CString::new(font.name).ok()?;
     let ctx = context();
@@ -160,6 +180,7 @@ pub(crate) fn load_font(font: FontData) -> Option<Font> {
             font.index,
             font.data.as_ptr(),
             len,
+            use_glyph_bbox.into(),
             (&mut err) as *mut *mut mupdf_error_t,
         )
     };
