@@ -4,8 +4,8 @@
  *
  * MuPDF hands the `user` pointer of the fz_locks_context back to the lock
  * callbacks, and clones inherit their base context's locks. Each base context
- * therefore owns a lock set: contexts of different families never contend
- * with each other, and tearing down one family cannot touch the mutexes of
+ * therefore owns a lock set: contexts of different families contend only on
+ * FZ_LOCK_FREETYPE, and tearing down one family cannot touch the mutexes of
  * another. */
 
 #ifdef _WIN32
@@ -19,9 +19,27 @@ typedef struct
     wrapper_mutex mutexes[FZ_LOCK_MAX];
 } wrapper_lock_set;
 
+/* MuPDF passes the context to OpenJPEG and HarfBuzz callbacks through
+ * process-wide globals guarded by FZ_LOCK_FREETYPE (load-jpx.c, harfbuzz.c),
+ * so that lock must be one mutex across all families. */
+#ifdef _WIN32
+static SRWLOCK freetype_lock = SRWLOCK_INIT;
+#else
+static pthread_mutex_t freetype_lock = PTHREAD_MUTEX_INITIALIZER;
+#endif
+
 static void lock(void *user, int lock)
 {
     wrapper_lock_set *ls = (wrapper_lock_set *)user;
+    if (lock == FZ_LOCK_FREETYPE)
+    {
+#ifdef _WIN32
+        AcquireSRWLockExclusive(&freetype_lock);
+#else
+        (void)pthread_mutex_lock(&freetype_lock);
+#endif
+        return;
+    }
 #ifdef _WIN32
     EnterCriticalSection(&ls->mutexes[lock]);
 #else
@@ -32,6 +50,15 @@ static void lock(void *user, int lock)
 static void unlock(void *user, int lock)
 {
     wrapper_lock_set *ls = (wrapper_lock_set *)user;
+    if (lock == FZ_LOCK_FREETYPE)
+    {
+#ifdef _WIN32
+        ReleaseSRWLockExclusive(&freetype_lock);
+#else
+        (void)pthread_mutex_unlock(&freetype_lock);
+#endif
+        return;
+    }
 #ifdef _WIN32
     LeaveCriticalSection(&ls->mutexes[lock]);
 #else
