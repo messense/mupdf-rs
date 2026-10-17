@@ -416,6 +416,38 @@ mod test {
     }
 
     #[test]
+    #[cfg(not(target_arch = "wasm32"))]
+    fn families_decode_jpx_concurrently() {
+        let threads: Vec<_> = (0..8)
+            .map(|_| {
+                std::thread::spawn(|| {
+                    super::init_thread_context(None).unwrap();
+                    for _ in 0..50 {
+                        // A fresh document decodes the image again.
+                        let doc = crate::Document::open(concat!(
+                            env!("CARGO_MANIFEST_DIR"),
+                            "/tests/files/jpx.pdf"
+                        ))
+                        .unwrap();
+                        doc.load_page(0)
+                            .unwrap()
+                            .to_pixmap(
+                                &crate::Matrix::IDENTITY,
+                                &crate::Colorspace::device_rgb(),
+                                false,
+                                false,
+                            )
+                            .unwrap();
+                    }
+                })
+            })
+            .collect();
+        for thread in threads {
+            thread.join().unwrap();
+        }
+    }
+
+    #[test]
     fn set_store_max_size_after_init_errors() {
         // Ensure the process-wide base context is initialized.
         let _ = Context::get();
