@@ -1,5 +1,11 @@
 #include "internal.h"
 
+#if defined(__APPLE__) && defined(__ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__) && \
+    __ENVIRONMENT_MAC_OS_X_VERSION_MIN_REQUIRED__ >= 101200
+#include <os/lock.h>
+#define MUPDF_USE_UNFAIR_LOCK
+#endif
+
 /* Locking for MuPDF contexts.
  *
  * MuPDF hands the `user` pointer of the fz_locks_context back to the lock
@@ -10,6 +16,13 @@
 
 #ifdef _WIN32
 typedef CRITICAL_SECTION wrapper_mutex;
+#elif defined(MUPDF_USE_UNFAIR_LOCK)
+/* Avoid false sharing between hot locks. */
+typedef union
+{
+    os_unfair_lock lock;
+    char padding[128];
+} wrapper_mutex;
 #else
 typedef pthread_mutex_t wrapper_mutex;
 #endif
@@ -42,6 +55,8 @@ static void lock(void *user, int lock)
     }
 #ifdef _WIN32
     EnterCriticalSection(&ls->mutexes[lock]);
+#elif defined(MUPDF_USE_UNFAIR_LOCK)
+    os_unfair_lock_lock(&ls->mutexes[lock].lock);
 #else
     (void)pthread_mutex_lock(&ls->mutexes[lock]);
 #endif
@@ -61,6 +76,8 @@ static void unlock(void *user, int lock)
     }
 #ifdef _WIN32
     LeaveCriticalSection(&ls->mutexes[lock]);
+#elif defined(MUPDF_USE_UNFAIR_LOCK)
+    os_unfair_lock_unlock(&ls->mutexes[lock].lock);
 #else
     (void)pthread_mutex_unlock(&ls->mutexes[lock]);
 #endif
@@ -76,6 +93,8 @@ static wrapper_lock_set *new_lock_set(void)
     {
 #ifdef _WIN32
         InitializeCriticalSection(&ls->mutexes[i]);
+#elif defined(MUPDF_USE_UNFAIR_LOCK)
+        ls->mutexes[i].lock = (os_unfair_lock)OS_UNFAIR_LOCK_INIT;
 #else
         (void)pthread_mutex_init(&ls->mutexes[i], NULL);
 #endif
@@ -92,7 +111,7 @@ static void drop_lock_set(wrapper_lock_set *ls)
     {
 #ifdef _WIN32
         DeleteCriticalSection(&ls->mutexes[i]);
-#else
+#elif !defined(MUPDF_USE_UNFAIR_LOCK)
         (void)pthread_mutex_destroy(&ls->mutexes[i]);
 #endif
     }
