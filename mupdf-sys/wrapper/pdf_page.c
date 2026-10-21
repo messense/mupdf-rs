@@ -88,6 +88,43 @@ fz_rect mupdf_pdf_page_media_box(fz_context *ctx, pdf_page *page)
     return r;
 }
 
+fz_rect mupdf_pdf_page_art_box(fz_context *ctx, pdf_page *page)
+{
+    fz_rect r = fz_empty_rect;
+    pdf_obj *obj = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(ArtBox));
+    if (!obj)
+    {
+        return r;
+    }
+    r = pdf_to_rect(ctx, obj);
+    return r;
+}
+
+fz_rect mupdf_pdf_page_trim_box(fz_context *ctx, pdf_page *page)
+{
+    fz_rect r = fz_empty_rect;
+    pdf_obj *obj = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(TrimBox));
+    if (!obj)
+    {
+        return r;
+    }
+    r = pdf_to_rect(ctx, obj);
+    return r;
+}
+
+fz_rect mupdf_pdf_page_bleed_box(fz_context *ctx, pdf_page *page)
+{
+    fz_rect r = fz_empty_rect;
+    pdf_obj *obj = pdf_dict_get_inheritable(ctx, page->obj, PDF_NAME(BleedBox));
+    if (!obj)
+    {
+        return r;
+    }
+    r = pdf_to_rect(ctx, obj);
+    return r;
+}
+
+
 fz_matrix mupdf_pdf_page_transform(fz_context *ctx, pdf_page *page, mupdf_error_t **errptr)
 {
     fz_matrix ctm = fz_identity;

@@ -319,6 +319,10 @@ impl Page {
         }
         .and_then(|quads| unsafe { rust_vec_from_ffi_ptr(quads, hit_count) })
     }
+
+    pub fn uses_overprint(&mut self) -> Result<bool, Error> {
+        unsafe { ffi_try!(mupdf_page_uses_overprint(context(), self.as_mut_ptr())) }
+    }
 }
 
 impl Clone for Page {
