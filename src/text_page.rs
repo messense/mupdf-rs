@@ -1,6 +1,6 @@
 use std::{
     convert::TryInto,
-    ffi::{c_int, c_void, CString},
+    ffi::{c_char, c_int, c_void, CStr, CString},
     io::Read,
     marker::PhantomData,
     ptr::{self, NonNull},
@@ -473,6 +473,36 @@ impl TextPage {
         .map(|count| count as u32)
     }
 
+    /// The text MuPDF selects between two points of the page, in reading order: the same
+    /// characters [`Self::highlight_selection`] highlights for those points. Lines end with `\n`,
+    /// or with `\r\n` when `crlf` is set.
+    pub fn copy_selection(&self, a: Point, b: Point, crlf: bool) -> Result<String, Error> {
+        let ptr = unsafe {
+            ffi_try!(mupdf_copy_selection(
+                context(),
+                self.as_ptr().cast_mut(),
+                a.into(),
+                b.into(),
+                c_int::from(crlf)
+            ))
+        }?;
+        Ok(take_c_string(ptr))
+    }
+
+    /// The text of the characters inside `area`, in reading order. Lines end with `\n`, or with
+    /// `\r\n` when `crlf` is set.
+    pub fn copy_rectangle(&self, area: Rect, crlf: bool) -> Result<String, Error> {
+        let ptr = unsafe {
+            ffi_try!(mupdf_copy_rectangle(
+                context(),
+                self.as_ptr().cast_mut(),
+                area.into(),
+                c_int::from(crlf)
+            ))
+        }?;
+        Ok(take_c_string(ptr))
+    }
+
     pub fn highlight_selection(
         &mut self,
         a: Point,
@@ -492,6 +522,18 @@ impl TextPage {
             ))
         }
     }
+}
+
+/// Copies a string MuPDF allocated into a `String` and frees it. A null pointer is the empty string.
+fn take_c_string(ptr: *mut c_char) -> String {
+    if ptr.is_null() {
+        return String::new();
+    }
+    let text = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .into_owned();
+    unsafe { fz_free(context(), ptr.cast()) };
+    text
 }
 
 #[repr(i32)]
@@ -822,6 +864,33 @@ mod test {
 
         let hits = text_page.search("Not Found").unwrap();
         assert_eq!(hits.len(), 0);
+    }
+
+    #[test]
+    fn test_text_page_copy_selection_and_rectangle() {
+        use crate::{Point, Rect};
+
+        let doc = test_document!("..", "files/dummy.pdf").unwrap();
+        let page0 = doc.load_page(0).unwrap();
+        let text_page = page0.to_text_page(TextPageFlags::empty()).unwrap();
+        // "Dummy PDF file" is one line; its "Dummy" spans x 56.8..115.9, y 69.3..87.3.
+        let all = text_page
+            .copy_selection(Point::new(0.0, 78.0), Point::new(600.0, 78.0), false)
+            .unwrap();
+        assert_eq!(all.trim_end(), "Dummy PDF file");
+        let word = text_page
+            .copy_selection(Point::new(56.0, 78.0), Point::new(116.0, 78.0), false)
+            .unwrap();
+        assert_eq!(word.trim_end(), "Dummy");
+        let boxed = text_page
+            .copy_rectangle(Rect::new(50.0, 65.0, 120.0, 90.0), false)
+            .unwrap();
+        assert_eq!(boxed.trim_end(), "Dummy");
+        // Nothing between two points of an empty area of the page.
+        let none = text_page
+            .copy_selection(Point::new(0.0, 700.0), Point::new(1.0, 700.0), false)
+            .unwrap();
+        assert!(!none.contains("Dummy"), "{none:?}");
     }
 
     #[test]

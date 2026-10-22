@@ -11,6 +11,16 @@ int32_t mupdf_highlight_selection(fz_context *ctx, fz_stext_page *page, fz_point
     TRY_CATCH(int, 0, fz_highlight_selection(ctx, page, a, b, quads, max_quads));
 }
 
+char *mupdf_copy_selection(fz_context *ctx, fz_stext_page *page, fz_point a, fz_point b, int crlf, mupdf_error_t **errptr)
+{
+    TRY_CATCH(char*, NULL, fz_copy_selection(ctx, page, a, b, crlf));
+}
+
+char *mupdf_copy_rectangle(fz_context *ctx, fz_stext_page *page, fz_rect area, int crlf, mupdf_error_t **errptr)
+{
+    TRY_CATCH(char*, NULL, fz_copy_rectangle(ctx, page, area, crlf));
+}
+
 int32_t mupdf_search_stext_page_cb(fz_context *ctx, fz_stext_page *page, const char *needle, fz_search_callback_fn *cb, void *opaque, mupdf_error_t **errptr) {
     TRY_CATCH(int32_t, 0, fz_search_stext_page_cb(ctx, page, needle, cb, opaque));
 }
