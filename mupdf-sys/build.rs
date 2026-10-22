@@ -177,6 +177,8 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
 
     fs::write(&path, source).map_err(|e| format!("Unable to write {}: {e}", path.display()))?;
 
+    patch_reflow_image_sources(build_dir)?;
+
     // fz_filter_store (used by pdf_empty_store when a document is dropped)
     // releases the values of removed items by decrementing their refcount
     // directly instead of going through fz_drop_key_storable. For key storable
@@ -206,6 +208,42 @@ fn patch_mupdf_sources(build_dir: &Path) -> Result<()> {
         }
     }
 
+    Ok(())
+}
+
+fn patch_reflow_image_sources(build_dir: &Path) -> Result<()> {
+    // MuPDF 1.27.2's reflow layout passes a zero page height into the inner
+    // HTML layout and measures image limits from content-inflated bounds. A
+    // tall image (for example 556x869 on a 612x792 page) is therefore laid
+    // out at full height and split across two pages. Use the page box height
+    // and account for the page top inset so the image shrinks to one page.
+    let html_path = build_dir.join("source/html/html-layout.c");
+    let mut html = fs::read_to_string(&html_path)
+        .map_err(|e| format!("Unable to read {}: {e}", html_path.display()))?;
+    let old_html = "			float page_h = ld->bounds[B] - ld->bounds[T];\n\n			max_w = ld->bounds[R] - ld->bounds[L];\n			max_h = page_h;";
+    let new_html = "			float page_h = ld->page[B] - ld->page[T];\n			float page_top = ld->page[T];\n			float top_inset = ld->bounds[T] - page_top;\n			if (page_h <= 0)\n				page_h = 792;\n			if (top_inset < 0 || top_inset > page_h)\n				top_inset = 0;\n\n			max_w = ld->bounds[R] - ld->bounds[L];\n			max_h = page_h - top_inset;";
+    if !html.contains(new_html) {
+        if html.contains(old_html) {
+            html = html.replacen(old_html, new_html, 1);
+            fs::write(&html_path, html)
+                .map_err(|e| format!("Unable to write {}: {e}", html_path.display()))?;
+        } else {
+            println!(
+                "cargo:warning=Unable to patch MuPDF reflow image bounds; source snippet not found"
+            );
+        }
+    }
+
+    let reflow_path = build_dir.join("source/reflow/reflow-doc.c");
+    let mut reflow = fs::read_to_string(&reflow_path)
+        .map_err(|e| format!("Unable to read {}: {e}", reflow_path.display()))?;
+    let old_reflow = "fz_layout_document(ctx, page->html_doc, doc->w, 0, doc->em);";
+    let new_reflow = "fz_layout_document(ctx, page->html_doc, doc->w, doc->h, doc->em);";
+    if reflow.contains(old_reflow) {
+        reflow = reflow.replace(old_reflow, new_reflow);
+        fs::write(&reflow_path, reflow)
+            .map_err(|e| format!("Unable to write {}: {e}", reflow_path.display()))?;
+    }
     Ok(())
 }
 
