@@ -1750,6 +1750,51 @@ impl PdfDocument {
         unsafe { ffi_try!(mupdf_pdf_abandon_operation(context(), self.inner)) }
     }
 
+    /// Starts recording an undo history for this document.
+    ///
+    /// Changes made afterwards, each inside a [`begin_operation`](Self::begin_operation) /
+    /// [`end_operation`](Self::end_operation) pair, can be undone and redone one operation at a
+    /// time. Once the journal is enabled, MuPDF refuses changes made outside an operation. Calling
+    /// this again does nothing.
+    pub fn enable_journal(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_enable_journal(context(), self.inner)) }
+    }
+
+    /// Undoes the last operation.
+    ///
+    /// Fails without a journal, at the start of the history, or while an operation is open.
+    pub fn undo(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_undo(context(), self.inner)) }
+    }
+
+    /// Redoes the last undone operation.
+    ///
+    /// Fails without a journal, at the end of the history, or while an operation is open. A new
+    /// operation after an undo discards the operations that could have been redone.
+    pub fn redo(&mut self) -> Result<(), Error> {
+        unsafe { ffi_try!(mupdf_pdf_redo(context(), self.inner)) }
+    }
+
+    /// Returns `(position, steps)`: how many operations of the history are applied, and how many
+    /// it holds. `(0, 0)` without a journal. Fails while an operation is open.
+    pub fn undo_redo_state(&self) -> Result<(u32, u32), Error> {
+        let mut steps: c_int = 0;
+        let position =
+            unsafe { ffi_try!(mupdf_pdf_undoredo_state(context(), self.inner, &mut steps)) }?;
+        Ok((position.max(0) as u32, steps.max(0) as u32))
+    }
+
+    /// Whether [`undo`](Self::undo) would succeed.
+    pub fn can_undo(&self) -> Result<bool, Error> {
+        Ok(self.undo_redo_state()?.0 > 0)
+    }
+
+    /// Whether [`redo`](Self::redo) would succeed.
+    pub fn can_redo(&self) -> Result<bool, Error> {
+        let (position, steps) = self.undo_redo_state()?;
+        Ok(position < steps)
+    }
+
     pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {
         self.delete_outlines()?;
 
