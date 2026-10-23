@@ -170,3 +170,8 @@ fz_buffer *mupdf_pixmap_get_image_data(fz_context *ctx, fz_pixmap *pixmap, int f
     }
     return buf;
 }
+
+void mupdf_save_pixmap_as_jpeg(fz_context *ctx, fz_pixmap *pixmap, const char *filename, int quality, mupdf_error_t **errptr)
+{
+    TRY_CATCH_VOID(fz_save_pixmap_as_jpeg(ctx, pixmap, filename, quality));
+}
