@@ -1795,6 +1795,30 @@ impl PdfDocument {
         Ok(position < steps)
     }
 
+    /// Downsamples and recompresses the document's images (`pdf_rewrite_images`), the lossy part
+    /// of making a PDF smaller.
+    ///
+    /// Colour and grey images shown at more than `threshold_dpi` are scaled (bicubic) to `to_dpi`,
+    /// and colour and grey images are recompressed as JPEG of `jpeg_quality` (1-100) wherever that
+    /// is smaller than what they were. Bitonal images are left as they are. The document's objects
+    /// change in place; save with garbage collection afterwards to drop the old image streams.
+    pub fn rewrite_images(
+        &mut self,
+        threshold_dpi: u32,
+        to_dpi: u32,
+        jpeg_quality: u8,
+    ) -> Result<(), Error> {
+        unsafe {
+            ffi_try!(mupdf_pdf_rewrite_images(
+                context(),
+                self.inner,
+                threshold_dpi.min(c_int::MAX as u32) as c_int,
+                to_dpi.min(c_int::MAX as u32) as c_int,
+                c_int::from(jpeg_quality.clamp(1, 100))
+            ))
+        }
+    }
+
     pub fn set_outlines(&mut self, toc: &[Outline]) -> Result<(), Error> {
         self.delete_outlines()?;
 

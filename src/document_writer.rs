@@ -60,6 +60,18 @@ impl DocumentWriter {
             ended: false,
         })
     }
+
+    /// Finishes the document and reports whether that worked.
+    ///
+    /// For many formats (DOCX, ODT, CBZ, ...) the file is assembled and written at this point, so
+    /// it is where a full disk or a missing directory shows. Dropping the writer closes it too,
+    /// but discards that error.
+    pub fn close(mut self) -> Result<(), Error> {
+        let inner = std::mem::replace(&mut self.inner, ptr::null_mut());
+        let closed = unsafe { ffi_try!(mupdf_close_document_writer(context(), inner)) };
+        unsafe { fz_drop_document_writer(context(), inner) };
+        closed
+    }
 }
 
 /// An in-progress page on a [`DocumentWriter`]. End the page with [`WriterPage::end`].
