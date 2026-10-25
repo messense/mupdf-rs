@@ -28,6 +28,62 @@ impl Msbuild {
         Ok(())
     }
 
+    /// MuPDF 1.27's `bin2coff` puts a resource's `_size` right after its
+    /// bytes, so it is misaligned whenever the size is not a multiple of 4,
+    /// which ARM64 loads reject at link time (LNK2048 on
+    /// `_binary_hyph_all_zip_size`). This pads the bytes first, as MuPDF's
+    /// own fix does (ArtifexSoftware/mupdf@17549408e3, after 1.27.2).
+    fn patch_bin2coff(&self, build_dir: &str) -> Result<()> {
+        let file_path = Path::new(build_dir).join("scripts/bin2coff.c");
+        let content = fs::read_to_string(&file_path)
+            .map_err(|e| format!("Failed to read bin2coff.c: {e}"))?;
+        if content.contains("padded_size") {
+            return Ok(());
+        }
+
+        let replacements = [
+            (
+                "size_t size, alloc_size;",
+                "size_t size, alloc_size, padded_size;",
+            ),
+            (
+                "\talloc_size = sizeof(IMAGE_FILE_HEADER) + sizeof(IMAGE_SECTION_HEADER) + size + sizeof(SIZE_TYPE)",
+                "\tpadded_size = (size + sizeof(SIZE_TYPE)-1) & ~(size_t)(sizeof(SIZE_TYPE)-1);\n\talloc_size = sizeof(IMAGE_FILE_HEADER) + sizeof(IMAGE_SECTION_HEADER) + padded_size + sizeof(SIZE_TYPE)",
+            ),
+            (
+                "sizeof(IMAGE_SECTION_HEADER) + size + sizeof(SIZE_TYPE)]",
+                "sizeof(IMAGE_SECTION_HEADER) + padded_size + sizeof(SIZE_TYPE)]",
+            ),
+            (
+                "sizeof(IMAGE_SECTION_HEADER) + size + sizeof(SIZE_TYPE) + 2*sizeof(IMAGE_SYMBOL)]",
+                "sizeof(IMAGE_SECTION_HEADER) + padded_size + sizeof(SIZE_TYPE) + 2*sizeof(IMAGE_SYMBOL)]",
+            ),
+            ("(uint32_t)size+4;", "(uint32_t)padded_size+4;"),
+            (
+                "data_size = (SIZE_TYPE*)&buffer[sizeof(IMAGE_FILE_HEADER) + sizeof(IMAGE_SECTION_HEADER) + size];",
+                "data_size = (SIZE_TYPE*)&buffer[sizeof(IMAGE_FILE_HEADER) + sizeof(IMAGE_SECTION_HEADER) + padded_size];",
+            ),
+            (
+                "symbol_table[1].Value = (int32_t)size;",
+                "symbol_table[1].Value = (int32_t)padded_size;",
+            ),
+        ];
+        let mut patched = content;
+        for (from, to) in replacements {
+            if !patched.contains(from) {
+                Err(format!(
+                    "bin2coff.c changed; cannot pad its resources ({from})"
+                ))?;
+            }
+            patched = patched.replace(from, to);
+        }
+
+        fs::write(&file_path, patched)
+            .map_err(|e| format!("Failed to write patched bin2coff.c: {e}"))?;
+
+        Ok(())
+    }
+
     fn remove_libresources_fonts(&self, build_dir: &str) -> Result<()> {
         let file_path = Path::new(build_dir).join("platform/win32/libresources.vcxproj");
         let content = fs::read_to_string(&file_path)
@@ -160,6 +216,7 @@ impl Msbuild {
 
     pub fn build(mut self, target: &Target, build_dir: &str) -> Result<()> {
         self.patch_nan(build_dir)?;
+        self.patch_bin2coff(build_dir)?;
         self.remove_libresources_fonts(build_dir)?;
 
         let platform_toolset = env::var("MUPDF_MSVC_PLATFORM_TOOLSET").unwrap_or_else(|_| {
@@ -216,11 +273,26 @@ impl Msbuild {
         let platform = match &*target.arch {
             "i386" | "i586" | "i686" => "Win32",
             "x86_64" => "x64",
+            // mupdf.sln has ARM64 configurations.
+            "aarch64" => "ARM64",
             _ => Err(format!(
-                "mupdf currently only supports Win32 and x64 with msvc\n\
+                "mupdf currently only supports Win32, x64 and ARM64 with msvc\n\
                 Try compiling using mingw for potential {:?} support",
                 target.arch,
             ))?,
+        };
+
+        // The projects use the DLL runtime (/MD); a `+crt-static` Rust build
+        // links the static one, so MuPDF has to be compiled for it too.
+        // `_CL_` options come after the project's own, so /MT wins.
+        let crt_static = target
+            .features
+            .iter()
+            .any(|feature| feature == "crt-static");
+        let runtime = match (crt_static, configuration) {
+            (true, "Debug") => Some("/MTd"),
+            (true, _) => Some("/MT"),
+            (false, _) => None,
         };
 
         let Some(mut msbuild) = windows_registry::find(&target.arch, "msbuild.exe") else {
@@ -257,6 +329,7 @@ impl Msbuild {
             .args(&args)
             .current_dir(build_dir)
             .env("CL", self.cl.join(" "))
+            .env("_CL_", runtime.unwrap_or_default())
             .status()
             .map_err(|e| format!("Failed to call msbuild: {e}"))?;
         if !status.success() {
@@ -266,15 +339,15 @@ impl Msbuild {
             })?;
         }
 
-        if platform == "x64" {
+        if platform != "Win32" {
             println!(
-                "cargo:rustc-link-search=native={build_dir}/platform/win32/x64/{configuration}"
+                "cargo:rustc-link-search=native={build_dir}/platform/win32/{platform}/{configuration}"
             );
         } else {
             println!("cargo:rustc-link-search=native={build_dir}/platform/win32/{configuration}");
         }
 
-        if configuration == "Debug" {
+        if configuration == "Debug" && !crt_static {
             println!("cargo:rustc-link-lib=dylib=ucrtd");
             println!("cargo:rustc-link-lib=dylib=vcruntimed");
             println!("cargo:rustc-link-lib=dylib=msvcrtd");
