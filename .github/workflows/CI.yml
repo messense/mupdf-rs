@@ -34,7 +34,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025]
+        os: [ubuntu-latest, macos-latest, windows-2022, windows-2025, windows-11-arm]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -67,7 +67,7 @@ jobs:
         run: cargo test -p mupdf --no-default-features --features bundled-fonts-noto,base14-fonts test_bundled_noto_special_fallback_fonts
 
       - name: Test package mupdf-sys
-        if: matrix.os != 'windows-2025'
+        if: matrix.os != 'windows-2025' && matrix.os != 'windows-11-arm'
         run: cargo package --manifest-path mupdf-sys/Cargo.toml
 
       - name: Test package bundled font crates
