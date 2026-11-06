@@ -186,7 +186,7 @@ impl PdfWriteOptions {
     }
 
     pub fn permissions(&self) -> Permission {
-        Permission::from_bits(self.inner.permissions as u32).unwrap()
+        Permission::from_bits_truncate(self.inner.permissions as u32)
     }
 
     pub fn set_permissions(&mut self, value: Permission) -> &mut Self {
@@ -844,7 +844,7 @@ impl PdfDocument {
 
     pub fn permissions(&self) -> Permission {
         let bits = unsafe { pdf_document_permissions(context(), self.inner) };
-        Permission::from_bits(bits as u32).unwrap_or_else(Permission::all)
+        Permission::from_bits_truncate(bits as u32)
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Error> {
@@ -1953,10 +1953,12 @@ impl<'a> IntoIterator for &'a PdfDocument {
 mod test {
     use crate::document::test_document;
     use crate::{Buffer, Size};
+    use std::io::Read;
 
     use super::{
-        EmbeddedFileOptions, InsertPdfOptions, InsertPosition, OptionalContentRef, PageLabelRule,
-        PageLabelStyle, PageSelection, PdfDocument, PdfObject, PdfWriteOptions, Permission,
+        EmbeddedFileOptions, Encryption, InsertPdfOptions, InsertPosition, OptionalContentRef,
+        PageLabelRule, PageLabelStyle, PageSelection, PdfDocument, PdfObject, PdfWriteOptions,
+        Permission,
     };
 
     #[test]
@@ -1997,6 +1999,32 @@ mod test {
 
         let catalog = doc.catalog().unwrap();
         assert!(!catalog.is_null().unwrap());
+    }
+
+    #[test]
+    fn test_permissions_of_an_encrypted_document() {
+        // `/P` has its reserved bits set in every real file, and so has MuPDF's default.
+        assert!(PdfWriteOptions::default().permissions().is_all());
+
+        let mut doc = PdfDocument::new();
+        let page = doc.new_page(Size::A4).unwrap();
+        drop(page);
+        let mut options = PdfWriteOptions::default();
+        options
+            .set_encryption(Encryption::Aes256)
+            .set_owner_password("owner")
+            .set_permissions(Permission::PRINT);
+        let mut bytes = Vec::new();
+        doc.write_with_options(options)
+            .unwrap()
+            .read_to_end(&mut bytes)
+            .unwrap();
+
+        let mut read = PdfDocument::from_bytes(&bytes).unwrap();
+        assert_eq!(read.permissions().bits(), Permission::PRINT.bits());
+        // The owner password allows everything.
+        assert!(read.authenticate("owner").unwrap());
+        assert!(read.permissions().is_all());
     }
 
     #[test]
