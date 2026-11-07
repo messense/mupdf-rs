@@ -93,6 +93,8 @@ jobs:
         with:
           targets: wasm32-unknown-emscripten
       - uses: mymindstorm/setup-emsdk@v14
+        with:
+          version: 6.0.13
 
       - run: CFLAGS="-sSUPPORT_LONGJMP=wasm" cargo test --target wasm32-unknown-emscripten --config "target.wasm32-unknown-emscripten.runner = 'node'" --features serde
 
