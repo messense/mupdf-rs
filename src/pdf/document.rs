@@ -2020,7 +2020,7 @@ mod test {
             .read_to_end(&mut bytes)
             .unwrap();
 
-        let mut read = PdfDocument::from_bytes(&bytes).unwrap();
+        let mut read = PdfDocument::from_copied_bytes(&bytes).unwrap();
         assert_eq!(read.permissions().bits(), Permission::PRINT.bits());
         // The owner password allows everything.
         assert!(read.authenticate("owner").unwrap());
