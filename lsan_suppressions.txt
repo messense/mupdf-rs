@@ -1,2 +1,5 @@
 # fontconfig
 leak:Fc
+# fontconfig frames are often unsymbolized (no Fc* names), e.g. its global configuration
+# parsed through expat on the first font lookup; match the library itself.
+leak:libfontconfig.so

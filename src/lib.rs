@@ -129,9 +129,9 @@ pub use size::Size;
 pub use stroke_state::{LineCap, LineJoin, StrokeState};
 pub use text::{Text, TextItem, TextSpan};
 pub use text_page::{
-    RawStructuredText, StructuredText, StructuredTextBlock, StructuredTextChar, StructuredTextLine,
-    TextBlock, TextBlockContent, TextChar, TextCharFlags, TextExtractOptions, TextLine, TextPage,
-    TextPageFlags, TextWord,
+    RawStructuredText, StructureType, StructuredText, StructuredTextBlock, StructuredTextChar,
+    StructuredTextLine, TextBlock, TextBlockContent, TextBlockType, TextChar, TextCharFlags,
+    TextExtractOptions, TextLine, TextPage, TextPageFlags, TextStruct, TextWord,
 };
 
 use core::{marker::PhantomData, ptr::NonNull};
