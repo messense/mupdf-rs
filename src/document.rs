@@ -534,11 +534,11 @@ mod test {
                 kind: DestinationKind::XYZ {
                     left: Some(56.7),
                     top: Some(68.70001),
-                    zoom: Some(100.0),
+                    zoom: None,
                 }
             })
         );
         assert_eq!(out1.title, "Dummy PDF file");
-        assert_eq!(out1.uri.as_deref(), Some("#page=1&zoom=100,56.7,68.70001"));
+        assert_eq!(out1.uri.as_deref(), Some("#page=1&zoom=nan,56.7,68.70001"));
     }
 }
