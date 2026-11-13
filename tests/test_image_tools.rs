@@ -25,14 +25,16 @@ fn page_image_size(doc: &PdfDocument) -> (u32, u32) {
     (images[0].width, images[0].height)
 }
 
-/// One Letter page filled by a 300 dpi image (2550 x 3300 pixels).
-fn scan() -> PdfDocument {
-    let image = Image::from_pixmap(&gradient(2550, 3300)).unwrap();
+/// One Letter page with a `w` x `h` pixel image shown at 300 dpi in its corner. The images stay
+/// small: the Emscripten test build has 16 MiB of memory in all.
+fn scan(w: i32, h: i32) -> PdfDocument {
+    let image = Image::from_pixmap(&gradient(w, h)).unwrap();
     let mut doc = PdfDocument::new();
     let mut page = doc.new_page(Size::new(612.0, 792.0)).unwrap();
+    let (width, height) = (w as f32 * 72.0 / 300.0, h as f32 * 72.0 / 300.0);
     page.insert_image(
         &mut doc,
-        Rect::new(0.0, 0.0, 612.0, 792.0),
+        Rect::new(0.0, 0.0, width, height),
         PageImageSource::Image(&image),
         InsertImageOptions::default(),
     )
@@ -52,41 +54,6 @@ fn saved_len(doc: &PdfDocument) -> usize {
     bytes.len()
 }
 
-#[test]
-fn test_rewrite_images_scales_to_the_target_resolution() {
-    let mut doc = scan();
-    let before = saved_len(&doc);
-    assert_eq!(page_image_size(&doc), (2550, 3300));
-    // Exactly half: the averaging subsampler would leave this image as it is.
-    doc.rewrite_images(225, 150, 75).unwrap();
-    assert_eq!(page_image_size(&doc), (1275, 1650));
-    let after = saved_len(&doc);
-    assert!(after * 2 <= before, "{before} -> {after} bytes");
-}
-
-#[test]
-fn test_rewrite_images_leaves_images_below_the_threshold() {
-    let mut doc = scan();
-    doc.rewrite_images(400, 150, 75).unwrap();
-    assert_eq!(page_image_size(&doc), (2550, 3300));
-}
-
-/// One Letter-sized page with a 1200 x 800 colour image shown at 300 dpi (288 x 192 pt).
-fn small_scan() -> PdfDocument {
-    let image = Image::from_pixmap(&gradient(1200, 800)).unwrap();
-    let mut doc = PdfDocument::new();
-    let mut page = doc.new_page(Size::new(612.0, 792.0)).unwrap();
-    page.insert_image(
-        &mut doc,
-        Rect::new(0.0, 0.0, 288.0, 192.0),
-        PageImageSource::Image(&image),
-        InsertImageOptions::default(),
-    )
-    .unwrap();
-    drop(page);
-    doc
-}
-
 /// Saves and reopens the document, so the size is the one a reader would see.
 fn reopened(doc: &PdfDocument) -> PdfDocument {
     let mut bytes = Vec::new();
@@ -96,31 +63,50 @@ fn reopened(doc: &PdfDocument) -> PdfDocument {
 }
 
 #[test]
+fn test_rewrite_images_scales_to_the_target_resolution() {
+    let mut doc = scan(600, 750);
+    let before = saved_len(&doc);
+    assert_eq!(page_image_size(&doc), (600, 750));
+    // Exactly half: the averaging subsampler would leave this image as it is.
+    doc.rewrite_images(225, 150, 75).unwrap();
+    assert_eq!(page_image_size(&doc), (300, 375));
+    let after = saved_len(&doc);
+    assert!(after * 2 <= before, "{before} -> {after} bytes");
+}
+
+#[test]
+fn test_rewrite_images_leaves_images_below_the_threshold() {
+    let mut doc = scan(600, 750);
+    doc.rewrite_images(400, 150, 75).unwrap();
+    assert_eq!(page_image_size(&doc), (600, 750));
+}
+
+#[test]
 fn test_rewrite_images_refuses_a_zero_target_resolution() {
-    let mut doc = small_scan();
+    let mut doc = scan(600, 400);
     assert!(matches!(
         doc.rewrite_images(150, 0, 75),
         Err(mupdf::Error::InvalidArgument(_))
     ));
     // Nothing changed: the image is not a single pixel.
-    assert_eq!(page_image_size(&reopened(&doc)), (1200, 800));
+    assert_eq!(page_image_size(&reopened(&doc)), (600, 400));
 }
 
 #[test]
 fn test_rewrite_images_zero_threshold_turns_scaling_off() {
-    let mut doc = small_scan();
+    let mut doc = scan(600, 400);
     doc.rewrite_images(0, 0, 75).unwrap();
-    assert_eq!(page_image_size(&reopened(&doc)), (1200, 800));
-    let mut doc = small_scan();
+    assert_eq!(page_image_size(&reopened(&doc)), (600, 400));
+    let mut doc = scan(600, 400);
     doc.rewrite_images(0, 150, 75).unwrap();
-    assert_eq!(page_image_size(&reopened(&doc)), (1200, 800));
+    assert_eq!(page_image_size(&reopened(&doc)), (600, 400));
 }
 
 #[test]
 fn test_rewrite_images_scales_and_survives_a_save() {
-    let mut doc = small_scan();
+    let mut doc = scan(600, 400);
     doc.rewrite_images(150, 150, 75).unwrap();
-    assert_eq!(page_image_size(&reopened(&doc)), (600, 400));
+    assert_eq!(page_image_size(&reopened(&doc)), (300, 200));
 }
 
 #[test]
