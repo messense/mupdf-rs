@@ -1802,12 +1802,22 @@ impl PdfDocument {
     /// and colour and grey images are recompressed as JPEG of `jpeg_quality` (1-100) wherever that
     /// is smaller than what they were. Bitonal images are left as they are. The document's objects
     /// change in place; save with garbage collection afterwards to drop the old image streams.
+    ///
+    /// A `threshold_dpi` of 0 turns the scaling off (`to_dpi` is then not used) and only
+    /// recompresses. With scaling on, a `to_dpi` of 0 is an [`Error::InvalidArgument`]: MuPDF would
+    /// shrink every image above the threshold to a single pixel. A `to_dpi` above an image's
+    /// resolution leaves that image's size as it is.
     pub fn rewrite_images(
         &mut self,
         threshold_dpi: u32,
         to_dpi: u32,
         jpeg_quality: u8,
     ) -> Result<(), Error> {
+        if threshold_dpi != 0 && to_dpi == 0 {
+            return Err(Error::InvalidArgument(
+                "to_dpi must be greater than 0 when threshold_dpi enables subsampling".into(),
+            ));
+        }
         unsafe {
             ffi_try!(mupdf_pdf_rewrite_images(
                 context(),
