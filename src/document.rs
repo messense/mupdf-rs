@@ -175,10 +175,7 @@ impl Document {
 
     pub fn is_pdf(&self) -> bool {
         let pdf = unsafe { pdf_specifics(context(), self.inner) };
-        if !pdf.is_null() {
-            return true;
-        }
-        false
+        !pdf.is_null()
     }
 
     pub fn convert_to_pdf(

@@ -1,3 +1,4 @@
+#include <string.h>
 #include "internal.h"
 
 /* PdfDocument */
@@ -355,4 +356,45 @@ void mupdf_pdf_redo(fz_context *ctx, pdf_document *doc, mupdf_error_t **errptr)
 int mupdf_pdf_undoredo_state(fz_context *ctx, pdf_document *doc, int *steps, mupdf_error_t **errptr)
 {
     TRY_CATCH(int, 0, pdf_undoredo_state(ctx, doc, steps));
+}
+
+/* Colour and grey images shown above threshold_dpi are scaled (bicubic) to to_dpi, and colour and
+ * grey images are recompressed as JPEG of the given quality where that is smaller. Bitonal images
+ * are left as they are. pdf_image_rewriter_options is filled here so its layout stays in C.
+ * Bicubic rather than averaging: the averaging method only subsamples by powers of two, and not at
+ * all when the target is exactly half the source resolution (resample in pdf-image-rewriter.c). */
+void mupdf_pdf_rewrite_images(fz_context *ctx, pdf_document *doc, int threshold_dpi, int to_dpi, int quality, mupdf_error_t **errptr)
+{
+    pdf_image_rewriter_options opts;
+    char q[8];
+
+    memset(&opts, 0, sizeof(opts));
+    fz_snprintf(q, sizeof(q), "%d", quality);
+
+    opts.color_lossless_image_subsample_method = FZ_SUBSAMPLE_BICUBIC;
+    opts.color_lossy_image_subsample_method = FZ_SUBSAMPLE_BICUBIC;
+    opts.color_lossless_image_subsample_threshold = threshold_dpi;
+    opts.color_lossless_image_subsample_to = to_dpi;
+    opts.color_lossy_image_subsample_threshold = threshold_dpi;
+    opts.color_lossy_image_subsample_to = to_dpi;
+    opts.color_lossless_image_recompress_method = FZ_RECOMPRESS_JPEG;
+    opts.color_lossy_image_recompress_method = FZ_RECOMPRESS_JPEG;
+    opts.color_lossless_image_recompress_quality = q;
+    opts.color_lossy_image_recompress_quality = q;
+
+    opts.gray_lossless_image_subsample_method = FZ_SUBSAMPLE_BICUBIC;
+    opts.gray_lossy_image_subsample_method = FZ_SUBSAMPLE_BICUBIC;
+    opts.gray_lossless_image_subsample_threshold = threshold_dpi;
+    opts.gray_lossless_image_subsample_to = to_dpi;
+    opts.gray_lossy_image_subsample_threshold = threshold_dpi;
+    opts.gray_lossy_image_subsample_to = to_dpi;
+    opts.gray_lossless_image_recompress_method = FZ_RECOMPRESS_JPEG;
+    opts.gray_lossy_image_recompress_method = FZ_RECOMPRESS_JPEG;
+    opts.gray_lossless_image_recompress_quality = q;
+    opts.gray_lossy_image_recompress_quality = q;
+
+    opts.bitonal_image_recompress_method = FZ_RECOMPRESS_NEVER;
+    opts.recompress_when = FZ_RECOMPRESS_WHEN_SMALLER;
+
+    TRY_CATCH_VOID(pdf_rewrite_images(ctx, doc, &opts));
 }

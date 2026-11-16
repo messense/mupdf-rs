@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use std::ffi::CString;
+use std::ffi::{c_int, CString};
 use std::io::{self, Write};
 use std::slice;
 
@@ -430,6 +430,20 @@ impl Pixmap {
                 self.inner,
                 c_filename.as_ptr(),
                 format as i32
+            ))
+        }
+    }
+
+    /// Writes the pixmap as a baseline JPEG of `quality` (1-100). The pixmap must be grey, RGB or
+    /// CMYK, without alpha.
+    pub fn save_as_jpeg(&self, filename: &str, quality: u8) -> Result<(), Error> {
+        let c_filename = CString::new(filename)?;
+        unsafe {
+            ffi_try!(mupdf_save_pixmap_as_jpeg(
+                context(),
+                self.inner,
+                c_filename.as_ptr(),
+                c_int::from(quality.clamp(1, 100))
             ))
         }
     }
