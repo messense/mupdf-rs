@@ -127,6 +127,49 @@ pub trait NativeDevice: 'static {
     ) {
     }
 
+    /// Like [`NativeDevice::fill_shade`], with the device's current scissor rectangle (MuPDF's
+    /// `fz_device_current_scissor`: the intersection of the clips pushed so far, infinite
+    /// when there is none). MuPDF calls this method; the default forwards to
+    /// [`NativeDevice::fill_shade`], so existing implementations are unaffected.
+    fn fill_shade_in_scissor(
+        &mut self,
+        shade: &Shade,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.fill_shade(shade, cmt, alpha, cp);
+    }
+
+    /// Like [`NativeDevice::fill_image`], with the device's current scissor rectangle. See
+    /// [`NativeDevice::fill_shade_in_scissor`].
+    fn fill_image_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.fill_image(img, cmt, alpha, cp);
+    }
+
+    /// Like [`NativeDevice::fill_image_mask`], with the device's current scissor rectangle. See
+    /// [`NativeDevice::fill_shade_in_scissor`].
+    fn fill_image_mask_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.fill_image_mask(img, cmt, color_space, color, alpha, cp);
+    }
+
     fn clip_image_mask(&mut self, img: &Image, cmt: Matrix, scissor: Rect) {}
 
     fn pop_clip(&mut self) {}
@@ -296,6 +339,41 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Box<T> {
         cp: ColorParams,
     ) {
         (**self).fill_image_mask(img, cmt, color_space, color, alpha, cp);
+    }
+
+    fn fill_shade_in_scissor(
+        &mut self,
+        shade: &Shade,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        (**self).fill_shade_in_scissor(shade, cmt, alpha, cp, scissor);
+    }
+
+    fn fill_image_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        (**self).fill_image_in_scissor(img, cmt, alpha, cp, scissor);
+    }
+
+    fn fill_image_mask_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        (**self).fill_image_mask_in_scissor(img, cmt, color_space, color, alpha, cp, scissor);
     }
 
     fn clip_image_mask(&mut self, img: &Image, cmt: Matrix, scissor: Rect) {
@@ -500,6 +578,51 @@ impl<T: NativeDevice + ?Sized> NativeDevice for Rc<RefCell<T>> {
     ) {
         self.borrow_mut()
             .fill_image_mask(img, cmt, color_space, color, alpha, cp);
+    }
+
+    fn fill_shade_in_scissor(
+        &mut self,
+        shade: &Shade,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.borrow_mut()
+            .fill_shade_in_scissor(shade, cmt, alpha, cp, scissor);
+    }
+
+    fn fill_image_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.borrow_mut()
+            .fill_image_in_scissor(img, cmt, alpha, cp, scissor);
+    }
+
+    fn fill_image_mask_in_scissor(
+        &mut self,
+        img: &Image,
+        cmt: Matrix,
+        color_space: &Colorspace,
+        color: &[f32],
+        alpha: f32,
+        cp: ColorParams,
+        scissor: Rect,
+    ) {
+        self.borrow_mut().fill_image_mask_in_scissor(
+            img,
+            cmt,
+            color_space,
+            color,
+            alpha,
+            cp,
+            scissor,
+        );
     }
 
     fn clip_image_mask(&mut self, img: &Image, cmt: Matrix, scissor: Rect) {
@@ -933,7 +1056,7 @@ unsafe extern "C" fn ignore_text<D: NativeDevice>(
 }
 
 unsafe extern "C" fn fill_shade<D: NativeDevice>(
-    _ctx: *mut fz_context,
+    ctx: *mut fz_context,
     dev: *mut fz_device,
     shd: *mut fz_shade,
     ctm: fz_matrix,
@@ -941,16 +1064,23 @@ unsafe extern "C" fn fill_shade<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     unsafe {
+        let scissor = fz_device_current_scissor(ctx, dev);
         with_rust_device::<D, _>(dev, |dev| {
             let shade = ManuallyDrop::new(Shade { inner: shd });
 
-            dev.fill_shade(&shade, ctm.into(), alpha, color_params.into());
+            dev.fill_shade_in_scissor(
+                &shade,
+                ctm.into(),
+                alpha,
+                color_params.into(),
+                scissor.into(),
+            );
         });
     }
 }
 
 unsafe extern "C" fn fill_image<D: NativeDevice>(
-    _ctx: *mut fz_context,
+    ctx: *mut fz_context,
     dev: *mut fz_device,
     img: *mut fz_image,
     ctm: fz_matrix,
@@ -958,16 +1088,17 @@ unsafe extern "C" fn fill_image<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     unsafe {
+        let scissor = fz_device_current_scissor(ctx, dev);
         with_rust_device::<D, _>(dev, |dev| {
             let img = ManuallyDrop::new(Image::from_raw(img));
 
-            dev.fill_image(&img, ctm.into(), alpha, color_params.into());
+            dev.fill_image_in_scissor(&img, ctm.into(), alpha, color_params.into(), scissor.into());
         });
     }
 }
 
 unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
-    _ctx: *mut fz_context,
+    ctx: *mut fz_context,
     dev: *mut fz_device,
     img: *mut fz_image,
     ctm: fz_matrix,
@@ -977,19 +1108,21 @@ unsafe extern "C" fn fill_image_mask<D: NativeDevice>(
     color_params: fz_color_params,
 ) {
     unsafe {
+        let scissor = fz_device_current_scissor(ctx, dev);
         with_rust_device::<D, _>(dev, |dev| {
             let cs = ManuallyDrop::new(Colorspace::from_raw(color_space));
             let cs_n = cs.n() as usize;
 
             let img = ManuallyDrop::new(Image::from_raw(img));
 
-            dev.fill_image_mask(
+            dev.fill_image_mask_in_scissor(
                 &img,
                 ctm.into(),
                 &cs,
                 slice::from_raw_parts(color, cs_n),
                 alpha,
                 color_params.into(),
+                scissor.into(),
             );
         });
     }
@@ -1254,7 +1387,7 @@ mod test {
 
     use crate::{
         device::{Metatext, Structure},
-        Device, NativeDevice,
+        ColorParams, Colorspace, Device, Document, Image, Matrix, NativeDevice, Rect, Shade,
     };
 
     #[test]
@@ -1334,5 +1467,148 @@ mod test {
         assert_eq!(Rc::strong_count(&proof), 2, "dropped too early");
         drop(dev);
         assert_eq!(Rc::strong_count(&proof), 1, "not dropped");
+    }
+
+    /// What the recording device saw for each fill callback.
+    #[derive(Default)]
+    struct Recorder {
+        shades: Vec<(Rect, Rect, Matrix)>,
+        images: Vec<(Rect, Matrix)>,
+        image_masks: Vec<(Rect, Matrix)>,
+        plain_shade_calls: usize,
+    }
+
+    impl NativeDevice for Recorder {
+        fn fill_shade(&mut self, _shade: &Shade, _cmt: Matrix, _alpha: f32, _cp: ColorParams) {
+            self.plain_shade_calls += 1;
+        }
+
+        fn fill_shade_in_scissor(
+            &mut self,
+            shade: &Shade,
+            cmt: Matrix,
+            alpha: f32,
+            cp: ColorParams,
+            scissor: Rect,
+        ) {
+            // The default forwards to the unscissored callback; keep that contract visible.
+            self.fill_shade(shade, cmt.clone(), alpha, cp);
+            let bounds = shade.bounds(&cmt).unwrap();
+            self.shades.push((bounds, scissor, cmt));
+        }
+
+        fn fill_image_in_scissor(
+            &mut self,
+            _img: &Image,
+            cmt: Matrix,
+            _alpha: f32,
+            _cp: ColorParams,
+            scissor: Rect,
+        ) {
+            self.images.push((scissor, cmt));
+        }
+
+        fn fill_image_mask_in_scissor(
+            &mut self,
+            _img: &Image,
+            cmt: Matrix,
+            _color_space: &Colorspace,
+            _color: &[f32],
+            _alpha: f32,
+            _cp: ColorParams,
+            scissor: Rect,
+        ) {
+            self.image_masks.push((scissor, cmt));
+        }
+    }
+
+    fn pdf_with_content(content: &str) -> Vec<u8> {
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 200 200] /Contents 4 0 R \
+             /Resources << /Shading << /Sh0 5 0 R >> >> >>"
+                .to_owned(),
+            format!(
+                "<< /Length {} >>\nstream\n{content}\nendstream",
+                content.len()
+            ),
+            "<< /ShadingType 2 /ColorSpace /DeviceGray /Coords [0 0 100 0] \
+             /BBox [10 20 110 120] /Function << /FunctionType 2 /Domain [0 1] \
+             /C0 [0] /C1 [1] /N 1 >> >>"
+                .to_owned(),
+        ];
+        let mut pdf = b"%PDF-1.4\n".to_vec();
+        for (i, body) in objects.iter().enumerate() {
+            pdf.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+        }
+        pdf.extend_from_slice(b"trailer\n<< /Root 1 0 R /Size 6 >>\n%%EOF\n");
+        pdf
+    }
+
+    fn record(content: &str) -> Rc<RefCell<Recorder>> {
+        let doc =
+            Document::from_copied_bytes(&pdf_with_content(content), "application/pdf").unwrap();
+        let page = doc.load_page(0).unwrap();
+        let rec = Rc::new(RefCell::new(Recorder::default()));
+        let dev = Device::from_native(rec.clone()).unwrap();
+        page.run(&dev, &Matrix::IDENTITY).unwrap();
+        drop(dev);
+        rec
+    }
+
+    #[test]
+    fn shade_bounds_and_scissor_reach_fill_shade() {
+        let rec = record("q 0 0 50 50 re W n /Sh0 sh Q /Sh0 sh");
+        let rec = rec.borrow();
+        assert_eq!(rec.shades.len(), 2);
+        // The same fz_bound_shade rectangle with and without a clip: the transformed /BBox (the
+        // page run flips y: device y is 200 minus PDF y).
+        for (bounds, _, _) in &rec.shades {
+            assert_eq!(*bounds, Rect::new(10.0, 80.0, 110.0, 180.0));
+        }
+        // Inside the clip the scissor is the clip; outside it is not restricted to it.
+        assert_eq!(rec.shades[0].1, Rect::new(0.0, 150.0, 50.0, 200.0));
+        let outside = rec.shades[1].1;
+        assert!(
+            outside.x0 <= 0.0 && outside.y0 <= 0.0 && outside.x1 >= 200.0 && outside.y1 >= 200.0
+        );
+        // The default `fill_shade_in_scissor` contract: the unscissored callback still runs
+        // when an implementation forwards to it.
+        assert_eq!(rec.plain_shade_calls, 2);
+    }
+
+    #[test]
+    fn shade_bounds_follow_the_matrix() {
+        let rec = record("q 2 0 0 2 5 5 cm /Sh0 sh Q");
+        let rec = rec.borrow();
+        assert_eq!(rec.shades.len(), 1);
+        assert_eq!(rec.shades[0].0, Rect::new(25.0, -45.0, 225.0, 155.0));
+    }
+
+    #[test]
+    fn scissor_reaches_fill_image() {
+        let rec = record(
+            "q 0 0 30 30 re W n q 40 0 0 40 10 10 cm \
+             BI /W 1 /H 1 /CS /G /BPC 8 ID A EI Q Q",
+        );
+        let rec = rec.borrow();
+        assert_eq!(rec.images.len(), 1);
+        assert_eq!(rec.images[0].0, Rect::new(0.0, 170.0, 30.0, 200.0));
+        assert_eq!(
+            rec.images[0].1,
+            Matrix::new(40.0, 0.0, 0.0, 40.0, 10.0, 150.0)
+        );
+    }
+
+    #[test]
+    fn scissor_reaches_fill_image_mask() {
+        let rec = record(
+            "q 0 0 30 30 re W n q 40 0 0 40 10 10 cm \
+             BI /W 1 /H 1 /IM true /BPC 1 ID A EI Q Q",
+        );
+        let rec = rec.borrow();
+        assert_eq!(rec.image_masks.len(), 1);
+        assert_eq!(rec.image_masks[0].0, Rect::new(0.0, 170.0, 30.0, 200.0));
     }
 }
