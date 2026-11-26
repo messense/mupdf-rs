@@ -97,7 +97,7 @@ impl Pixmap {
 
     /// Create an empty pixmap of size and origin.
     ///
-    /// Note that the image area is not initialized and will contain crap data
+    /// Every sample is initialized to zero.
     pub fn new(
         cs: &Colorspace,
         x: i32,
@@ -112,7 +112,7 @@ impl Pixmap {
 
     /// Create an empty pixmap of size and origin given by the rectangle.
     ///
-    /// Note that the image area is not initialized and will contain crap data
+    /// Every sample is initialized to zero.
     pub fn new_with_rect(cs: &Colorspace, rect: IRect, alpha: bool) -> Result<Self, Error> {
         let x = rect.x0;
         let y = rect.y0;
@@ -123,7 +123,7 @@ impl Pixmap {
 
     /// Create an empty pixmap of size with origin set to `(0, 0)`.
     ///
-    /// Note that the image area is not initialized and will contain crap data
+    /// Every sample is initialized to zero.
     pub fn new_with_w_h(cs: &Colorspace, w: i32, h: i32, alpha: bool) -> Result<Self, Error> {
         Self::new(cs, 0, 0, w, h, alpha)
     }
@@ -659,6 +659,16 @@ mod test {
         let samples = pixmap.samples();
         assert!(samples.iter().all(|x| *x == 0));
         assert_eq!(samples.len(), 100 * 100 * pixmap_cs.n() as usize);
+    }
+
+    #[test]
+    fn test_pixmap_new_is_zeroed() {
+        let cs = Colorspace::device_rgb();
+        for alpha in [false, true] {
+            let pixmap = Pixmap::new_with_rect(&cs, IRect::new(-3, 5, 61, 40), alpha).unwrap();
+            assert_eq!(pixmap.samples().len(), 64 * 35 * pixmap.n() as usize);
+            assert!(pixmap.samples().iter().all(|x| *x == 0));
+        }
     }
 
     #[test]
