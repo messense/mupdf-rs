@@ -8,6 +8,10 @@ fz_pixmap *mupdf_new_pixmap(fz_context *ctx, fz_colorspace *cs, int x, int y, in
     fz_try(ctx)
     {
         pixmap = fz_new_pixmap(ctx, cs, w, h, NULL, alpha);
+        /* fz_new_pixmap doesn't initialize samples, but it's exposed through Rust functions
+         * samples() and samples_mut(). Rust requires all accessed u8s to have been
+         * initialized. */
+        memset(pixmap->samples, 0, (size_t)pixmap->stride * pixmap->h);
         pixmap->x = x;
         pixmap->y = y;
     }
